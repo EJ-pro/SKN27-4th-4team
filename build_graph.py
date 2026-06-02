@@ -52,6 +52,7 @@ CAL_BASE = {
 }
 
 # ── 정적 노드 정의 ───────────────────────────────────────────────────────────
+# 상체 ,하체 ,코어
 BODY_PARTS = [
     {"id": "bp_chest",     "name_ko": "가슴",    "name_en": "Chest",       "category": "UPPER",
      "primary_muscles": ["대흉근", "대흉근(상부)", "대흉근(하부)", "소흉근"]},
@@ -101,13 +102,13 @@ SPLIT_DAYS = [
     {"id": "sd_arm",      "name": "팔",   "split_day": "ARM",      "order": 5, "weekday": "금"},
 ]
 
-# 팔 날 슈퍼셋 쌍 (이두 ID → 삼두 ID)
-ARM_SUPERSET_PAIRS = [
-    (7001, 6002),
-    (7005, 6003),
-    (7006, 6004),
-    (7008, 6002),
-]
+# # 팔 날 슈퍼셋 쌍 (이두 ID → 삼두 ID)
+# ARM_SUPERSET_PAIRS = [
+#     (7001, 6002),
+#     (7005, 6003),
+#     (7006, 6004),
+#     (7008, 6002),
+# ]
 
 # ── 유틸 ────────────────────────────────────────────────────────────────────
 def get_bp_id(target: str) -> str | None:
@@ -124,10 +125,10 @@ def get_eq_id(raw: str) -> str:
             return eq["id"]
     return "eq_normal"
 
-def get_intensity(cal: float) -> str:
-    if cal <= 3.5:  return "LOW"
-    if cal <= 5.1:  return "MEDIUM"
-    if cal <= 6.3:  return "HIGH"
+def get_intensity(difficulty: int) -> str:
+    if difficulty <= 1: return "LOW"
+    if difficulty <= 2: return "MEDIUM"
+    if difficulty <= 3: return "HIGH"
     return "VERY_HIGH"
 
 def parse_related(s: str) -> list[int]:
@@ -296,7 +297,7 @@ class GraphBuilder:
     def create_intensity_edges(self, data: list[dict]):
         print("  [9] HAS_INTENSITY 엣지 생성...")
         rows = [
-            {"id": d["id"], "level": get_intensity(d.get("estimated_cal_per_min") or 5.0)}
+            {"id": d["id"], "level": get_intensity(d.get("difficulty") or 1)}
             for d in data if d["category"] in SPLIT_MAP
         ]
         self.run_many("""
@@ -395,17 +396,17 @@ class GraphBuilder:
                     count += 1
         print(f"       → {count}개 생성")
 
-    # ── 11. ARM_SUPERSET 엣지 ─────────────────────────────────────────────
-    def create_arm_superset_edges(self):
-        print("  [14] ARM_SUPERSET 엣지 생성...")
-        for bi_id, tri_id in ARM_SUPERSET_PAIRS:
-            self.run("""
-                MATCH (bi:Exercise  {id: $bi_id})
-                MATCH (tri:Exercise {id: $tri_id})
-                MERGE (bi)-[:ARM_SUPERSET]->(tri)
-                MERGE (tri)-[:ARM_SUPERSET]->(bi)
-            """, {"bi_id": bi_id, "tri_id": tri_id})
-        print(f"       → {len(ARM_SUPERSET_PAIRS)}쌍 생성")
+    # # ── 11. ARM_SUPERSET 엣지 ─────────────────────────────────────────────
+    # def create_arm_superset_edges(self):
+    #     print("  [14] ARM_SUPERSET 엣지 생성...")
+    #     for bi_id, tri_id in ARM_SUPERSET_PAIRS:
+    #         self.run("""
+    #             MATCH (bi:Exercise  {id: $bi_id})
+    #             MATCH (tri:Exercise {id: $tri_id})
+    #             MERGE (bi)-[:ARM_SUPERSET]->(tri)
+    #             MERGE (tri)-[:ARM_SUPERSET]->(bi)
+    #         """, {"bi_id": bi_id, "tri_id": tri_id})
+    #     print(f"       → {len(ARM_SUPERSET_PAIRS)}쌍 생성")
 
 
 # ── 메인 ────────────────────────────────────────────────────────────────────
@@ -431,18 +432,18 @@ def main():
     builder = GraphBuilder(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
     try:
         print("\n[노드 & 엣지 생성]")
-        builder.clear_all()
-        builder.create_indexes()
-        builder.create_static_nodes()
-        builder.create_exercises(five_split)
-        builder.create_targets_edges(five_split)
-        builder.create_equipment_edges(five_split)
-        builder.create_intensity_edges(five_split)
-        builder.create_split_edges(five_split)
-        builder.create_similar_edges(enriched)
-        builder.create_substitute_edges(edges, five_ids)
-        builder.create_progression_edges(five_split)
-        builder.create_arm_superset_edges()
+        builder.clear_all()                                 # 기존 데이터 삭제
+        builder.create_indexes()                            # 빠른 조회를 위한 인덱스 생성
+        builder.create_static_nodes()                       # BodyPart, Equipment, IntensityLevel, SplitDay 고정 노드 생성
+        builder.create_exercises(five_split)                # 운동 노드 생성 667개
+        builder.create_targets_edges(five_split)            # Exercise -> BodyPart 연결
+        builder.create_equipment_edges(five_split)          # Exercise -> Equipment 연결
+        builder.create_intensity_edges(five_split)          # Exercise -> IntensityLevel 연결
+        builder.create_split_edges(five_split)              # Exercise -> SplitDay 연결
+        builder.create_similar_edges(enriched)              # related_exercises 파싱 -> SIMILAR_TO
+        builder.create_substitute_edges(edges, five_ids)    # exercise_edges.json 파싱 -> SUBSTITUTE_FOR
+        builder.create_progression_edges(five_split)        # difficulty 기반 PROGRESSION_OF 엣지 생성
+        # builder.create_arm_superset_edges()                 # 팔 운동 슈퍼셋 엣지 생성(삭제)
 
         print("\n" + "=" * 55)
         print("  ✅ 완료")

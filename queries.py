@@ -32,6 +32,8 @@ class GraphQuery:
     def _run(self, cypher: str, params: dict = None) -> list[dict]:
         with self.driver.session() as s:
             return [r.data() for r in s.run(cypher, params or {})]
+        # 결과를 딕셔너리 리스트로  변환해서 변환
+        # ->[{'id:1001 , 'name_kor': 데드리프트,..... },.....]
 
     # ── Q1. 분할별 운동 조회 ──────────────────────────────────────────────
     def get_exercises_by_split(
