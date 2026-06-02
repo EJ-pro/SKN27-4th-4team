@@ -157,14 +157,23 @@ class GraphBuilder:
     def create_indexes(self):
         print("  [1] 인덱스 생성...")
         for cypher in [
+            # Exercise 노드 - id로 단건 조회 (MATCH 기본 키)
             "CREATE INDEX ex_id      IF NOT EXISTS FOR (e:Exercise)      ON (e.id)",
+            # Exercise 노드 - 분할 루틴별 필터링 (CHEST, BACK 등)
             "CREATE INDEX ex_split   IF NOT EXISTS FOR (e:Exercise)      ON (e.split_day)",
+            # Exercise 노드 - 척추 부하 수준별 필터링 (추천 시 부상 방지 조건)
             "CREATE INDEX ex_spine   IF NOT EXISTS FOR (e:Exercise)      ON (e.spine_loading)",
+            # Exercise 노드 - 기구 종류별 필터링 (barbell, dumbbell 등)
             "CREATE INDEX ex_equip   IF NOT EXISTS FOR (e:Exercise)      ON (e.equipment)",
+            # Exercise 노드 - 운동 장소별 필터링 (헬스장/홈)
             "CREATE INDEX ex_place   IF NOT EXISTS FOR (e:Exercise)      ON (e.place_type)",
+            # BodyPart 노드 - id로 단건 조회 (bp_chest, bp_back 등)
             "CREATE INDEX bp_id      IF NOT EXISTS FOR (b:BodyPart)      ON (b.id)",
+            # Equipment 노드 - id로 단건 조회 (eq_barbell, eq_dumbbell 등)
             "CREATE INDEX eq_id      IF NOT EXISTS FOR (q:Equipment)     ON (q.id)",
+            # IntensityLevel 노드 - 운동 강도 레벨별 조회 (beginner, intermediate 등)
             "CREATE INDEX il_level   IF NOT EXISTS FOR (i:IntensityLevel)ON (i.level)",
+            # SplitDay 노드 - 요일 분할 루틴별 조회 (CHEST, BACK 등)
             "CREATE INDEX sd_split   IF NOT EXISTS FOR (s:SplitDay)      ON (s.split_day)",
         ]:
             self.run(cypher)
@@ -252,6 +261,7 @@ class GraphBuilder:
         """, rows)
 
     # ── 4. TARGETS 엣지 ───────────────────────────────────────────────────
+    # 운동에 주 부위, 부수 부위 엣지 생성
     def create_targets_edges(self, data: list[dict]):
         print("  [7] TARGETS_PRIMARY / TARGETS_SECONDARY 엣지 생성...")
         for d in data:
@@ -302,6 +312,7 @@ class GraphBuilder:
         """, rows)
 
     # ── 7. PART_OF_SPLIT 엣지 ─────────────────────────────────────────────
+    # 5일 분할한 운동 요일에 엣지 연결
     def create_split_edges(self, data: list[dict]):
         print("  [10] PART_OF_SPLIT 엣지 생성...")
         rows = [
@@ -325,6 +336,7 @@ class GraphBuilder:
         """, rows)
 
     # ── 8. SIMILAR_TO 엣지 (related_exercises 파싱) ───────────────────────
+    # 유사 운동(동작이 비슷한 운동) planfit_exercises_enriched.json의 related_exercises 필드	
     def create_similar_edges(self, data: list[dict]):
         print("  [11] SIMILAR_TO 엣지 생성 (related_exercises)...")
         all_ids = {d["id"] for d in data}
@@ -345,6 +357,7 @@ class GraphBuilder:
         print(f"       → {count}개 생성")
 
     # ── 9. SUBSTITUTE_FOR 엣지 (exercise_edges.json 직접 사용) ───────────
+    # 대체 운동 exercise_edges.json 별도 파일, 장소 호환 여부임
     def create_substitute_edges(self, edges: list[dict], valid_ids: set[int]):
         print(f"  [12] SUBSTITUTE_FOR 엣지 생성... ({len(edges)}개 원본)")
         five_edges = [
@@ -447,7 +460,7 @@ def main():
     finally:
         builder.close()
 
-
+# 검증
 def _print_summary(builder: GraphBuilder):
     queries = {
         "Exercise 노드":       "MATCH (n:Exercise)      RETURN count(n) AS c",
