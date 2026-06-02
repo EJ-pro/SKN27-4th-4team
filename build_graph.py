@@ -24,8 +24,8 @@ from neo4j import GraphDatabase
 load_dotenv()
 
 # ── 설정 ────────────────────────────────────────────────────────────────────
-ENRICHED_PATH = "./data/planfit_exercises_enriched.json"
-EDGES_PATH    = "./data/exercise_edges.json"
+ENRICHED_PATH = "./backend/data/planfit_exercises_enriched.json"
+EDGES_PATH    = "./backend/data/exercise_edges.json"
 
 NEO4J_URI      = os.getenv("NEO4J_URI")
 NEO4J_USER     = os.getenv("NEO4J_USER")
