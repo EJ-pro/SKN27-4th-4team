@@ -42,7 +42,7 @@ SPLIT_MAP = {
     "전완근": "ARM",
 }
 
-# 분할별 기본 cal/분 (enriched estimated_cal_per_min 없을 때 폴백)
+# 분할별 기본 cal/분 (estimated_cal_per_min 없을 때 폴백)
 CAL_BASE = {
     "CHEST":    5.2,
     "BACK":     5.2,
@@ -88,10 +88,9 @@ EQUIPMENT = [
 ]
 
 INTENSITY_LEVELS = [
-    {"level": "LOW",       "cal_min": 1.8, "cal_max": 3.5},
-    {"level": "MEDIUM",    "cal_min": 3.5, "cal_max": 5.1},
-    {"level": "HIGH",      "cal_min": 5.2, "cal_max": 6.3},
-    {"level": "VERY_HIGH", "cal_min": 6.4, "cal_max": 15.0},
+    {"level": "beginner"},
+    {"level": "intermediate"},
+    {"level": "advanced"},
 ]
 
 SPLIT_DAYS = [
@@ -125,11 +124,8 @@ def get_eq_id(raw: str) -> str:
             return eq["id"]
     return "eq_normal"
 
-def get_intensity(difficulty: int) -> str:
-    if difficulty <= 1: return "LOW"
-    if difficulty <= 2: return "MEDIUM"
-    if difficulty <= 3: return "HIGH"
-    return "VERY_HIGH"
+def get_intensity(d: dict) -> str:
+    return d.get("difficulty_label", "beginner")
 
 def parse_related(s: str) -> list[int]:
     return [int(m) for m in re.findall(r'(\d+)\(', s or "")]
@@ -192,7 +188,6 @@ class GraphBuilder:
         print("  [4] IntensityLevel 노드 생성...")
         self.run_many("""
             MERGE (i:IntensityLevel {level: $level})
-            SET i.cal_min = $cal_min, i.cal_max = $cal_max
         """, INTENSITY_LEVELS)
 
         print("  [5] SplitDay 노드 생성...")
@@ -297,7 +292,7 @@ class GraphBuilder:
     def create_intensity_edges(self, data: list[dict]):
         print("  [9] HAS_INTENSITY 엣지 생성...")
         rows = [
-            {"id": d["id"], "level": get_intensity(d.get("difficulty") or 1)}
+            {"id": d["id"], "level": get_intensity(d)}
             for d in data if d["category"] in SPLIT_MAP
         ]
         self.run_many("""
