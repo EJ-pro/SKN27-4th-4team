@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs'
 
 const VIDEO_BASE = path.resolve('운동_3D영상')
+const GIF_BASE = fs.existsSync('/docs/gifs') ? '/docs/gifs' : path.resolve('../docs/gifs')
 
 export default defineConfig({
   server: {
@@ -16,6 +17,23 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    {
+      name: 'serve-exercise-gifs',
+      configureServer(server) {
+        server.middlewares.use('/gifs', (req, res, next) => {
+          try {
+            const decoded = decodeURIComponent(req.url)
+            const filePath = path.join(GIF_BASE, decoded)
+            if (!filePath.startsWith(GIF_BASE)) { next(); return }
+            if (fs.existsSync(filePath)) {
+              res.setHeader('Content-Type', 'image/gif')
+              res.setHeader('Cache-Control', 'public, max-age=86400')
+              fs.createReadStream(filePath).pipe(res)
+            } else { next() }
+          } catch { next() }
+        })
+      }
+    },
     {
       name: 'serve-exercise-videos',
       configureServer(server) {

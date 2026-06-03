@@ -31,8 +31,8 @@ const CAT_COLOR = {
 
 const PAGE_SIZE = 40
 
-function videoUrl(ex) {
-  return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
+function gifUrl(ex) {
+  return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
 }
 
 // ─── ExerciseCard ─────────────────────────────────────────────────────────────
@@ -62,13 +62,9 @@ function ExerciseCard({ ex, onClick }) {
       {/* Video */}
       <div style={{ position: 'relative', height: 180, background: '#0A0A0A', overflow: 'hidden' }}>
         {videoOk ? (
-          <video
-            src={videoUrl(ex)}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="auto"
+          <img
+            src={gifUrl(ex)}
+            alt={ex.name_kor}
             onError={() => setVideoOk(false)}
             style={{
               width: '100%', height: '100%', objectFit: 'cover',
@@ -151,7 +147,7 @@ function ExerciseCard({ ex, onClick }) {
 // ─── DetailModal ──────────────────────────────────────────────────────────────
 
 function DetailModal({ ex, onClose, onNavigate }) {
-  const videoRef = useRef(null)
+  const videoRef = useRef(null) // img ref (gif)
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
   const [tab, setTab] = useState('guide')
 
@@ -171,12 +167,6 @@ function DetailModal({ ex, onClose, onNavigate }) {
     }
   }, [onClose])
 
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0
-      videoRef.current.play().catch(() => { })
-    }
-  }, [ex.id])
 
   const tabs = [
     { id: 'guide', label: '가이드' },
@@ -219,16 +209,13 @@ function DetailModal({ ex, onClose, onNavigate }) {
           boxShadow: `0 40px 100px rgba(0,0,0,0.7), 0 0 60px ${accentColor}10`,
         }}
       >
-        {/* Left: video */}
+        {/* Left: gif */}
         <div style={{ width: 340, flexShrink: 0, background: '#0A0A0A', position: 'relative' }}>
-          <video
+          <img
             ref={videoRef}
-            src={videoUrl(ex)}
-            muted
-            loop
-            playsInline
-            controls
-            style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 520 }}
+            src={gifUrl(ex)}
+            alt={ex.name_kor}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 520, display: 'block' }}
           />
           <div style={{
             position: 'absolute', top: 16, left: 16,
