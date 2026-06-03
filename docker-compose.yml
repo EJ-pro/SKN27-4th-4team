@@ -23,7 +23,10 @@ services:
   backend:
     build: ./backend
     container_name: routinegraph_backend
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+      sh -c "python db/load_exercises.py &&
+             python db/load_muscles.py &&
+             python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./backend:/app
     ports:
