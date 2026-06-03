@@ -45,13 +45,12 @@ CREATE TABLE IF NOT EXISTS users (
 -- → LLM 1이 다음 세션에서도 재활용 가능
 -- ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_pain_logs (
-    pain_id   SERIAL PRIMARY KEY,
-    user_id   INT REFERENCES users(user_id) ON DELETE CASCADE,
-    body_part VARCHAR(50) NOT NULL,
-    -- 예: 'shoulder' | 'knee' | 'lower_back' | 'wrist'
-    severity  SMALLINT NOT NULL CHECK (severity BETWEEN 1 AND 3),
-    -- 1: 가벼운 불편 / 2: 중간 통증 / 3: 심한 통증
-    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    pain_id     SERIAL PRIMARY KEY,
+    user_id     INT REFERENCES users(user_id) ON DELETE CASCADE,
+    device_uuid UUID,
+    body_part   VARCHAR(50) NOT NULL,
+    severity    SMALLINT NOT NULL CHECK (severity BETWEEN 1 AND 3),
+    logged_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ────────────────────────────────────────────
@@ -109,13 +108,22 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE TABLE IF NOT EXISTS weekly_schedulers (
     scheduler_id  SERIAL PRIMARY KEY,
     user_id       INT REFERENCES users(user_id) ON DELETE CASCADE,
+    device_uuid   UUID,
     session_id    INT REFERENCES chat_sessions(session_id) ON DELETE SET NULL,
-    -- SET NULL: 세션 삭제 후에도 루틴 출처 추적 불가 트레이드오프 인지
     year          INT NOT NULL,
     week_number   INT NOT NULL,
+    split_style   VARCHAR(50),
+    -- 'bodybuilding' | 'lower_core' | 'strength'
+    goal          VARCHAR(50),
+    -- 'hypertrophy' | 'diet' | 'strength' | 'maintenance'
+    session_min   SMALLINT,
+    -- 30 | 45 | 60 | 90 (분)
+    pain_parts    JSONB,
+    -- 온보딩 1단계 통증 부위 스냅샷: ["shoulder","lower_back"]
+    work_days     JSONB,
+    -- 온보딩 2단계 운동 요일: ["월","화","목","금","토"]
     weekly_review TEXT,
-    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_user_week UNIQUE (user_id, year, week_number)
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ────────────────────────────────────────────
