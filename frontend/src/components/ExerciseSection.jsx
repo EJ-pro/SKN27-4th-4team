@@ -210,6 +210,8 @@ function DetailModal({ ex, onClose }) {
   )
 }
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 export default function ExerciseSection({ onNavigate }) {
   const [part, setPart] = useState('전체')
   const [place, setPlace] = useState(null)
@@ -228,7 +230,7 @@ export default function ExerciseSection({ onNavigate }) {
   // 백엔드 API에서 운동 데이터 불러오기
   useEffect(() => {
     setLoading(true)
-    fetch('/api/exercises/')
+    fetch(`${API_URL}/api/exercises/`)
       .then(r => r.json())
       .then(data => { setExercises(data); setLoading(false) })
       .catch(() => setLoading(false))
