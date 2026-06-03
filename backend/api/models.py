@@ -79,13 +79,19 @@ class ChatMessage(models.Model):
 
 class WeeklyScheduler(models.Model):
     scheduler_id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(AppUser, on_delete=models.CASCADE, db_column='user_id')
+    user = models.ForeignKey(AppUser, on_delete=models.CASCADE, db_column='user_id', null=True, blank=True)
+    device_uuid = models.UUIDField(null=True, blank=True)
     session = models.ForeignKey(
         ChatSession, on_delete=models.SET_NULL,
         null=True, blank=True, db_column='session_id'
     )
     year = models.IntegerField()
     week_number = models.IntegerField()
+    split_style = models.CharField(max_length=50, null=True, blank=True)
+    goal = models.CharField(max_length=50, null=True, blank=True)
+    session_min = models.SmallIntegerField(null=True, blank=True)
+    pain_parts = models.JSONField(null=True, blank=True)
+    work_days = models.JSONField(null=True, blank=True)
     weekly_review = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -102,8 +108,6 @@ class DailyRoutine(models.Model):
         null=True, blank=True, db_column='exercise_id'
     )
     scheduled_date = models.DateField()
-    # day_of_week: DB GENERATED ALWAYS AS 컬럼 — 직접 수정 불가, scheduled_date 변경 시 자동 갱신
-    day_of_week = models.CharField(max_length=3, editable=False)
     routine_order = models.FloatField()
     recommended_sets = models.IntegerField(default=4)
     recommended_reps = models.IntegerField(default=10)
@@ -113,6 +117,14 @@ class DailyRoutine(models.Model):
     is_completed = models.BooleanField(default=False)
     daily_issue = models.TextField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # day_of_week: DB GENERATED ALWAYS AS 컬럼 — 직접 수정 불가, scheduled_date 변경 시 자동 갱신
+    @property
+    def day_of_week(self):
+        if not self.scheduled_date:
+            return '월'
+        dow_map = {0: '월', 1: '화', 2: '수', 3: '목', 4: '금', 5: '토', 6: '일'}
+        return dow_map.get(self.scheduled_date.weekday(), '월')
 
     class Meta:
         managed = False

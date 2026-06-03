@@ -1,5 +1,39 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw } from 'lucide-react'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+const getDeviceUuid = () => {
+  const key = 'fitai_device_uuid';
+  if (typeof window === 'undefined') return '';
+  let local = localStorage.getItem(key);
+  if (!local) {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      local = crypto.randomUUID();
+    } else {
+      local = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    }
+    localStorage.setItem(key, local);
+  }
+  return local;
+};
+const deviceUuid = getDeviceUuid();
+
+function getISOWeekAndYear(date) {
+  const target = new Date(date.valueOf());
+  const dayNr = (date.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+  const weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
+  return {
+    year: target.getFullYear(),
+    weekNumber: weekNum
+  };
+}
 
 const PAIN_OPTIONS = [
   { key: 'shoulder',    label: '어깨 / 회전근개 불안정',     sub: '벤치 프레스, 숄더 프레스 우회', emoji: '🦾' },
@@ -645,6 +679,213 @@ const AUTO_DEFAULTS = {
   sessionMin: 60,
 }
 
+const getTargetPainForExercise = (name, category) => {
+  const n = name || '';
+  if (category === '가슴' || category === '어깨') {
+    if (n.includes('프레스') || n.includes('플라이') || n.includes('레이즈') || n.includes('푸쉬업')) {
+      return 'shoulder';
+    }
+  }
+  if (n.includes('데드리프트') || n.includes('스쿼트') || n.includes('로우') || n.includes('레그 레이즈') || n.includes('로잉')) {
+    return 'lower_back';
+  }
+  if (n.includes('스쿼트') || n.includes('런지') || n.includes('익스텐션') || n.includes('레그 컬') || n.includes('싸이클') || n.includes('레그프레스')) {
+    return 'knee';
+  }
+  if (n.includes('컬') || n.includes('딥스') || n.includes('푸쉬업') || n.includes('푸시업')) {
+    return 'wrist';
+  }
+  return null;
+};
+
+const generateDynamicTemplateForPart = (part, dbExercises, painParts) => {
+  if (!dbExercises || dbExercises.length === 0) {
+    return getTemplateForPart(part);
+  }
+
+  // 1. Map part to categories
+  const categoryMap = {
+    '가슴': ['가슴'],
+    '등': ['등'],
+    '하체': ['하체'],
+    '어깨': ['어깨'],
+    '팔/코어': ['이두', '삼두', '코어', '전완근'],
+    '코어': ['코어'],
+    '유산소': ['유산소'],
+    '스트레칭': ['스트레칭']
+  };
+  const targetCategories = categoryMap[part] || [part];
+
+  // 2. Filter exercises in target categories
+  let pool = dbExercises.filter(ex => targetCategories.includes(ex.category));
+  if (pool.length === 0) {
+    return getTemplateForPart(part);
+  }
+
+  // Map database exercises to frontend format
+  const mappedPool = pool.map(ex => {
+    const targetPain = getTargetPainForExercise(ex.name_kor, ex.category);
+    return {
+      id: ex.id,
+      name: ex.name_kor,
+      sets: ex.category === '유산소' || ex.category === '스트레칭' ? 1 : 4,
+      reps: ex.category === '유산소' ? 30 : ex.category === '스트레칭' ? 10 : 10,
+      eq: ex.equipment || 'body',
+      detail: ex.guide || `${ex.name_kor} 운동 가이드입니다.`,
+      targetPain: targetPain,
+      gif: `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`,
+      category: ex.category
+    };
+  });
+
+  // 4. Divide pool by pain matching
+  const activePainParts = painParts || [];
+  const safePool = mappedPool.filter(ex => !ex.targetPain || !activePainParts.includes(ex.targetPain));
+  const warnedPool = mappedPool.filter(ex => ex.targetPain && activePainParts.includes(ex.targetPain));
+
+  // Determine number of exercises needed
+  let countNeeded = 3;
+  if (part === '유산소' || part === '스트레칭') {
+    countNeeded = 2;
+  }
+
+  // 5. Select exercises
+  let selected = [];
+  
+  if (part === '팔/코어') {
+    // For Arms/Core, we try to select: 1 이두, 1 삼두, 1 코어 (or fallback)
+    const selectFromCategories = (categoriesList, poolToUse) => {
+      let result = [];
+      categoriesList.forEach(cat => {
+        const found = poolToUse.find(ex => ex.category === cat && !result.some(r => r.id === ex.id));
+        if (found) result.push(found);
+      });
+      return result;
+    };
+    
+    // Try to get from safe pool
+    selected = selectFromCategories(['이두', '삼두', '코어'], safePool);
+    
+    // Fill remaining from general safe pool if we didn't get 3
+    if (selected.length < countNeeded) {
+      safePool.forEach(ex => {
+        if (selected.length < countNeeded && !selected.some(s => s.id === ex.id)) {
+          selected.push(ex);
+        }
+      });
+    }
+    
+    // If still less than countNeeded, pick from warned pool
+    if (selected.length < countNeeded) {
+      const warnedSelected = selectFromCategories(['이두', '삼두', '코어'], warnedPool);
+      warnedSelected.forEach(ex => {
+        if (selected.length < countNeeded && !selected.some(s => s.id === ex.id)) {
+          selected.push(ex);
+        }
+      });
+      
+      warnedPool.forEach(ex => {
+        if (selected.length < countNeeded && !selected.some(s => s.id === ex.id)) {
+          selected.push(ex);
+        }
+      });
+    }
+  } else {
+    // For other parts, just pick from safe pool, then warned pool
+    selected = safePool.slice(0, countNeeded);
+    if (selected.length < countNeeded) {
+      const remaining = countNeeded - selected.length;
+      selected = [...selected, ...warnedPool.slice(0, remaining)];
+    }
+  }
+
+  // 6. Build final items with alternatives
+  const finalItems = selected.map(item => {
+    const otherInCat = mappedPool.filter(ex => ex.category === item.category && ex.id !== item.id);
+    
+    // Sort alternatives: prioritize safe ones first
+    const safeAlts = otherInCat.filter(ex => !ex.targetPain || !activePainParts.includes(ex.targetPain));
+    const warnedAlts = otherInCat.filter(ex => ex.targetPain && activePainParts.includes(ex.targetPain));
+    
+    const sortedAlts = [...safeAlts, ...warnedAlts].slice(0, 5).map(alt => ({
+      name: alt.name,
+      eq: alt.eq,
+      detail: alt.detail,
+      targetPain: alt.targetPain,
+      gif: alt.gif
+    }));
+
+    return {
+      ...item,
+      alternatives: sortedAlts
+    };
+  });
+
+  return {
+    part: `${part} (${part === '가슴' ? 'Chest' : part === '등' ? 'Back' : part === '하체' ? 'Legs' : part === '어깨' ? 'Shoulders' : part === '유산소' ? 'Cardio' : part === '스트레칭' ? 'Stretching & Recovery' : 'Core & Arms'}) 집중 데이`,
+    items: finalItems
+  };
+}
+
+const enrichPreloadedRoutine = (preloaded, dbExercises, painParts) => {
+  if (!preloaded || !dbExercises || dbExercises.length === 0) {
+    return preloaded;
+  }
+
+  const activePainParts = painParts || [];
+
+  const mappedDbExercises = dbExercises.map(ex => {
+    const targetPain = getTargetPainForExercise(ex.name_kor, ex.category);
+    return {
+      id: ex.id,
+      name: ex.name_kor,
+      eq: ex.equipment || 'body',
+      detail: ex.guide || `${ex.name_kor} 운동 가이드입니다.`,
+      targetPain: targetPain,
+      gif: `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`,
+      category: ex.category
+    };
+  });
+
+  const enriched = {};
+  Object.keys(preloaded).forEach(day => {
+    enriched[day] = preloaded[day].map(item => {
+      const dbEx = mappedDbExercises.find(ex => Number(ex.id) === Number(item.id)) || mappedDbExercises.find(ex => ex.name === item.name);
+      
+      const category = dbEx ? dbEx.category : (item.category || '');
+      const detail = item.detail || (dbEx ? dbEx.detail : '');
+      const targetPain = dbEx ? dbEx.targetPain : getTargetPainForExercise(item.name, category);
+      const gif = dbEx ? dbEx.gif : `/gifs/${encodeURIComponent(category)}/${item.id}_${encodeURIComponent(item.name)}.gif`;
+      
+      let alternatives = item.alternatives || [];
+      if (category && (!alternatives || alternatives.length === 0)) {
+        const otherInCat = mappedDbExercises.filter(ex => ex.category === category && Number(ex.id) !== Number(item.id));
+        const safeAlts = otherInCat.filter(ex => !ex.targetPain || !activePainParts.includes(ex.targetPain));
+        const warnedAlts = otherInCat.filter(ex => ex.targetPain && activePainParts.includes(ex.targetPain));
+        
+        alternatives = [...safeAlts, ...warnedAlts].slice(0, 5).map(alt => ({
+          name: alt.name,
+          eq: alt.eq,
+          detail: alt.detail,
+          targetPain: alt.targetPain,
+          gif: alt.gif
+        }));
+      }
+
+      return {
+        ...item,
+        category,
+        detail,
+        targetPain,
+        gif,
+        alternatives
+      };
+    });
+  });
+
+  return enriched;
+};
+
 export default function RoutinePage() {
   const [step, setStep] = useState(0)
   const [painParts, setPainParts] = useState([])
@@ -662,6 +903,65 @@ export default function RoutinePage() {
     '토': '유산소',
     '일': '스트레칭'
   })
+  const [dbExercises, setDbExercises] = useState([])
+  const [loadingExercises, setLoadingExercises] = useState(true)
+  const [loadingRoutine, setLoadingRoutine] = useState(true)
+  const [preloadedWorkoutRoutine, setPreloadedWorkoutRoutine] = useState(null)
+  const [preloadedDailyNotes, setPreloadedDailyNotes] = useState(null)
+
+  const loadingDb = loadingExercises || loadingRoutine
+
+  useEffect(() => {
+    // 1. Fetch DB Exercises
+    fetch(`${API_URL}/api/exercises/`)
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to fetch exercises');
+        return r.json();
+      })
+      .then(data => {
+        setDbExercises(data)
+      })
+      .catch(err => {
+        console.error('Error fetching exercises from DB:', err)
+      })
+      .finally(() => {
+        setLoadingExercises(false)
+      });
+
+    // 2. Fetch routines for this week
+    const { year, weekNumber } = getISOWeekAndYear(new Date());
+    fetch(`${API_URL}/api/routines/?device_uuid=${deviceUuid}&year=${year}&week_number=${weekNumber}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.found) {
+          // Existing routine found for this week! Load it and jump directly to check page.
+          setPainParts(data.pain_parts || [])
+          setWorkDays(data.work_days || [])
+          setSplitStyle(data.split_style || '')
+          setGoal(data.goal || '')
+          setSessionMin(data.session_min || null)
+          setDayParts(data.day_parts || {})
+          setPreloadedWorkoutRoutine(data.workout_routine)
+          setPreloadedDailyNotes(data.daily_notes)
+          setStep(5) // TOTAL = 5, jump to final view directly
+        } else if (data.preferences) {
+          // No current routine, but historical preferences exist! Pre-fill onboarding steps.
+          const prefs = data.preferences;
+          if (prefs.pain_parts) setPainParts(prefs.pain_parts);
+          if (prefs.work_days) setWorkDays(prefs.work_days);
+          if (prefs.split_style) setSplitStyle(prefs.split_style);
+          if (prefs.goal) setGoal(prefs.goal);
+          if (prefs.session_min) setSessionMin(prefs.session_min);
+          if (prefs.day_parts) setDayParts(prefs.day_parts);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching weekly routine:', err)
+      })
+      .finally(() => {
+        setLoadingRoutine(false)
+      });
+  }, [])
 
   const canNext = [
     painParts.length > 0,
@@ -703,9 +1003,43 @@ export default function RoutinePage() {
       '토': '유산소',
       '일': '스트레칭'
     })
+    setPreloadedWorkoutRoutine(null)
+    setPreloadedDailyNotes(null)
   }
 
   if (step === TOTAL) {
+    if (loadingDb) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          background: '#080808',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 20,
+        }}>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+          <div style={{
+            width: 40,
+            height: 40,
+            border: '4px solid rgba(255, 215, 0, 0.1)',
+            borderTop: '4px solid #FFD700',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }} />
+          <span style={{ fontSize: 16, color: '#E2E2E2', fontWeight: 600 }}>
+            데이터베이스 연결 및 운동 정보 불러오는 중...
+          </span>
+        </div>
+      )
+    }
+
     return (
       <div style={{
         minHeight: '100vh',
@@ -724,6 +1058,9 @@ export default function RoutinePage() {
           painParts={painParts}
           dayParts={dayParts}
           onReset={handleReset}
+          dbExercises={dbExercises}
+          initialWorkoutRoutine={preloadedWorkoutRoutine}
+          initialDailyNotes={preloadedDailyNotes}
         />
       </div>
     )
@@ -890,41 +1227,234 @@ const ROUTINE_TEMPLATES = [
   {
     part: '가슴 (Chest) 집중 데이',
     items: [
-      { id: 101, name: '벤치 프레스', sets: 4, reps: 10, eq: 'barbell', detail: '가슴 전체 매스 증가를 위한 복합 운동', targetPain: 'shoulder' },
-      { id: 102, name: '인클라인 덤벨 프레스', sets: 4, reps: 12, eq: 'dumbbell', detail: '가슴 상부 볼륨 강화 및 입체구조 발달', targetPain: 'shoulder' },
-      { id: 103, name: '체스트 플라이', sets: 3, reps: 12, eq: 'machine', detail: '가슴 안쪽 라인 선명도 극대화', targetPain: 'shoulder' }
+      {
+        id: 101,
+        name: '벤치 프레스',
+        sets: 4,
+        reps: 10,
+        eq: 'barbell',
+        detail: '가슴 전체 매스 증가를 위한 복합 운동',
+        targetPain: 'shoulder',
+        gif: '/gifs/가슴/2001_벤치 프레스.gif',
+        alternatives: [
+          { name: '덤벨 벤치 프레스', eq: 'dumbbell', detail: '덤벨을 활용한 대흉근 수축 극대화 및 밸런스 훈련', gif: '/gifs/가슴/2002_덤벨 벤치 프레스.gif', targetPain: 'shoulder' },
+          { name: '체스트 프레스 머신', eq: 'machine', detail: '머신 프레스로 안정적이고 부상 위험 없는 가슴 운동', gif: '/gifs/가슴/2009_체스트 프레스 머신.gif', targetPain: 'shoulder' },
+          { name: '푸쉬업', eq: 'body', detail: '맨몸 가슴 운동의 정석. 코어와 가슴을 동시에 발달', gif: '/gifs/가슴/2006_푸쉬업.gif' }
+        ]
+      },
+      {
+        id: 102,
+        name: '인클라인 덤벨 프레스',
+        sets: 4,
+        reps: 12,
+        eq: 'dumbbell',
+        detail: '가슴 상부 볼륨 강화 및 입체구조 발달',
+        targetPain: 'shoulder',
+        gif: '/gifs/가슴/2014_인클라인 덤벨 벤치 프레스.gif',
+        alternatives: [
+          { name: '인클라인 벤치 프레스', eq: 'barbell', detail: '바벨로 진행하는 윗가슴 매스 업의 정석', gif: '/gifs/가슴/2013_인클라인 벤치 프레스.gif', targetPain: 'shoulder' },
+          { name: '인클라인 벤치 프레스 머신', eq: 'machine', detail: '머신으로 고립도를 한 단계 높인 윗가슴 타겟팅', gif: '/gifs/가슴/2021_인클라인 벤치 프레스 머신.gif', targetPain: 'shoulder' }
+        ]
+      },
+      {
+        id: 103,
+        name: '체스트 플라이',
+        sets: 3,
+        reps: 12,
+        eq: 'machine',
+        detail: '가슴 안쪽 라인 선명도 극대화',
+        targetPain: 'shoulder',
+        gif: '/gifs/가슴/2004_펙덱 플라이.gif',
+        alternatives: [
+          { name: '덤벨 플라이', eq: 'dumbbell', detail: '덤벨로 가슴 바깥쪽까지 깊숙한 신장성 수축 유도', gif: '/gifs/가슴/2005_덤벨 플라이.gif', targetPain: 'shoulder' },
+          { name: '케이블 크로스오버', eq: 'machine', detail: '케이블로 지속적인 가슴 안쪽 저항선 유지', gif: '/gifs/가슴/2007_케이블 크로스오버.gif', targetPain: 'shoulder' }
+        ]
+      }
     ]
   },
   {
     part: '등 (Back) 집중 데이',
     items: [
-      { id: 201, name: '렛 풀 다운', sets: 4, reps: 12, eq: 'machine', detail: '광배근 너비 확장을 통해 프레임 극대화' },
-      { id: 202, name: '바벨 로우', sets: 4, reps: 10, eq: 'barbell', detail: '등 중부 두께 강화와 후면 완성도 향상', targetPain: 'lower_back' },
-      { id: 203, name: '암 풀 다운', sets: 3, reps: 15, eq: 'machine', detail: '광배근 고립 자극 및 활성화' }
+      {
+        id: 201,
+        name: '렛 풀 다운',
+        sets: 4,
+        reps: 12,
+        eq: 'machine',
+        detail: '광배근 너비 확장을 통해 프레임 극대화',
+        gif: '/gifs/등/1005_랫 풀다운.gif',
+        alternatives: [
+          { name: '풀 업', eq: 'body', detail: '턱걸이를 통한 광배근 넓이 확장 및 등 프레임 완성', gif: '/gifs/등/1003_풀 업.gif' },
+          { name: '시티드 케이블 로우', eq: 'machine', detail: '수평으로 당겨 등 전체 두께를 늘려주는 운동', gif: '/gifs/등/1009_시티드 케이블 로우.gif', targetPain: 'lower_back' },
+          { name: '맥그립 랫 풀다운', eq: 'machine', detail: '특수 인체공학 그립으로 광배근 하부와 안쪽 집중 저항', gif: '/gifs/등/1119_맥그립 랫 풀다운.gif' }
+        ]
+      },
+      {
+        id: 202,
+        name: '바벨 로우',
+        sets: 4,
+        reps: 10,
+        eq: 'barbell',
+        detail: '등 중부 두께 강화와 후면 완성도 향상',
+        targetPain: 'lower_back',
+        gif: '/gifs/등/1002_바벨 로우.gif',
+        alternatives: [
+          { name: '덤벨 로우', eq: 'dumbbell', detail: '덤벨로 좌우 밸런스 및 광배근 최대 고립 수축', gif: '/gifs/등/1025_덤벨 로우.gif' },
+          { name: '원 암 덤벨 로우', eq: 'dumbbell', detail: '한 발 지탱 후 넓은 가동범위로 강도 높은 광배 자극', gif: '/gifs/등/1008_원 암 덤벨 로우.gif' },
+          { name: '티 바 로우', eq: 'barbell', detail: '체중을 실어 등 중앙부를 폭발적으로 강화', gif: '/gifs/등/1018_티 바 로우.gif', targetPain: 'lower_back' }
+        ]
+      },
+      {
+        id: 203,
+        name: '암 풀 다운',
+        sets: 3,
+        reps: 15,
+        eq: 'machine',
+        detail: '광배근 고립 자극 및 활성화',
+        gif: '/gifs/등/1023_암 풀다운.gif',
+        alternatives: [
+          { name: '로프 암 풀 다운', eq: 'machine', detail: '로프 그립을 벌리면서 광배근 하부 수축 끝까지 완성', gif: '/gifs/등/1070_로프 암 풀 다운.gif' },
+          { name: '덤벨 풀오버', eq: 'dumbbell', detail: '가슴 상부와 광배근 전반을 늘려주는 스트레칭성 벌크업', gif: '/gifs/가슴/2003_덤벨 풀오버.gif' }
+        ]
+      }
     ]
   },
   {
     part: '하체 (Legs) 집중 데이',
     items: [
-      { id: 301, name: '백 스쿼트', sets: 4, reps: 8, eq: 'barbell', detail: '대퇴사두근 및 둔근 강화를 위한 하체 정석 운동', targetPain: 'knee' },
-      { id: 302, name: '레그 프레스', sets: 4, reps: 12, eq: 'machine', detail: '척추 부담 최소화 상태의 대퇴부 타겟' },
-      { id: 303, name: '레그 컬', sets: 3, reps: 12, eq: 'machine', detail: '허벅지 뒷면(햄스트링) 고립 및 밸런스', targetPain: 'knee' }
+      {
+        id: 301,
+        name: '백 스쿼트',
+        sets: 4,
+        reps: 8,
+        eq: 'barbell',
+        detail: '대퇴사두근 및 둔근 강화를 위한 하체 정석 운동',
+        targetPain: 'knee',
+        gif: '/gifs/하체/4056_스쿼트.gif',
+        alternatives: [
+          { name: '레그 프레스', eq: 'machine', detail: '허리(척추) 부담 없이 대퇴사두근에 최대 중량 집중', gif: '/gifs/하체/4003_레그 프레스.gif' },
+          { name: '고블릿 스쿼트', eq: 'dumbbell', detail: '덤벨을 가슴 앞에 쥐어 요추 스트레스 없이 안전한 스쿼트 가능', gif: '/gifs/하체/4028_고블릿 스쿼트.gif' },
+          { name: '스미스 머신 스쿼트', eq: 'machine', detail: '스미스 머신의 일정한 궤적으로 부상 위험 최소화', gif: '/gifs/하체/4015_스미스 머신 스쿼트.gif', targetPain: 'knee' }
+        ]
+      },
+      {
+        id: 302,
+        name: '레그 프레스',
+        sets: 4,
+        reps: 12,
+        eq: 'machine',
+        detail: '척추 부담 최소화 상태의 대퇴부 타겟',
+        gif: '/gifs/하체/4003_레그 프레스.gif',
+        alternatives: [
+          { name: '덤벨 런지', eq: 'dumbbell', detail: '둔근과 허벅지 뒤편(햄스트링) 발달 및 신체 밸런스 개선', gif: '/gifs/하체/4008_덤벨 런지.gif', targetPain: 'knee' },
+          { name: '덤벨 불가리안 스플릿 스쿼트', eq: 'dumbbell', detail: '한 다리로 지탱하여 둔근과 햄스트링을 깊게 타겟팅', gif: '/gifs/하체/4024_덤벨 불가리안 스플릿 스쿼트.gif', targetPain: 'knee' }
+        ]
+      },
+      {
+        id: 303,
+        name: '레그 컬',
+        sets: 3,
+        reps: 12,
+        eq: 'machine',
+        detail: '허벅지 뒷면(햄스트링) 고립 및 밸런스',
+        targetPain: 'knee',
+        gif: '/gifs/하체/4004_레그 컬.gif',
+        alternatives: [
+          { name: '시티드 레그 컬', eq: 'machine', detail: '앉은 자세에서 대퇴이두근을 안정적으로 고립 수축', gif: '/gifs/하체/4087_시티드 레그 컬.gif', targetPain: 'knee' },
+          { name: '바벨 스티프 레그 데드리프트', eq: 'barbell', detail: '골반을 뒤로 젖히며 후면 허벅지 근육을 크게 스트레칭', gif: '/gifs/하체/4005_바벨 스티프 레그 데드리프트.gif', targetPain: 'lower_back' }
+        ]
+      }
     ]
   },
   {
     part: '어깨 (Shoulders) 집중 데이',
     items: [
-      { id: 401, name: '오버헤드 프레스', sets: 4, reps: 8, eq: 'barbell', detail: '어깨 전반적인 전면/측면 매스 증가', targetPain: 'shoulder' },
-      { id: 402, name: '사이드 레터럴 레이즈', sets: 4, reps: 15, eq: 'dumbbell', detail: '측면 삼각근 고립 자극 및 어깨 넓이 확장' },
-      { id: 403, name: '페이스 풀', sets: 3, reps: 15, eq: 'machine', detail: '후면 삼각근 및 상부 등 근육군 밸런스' }
+      {
+        id: 401,
+        name: '오버헤드 프레스',
+        sets: 4,
+        reps: 8,
+        eq: 'barbell',
+        detail: '어깨 전반적인 전면/측면 매스 증가',
+        targetPain: 'shoulder',
+        gif: '/gifs/어깨/3001_오버헤드 프레스.gif',
+        alternatives: [
+          { name: '덤벨 숄더 프레스', eq: 'dumbbell', detail: '덤벨로 전면 및 측면 어깨의 가동 범위를 최대로 공략', gif: '/gifs/어깨/3002_덤벨 숄더 프레스.gif', targetPain: 'shoulder' },
+          { name: '숄더 프레스 머신', eq: 'machine', detail: '머신 궤적을 이용하여 회전근개 부담 없이 어깨 강타', gif: '/gifs/어깨/3004_숄더 프레스 머신.gif', targetPain: 'shoulder' }
+        ]
+      },
+      {
+        id: 402,
+        name: '사이드 레터럴 레이즈',
+        sets: 4,
+        reps: 15,
+        eq: 'dumbbell',
+        detail: '측면 삼각근 고립 자극 및 어깨 넓이 확장',
+        gif: '/gifs/어깨/3003_덤벨 레터럴 레이즈.gif',
+        alternatives: [
+          { name: '케이블 레터럴 레이즈', eq: 'machine', detail: '케이블의 일정한 텐션으로 측면 삼각근에 불타는 듯한 자극 전달', gif: '/gifs/어깨/3021_케이블 레터럴 레이즈.gif' },
+          { name: '시티드 레터럴 레이즈 머신', eq: 'machine', detail: '앉은 채로 고정되어 오직 측면 삼각근에만 집중 부하 전달', gif: '/gifs/어깨/3005_시티드 레터럴 레이즈 머신.gif' }
+        ]
+      },
+      {
+        id: 403,
+        name: '페이스 풀',
+        sets: 3,
+        reps: 15,
+        eq: 'machine',
+        detail: '후면 삼각근 및 상부 등 근육군 밸런스',
+        gif: '/gifs/어깨/3009_페이스 풀.gif',
+        alternatives: [
+          { name: '리버스 펙덱 플라이', eq: 'machine', detail: '펙덱 플라이 머신에서 후면 삼각근을 정밀 타겟팅', gif: '/gifs/등/1167_리버스 펙덱 플라이.gif' },
+          { name: '덤벨 벤트 오버 레터럴 레이즈', eq: 'dumbbell', detail: '상체를 숙여 덤벨을 옆으로 올리며 후면 삼각근 고립', gif: '/gifs/어깨/3015_덤벨 벤트 오버 레터럴 레이즈.gif' }
+        ]
+      }
     ]
   },
   {
     part: '코어 & 팔 (Core & Arms) 집중 데이',
     items: [
-      { id: 501, name: '덤벨 바이셉스 컬', sets: 3, reps: 12, eq: 'dumbbell', detail: '이두근 봉우리 발달을 위한 컬 동작', targetPain: 'wrist' },
-      { id: 502, name: '트라이셉스 푸쉬다운', sets: 3, reps: 12, eq: 'machine', detail: '삼두근 외측두 선명도 강화' },
-      { id: 503, name: '행잉 레그 레이즈', sets: 3, reps: 15, eq: 'body', detail: '복직근 하부 강화 및 코어 안정성', targetPain: 'lower_back' }
+      {
+        id: 501,
+        name: '덤벨 바이셉스 컬',
+        sets: 3,
+        reps: 12,
+        eq: 'dumbbell',
+        detail: '이두근 봉우리 발달을 위한 컬 동작',
+        targetPain: 'wrist',
+        gif: '/gifs/이두/7006_덤벨 바이셉 컬.gif',
+        alternatives: [
+          { name: '바벨 바이셉 컬', eq: 'barbell', detail: '바벨로 진행하여 두꺼운 팔의 기초를 형성하는 이두 운동', gif: '/gifs/이두/7001_바벨 바이셉 컬.gif', targetPain: 'wrist' },
+          { name: '덤벨 해머 컬', eq: 'dumbbell', detail: '덤벨을 세워 들어 올려 전완근และ 바깥쪽 이두근 동시 자극', gif: '/gifs/이두/7009_덤벨 해머 컬.gif', targetPain: 'wrist' }
+        ]
+      },
+      {
+        id: 502,
+        name: '트라이셉스 푸쉬다운',
+        sets: 3,
+        reps: 12,
+        eq: 'machine',
+        detail: '삼두근 외측두 선명도 강화',
+        gif: '/gifs/삼두/6002_케이블 트라이셉 푸쉬다운.gif',
+        alternatives: [
+          { name: '오버헤드 덤벨 트라이셉스 익스텐션', eq: 'dumbbell', detail: '덤벨을 머리 뒤로 넘겨 삼두근 장두의 최대 수축 유도', gif: '/gifs/삼두/6032_오버헤드 덤벨 트라이셉스 익스텐션.gif' },
+          { name: '벤치 딥스', eq: 'body', detail: '손을 벤치에 디디고 엉덩이를 띄워 안정적으로 진행하는 삼두 훈련', gif: '/gifs/삼두/6007_벤치 딥스.gif', targetPain: 'wrist' }
+        ]
+      },
+      {
+        id: 503,
+        name: '행잉 레그 레이즈',
+        sets: 3,
+        reps: 15,
+        eq: 'body',
+        detail: '복직근 하부 강화 및 코어 안정성',
+        targetPain: 'lower_back',
+        gif: '/gifs/코어/5005_행잉 레그 레이즈.gif',
+        alternatives: [
+          { name: '레그 레이즈', eq: 'body', detail: '누운 자세에서 척추 부담 없이 하복부를 정밀 타겟팅', gif: '/gifs/코어/5001_레그 레이즈.gif', targetPain: 'lower_back' },
+          { name: '크런치', eq: 'body', detail: '날개뼈가 떨어질 정도로 상체를 들어 복부 윗라인을 자극', gif: '/gifs/코어/5002_크런치.gif' }
+        ]
+      }
     ]
   }
 ]
@@ -939,16 +1469,64 @@ const getTemplateForPart = (part) => {
     return {
       part: '유산소 (Cardio) 집중 코스',
       items: [
-        { id: 601, name: '러닝머신 (인클라인)', sets: 1, reps: 30, eq: 'body', detail: '경사도 6~8 설정 후 시속 5.5km 속도로 유지 복합 유산소' },
-        { id: 602, name: '천국의 계단 (스텝밀)', sets: 1, reps: 15, eq: 'machine', detail: '심폐 기능 향상 및 하부 후면 근육 활성화' },
+        {
+          id: 601,
+          name: '러닝머신 (인클라인)',
+          sets: 1,
+          reps: 30,
+          eq: 'body',
+          detail: '경사도 6~8 설정 후 시속 5.5km 속도로 유지 복합 유산소',
+          gif: '/gifs/유산소/9010_인클라인 트레드밀 러닝.gif',
+          alternatives: [
+            { name: '트레드밀 러닝', eq: 'body', detail: '평지에서 달리는 정석 심폐 유산소 트레드밀 코스', gif: '/gifs/유산소/9003_트레드밀 러닝.gif' },
+            { name: '싸이클', eq: 'machine', detail: '무릎 부하를 줄이면서 강한 유산소 자극을 전달하는 고정 자전거', gif: '/gifs/유산소/9001_싸이클.gif', targetPain: 'knee' }
+          ]
+        },
+        {
+          id: 602,
+          name: '천국의 계단 (스텝밀)',
+          sets: 1,
+          reps: 15,
+          eq: 'machine',
+          detail: '심폐 기능 향상 및 하부 후면 근육 활성화',
+          gif: '/gifs/유산소/9011_스텝 밀.gif',
+          alternatives: [
+            { name: '엘립티컬 머신', eq: 'machine', detail: '전신을 부드럽게 흔들며 칼로리를 고속 연소하는 심폐 기구', gif: '/gifs/유산소/9002_엘립티컬 머신.gif' },
+            { name: '로잉 머신', eq: 'machine', detail: '상하체 전신 근육을 당겨 폭발적인 에너지 소모를 일으키는 트레이닝', gif: '/gifs/유산소/9008_로잉 머신.gif', targetPain: 'lower_back' }
+          ]
+        }
       ]
     }
   }
   return {
     part: '스트레칭 & 리커버리',
     items: [
-      { id: 701, name: '폼롤러 전신 마사지', sets: 1, reps: 10, eq: 'body', detail: '등, 허벅지 외측, 종아리 부위를 각 1-2분간 롤링하여 근막 이완' },
-      { id: 702, name: '동적/정적 스트레칭', sets: 1, reps: 10, eq: 'body', detail: '어깨 회전근개 및 골반 고관절 주변 스트레칭으로 관절 유연성 확보' },
+      {
+        id: 701,
+        name: '폼롤러 전신 마사지',
+        sets: 1,
+        reps: 10,
+        eq: 'body',
+        detail: '등, 허벅지 외측, 종아리 부위를 각 1-2분간 롤링하여 근막 이완',
+        gif: '/gifs/스트레칭/10030_폼롤러 어퍼 백.gif',
+        alternatives: [
+          { name: '폼롤러 랫 (광배근)', eq: 'body', detail: '폼롤러로 옆구리와 날개뼈 외측 광배라인을 집중 롤링', gif: '/gifs/스트레칭/10029_폼롤러 랫.gif' },
+          { name: '폼롤러 글루트 (둔근)', eq: 'body', detail: '엉덩이 좌골 신경 주변 근육 긴장을 풀어주는 폼롤러 스트레칭', gif: '/gifs/스트레칭/10033_폼롤러 글루트.gif' }
+        ]
+      },
+      {
+        id: 702,
+        name: '동적/정적 스트레칭',
+        sets: 1,
+        reps: 10,
+        eq: 'body',
+        detail: '어깨 회전근개 및 골반 고관절 주변 스트레칭으로 관절 유연성 확보',
+        gif: '/gifs/스트레칭/10050_캣 카우 스트레칭.gif',
+        alternatives: [
+          { name: '닐링 상체 회전 스트레칭', eq: 'body', detail: '상체를 숙여 한쪽 팔을 회전시켜 척추와 어깨 관절 가동성 확장', gif: '/gifs/스트레칭/10086_닐링 상체 회전 스트레칭.gif' },
+          { name: '캣 카우 스트레칭', eq: 'body', detail: '엎드린 자세에서 척추를 말아 올려 전체적인 허리 스트레스를 케어', gif: '/gifs/스트레칭/10050_캣 카우 스트레칭.gif' }
+        ]
+      }
     ]
   }
 }
@@ -968,16 +1546,168 @@ const GOAL_LABEL = {
   maintenance: '체력 유지 훈련'
 }
 
-function RoutineCheckView({ workDays, goal, splitStyle, sessionMin, painParts, dayParts, onReset }) {
+function RoutineCheckView({
+  workDays, goal, splitStyle, sessionMin, painParts, dayParts, onReset, dbExercises,
+  initialWorkoutRoutine, initialDailyNotes
+}) {
   const [activeDay, setActiveDay] = useState(workDays[0] || '월')
-  const [completedExercises, setCompletedExercises] = useState({}) // { id: boolean }
-  const [dailyNotes, setDailyNotes] = useState({}) // { [day]: string }
+  const [completedExercises, setCompletedExercises] = useState(() => {
+    const initial = {}
+    if (initialWorkoutRoutine) {
+      Object.values(initialWorkoutRoutine).forEach(exs => {
+        exs.forEach(ex => {
+          if (ex.is_completed) {
+            initial[ex.id] = true
+          }
+        })
+      })
+    }
+    return initial
+  })
+  const [dailyNotes, setDailyNotes] = useState(initialDailyNotes || {})
+  const [isSavedModalOpen, setIsSavedModalOpen] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+
+  // 1. Copy templates locally to allow exercise swapping
+  const [workoutRoutine, setWorkoutRoutine] = useState(() => {
+    if (initialWorkoutRoutine && Object.keys(initialWorkoutRoutine).length > 0) {
+      return enrichPreloadedRoutine(initialWorkoutRoutine, dbExercises, painParts)
+    }
+    const initialRoutine = {}
+    workDays.forEach(day => {
+      const part = dayParts[day] || '가슴'
+      const template = generateDynamicTemplateForPart(part, dbExercises, painParts)
+      initialRoutine[day] = template ? template.items.map(item => ({ ...item })) : []
+    })
+    return initialRoutine
+  })
+
+  // Function to save routine to DB
+  const saveRoutineToDb = (routine, notes, completedMap) => {
+    const { year, weekNumber } = getISOWeekAndYear(new Date());
+    
+    const updatedRoutine = {}
+    Object.keys(routine).forEach(day => {
+      updatedRoutine[day] = routine[day].map(ex => ({
+        ...ex,
+        is_completed: !!completedMap[ex.id]
+      }))
+    })
+
+    const payload = {
+      device_uuid: deviceUuid,
+      year,
+      week_number: weekNumber,
+      split_style: splitStyle,
+      goal,
+      session_min: sessionMin,
+      pain_parts: painParts,
+      work_days: workDays,
+      day_parts: dayParts,
+      workout_routine: updatedRoutine,
+      daily_notes: notes
+    };
+
+    fetch(`${API_URL}/api/routines/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(r => {
+      if (!r.ok) throw new Error('Failed to save routine');
+      return r.json();
+    })
+    .then(res => {
+      console.log('Routine saved successfully to DB:', res);
+    })
+    .catch(err => {
+      console.error('Error saving routine to DB:', err);
+    });
+  };
+
+  // Auto-save on mount if it's a fresh routine
+  useEffect(() => {
+    if (!initialWorkoutRoutine || Object.keys(initialWorkoutRoutine).length === 0) {
+      saveRoutineToDb(workoutRoutine, dailyNotes, completedExercises);
+    }
+  }, []);
 
   // activeDay가 workDays에 없으면 첫번째 값으로 안전장치
   const currentDay = workDays.includes(activeDay) ? activeDay : (workDays[0] || '월')
+  const currentDayExercises = workoutRoutine[currentDay] || []
 
-  const selectedPart = dayParts[currentDay] || '가슴'
-  const template = getTemplateForPart(selectedPart)
+  // 2. State for the highlighted exercise details panel
+  const [selectedExId, setSelectedExId] = useState(() => {
+    const initialDay = workDays[0] || '월'
+    const dayExs = workoutRoutine[initialDay] || []
+    return dayExs[0]?.id || null
+  })
+
+  // Safe reference to the active exercise object
+  const activeEx = currentDayExercises.find(ex => ex.id === selectedExId) || currentDayExercises[0]
+
+  // Update highlighted exercise when switching tabs
+  const handleDayChange = (day) => {
+    setActiveDay(day)
+    const dayExs = workoutRoutine[day] || []
+    if (dayExs.length > 0) {
+      setSelectedExId(dayExs[0].id)
+    } else {
+      setSelectedExId(null)
+    }
+  }
+
+  // Swap exercise with an alternative option
+  const handleSwapExercise = (alternativeEx) => {
+    if (!activeEx) return
+    const targetId = activeEx.id
+
+    setWorkoutRoutine(prev => {
+      const currentDayExs = prev[currentDay] || []
+      const nextDayExs = currentDayExs.map(ex => {
+        if (ex.id === targetId) {
+          // Prepend original exercise to alternatives so the user can easily swap back
+          const originalAsAlternative = {
+            name: ex.name,
+            eq: ex.eq,
+            detail: ex.detail,
+            targetPain: ex.targetPain,
+            gif: ex.gif,
+            alternatives: ex.alternatives
+          }
+          const updatedAlts = [
+            originalAsAlternative,
+            ...(alternativeEx.alternatives || []).filter(alt => alt.name !== ex.name)
+          ]
+
+          return {
+            ...ex,
+            name: alternativeEx.name,
+            eq: alternativeEx.eq,
+            detail: alternativeEx.detail,
+            targetPain: alternativeEx.targetPain,
+            gif: alternativeEx.gif,
+            alternatives: updatedAlts
+          }
+        }
+        return ex
+      })
+      return {
+        ...prev,
+        [currentDay]: nextDayExs
+      }
+    })
+
+    // Reset exercise slot completion check upon swap
+    setCompletedExercises(prev => ({
+      ...prev,
+      [targetId]: false
+    }))
+    setIsDirty(true)
+  }
 
   // 운동별 세트수/횟수를 goal 및 sessionMin에 따라 보정하는 헬퍼
   const getScaledSetsReps = (ex) => {
@@ -1004,9 +1734,8 @@ function RoutineCheckView({ workDays, goal, splitStyle, sessionMin, painParts, d
 
   // 총 운동수 계산
   const totalExercises = workDays.reduce((acc, d) => {
-    const part = dayParts[d] || '가슴'
-    const t = getTemplateForPart(part)
-    return acc + (t ? t.items.length : 0)
+    const exs = workoutRoutine[d] || []
+    return acc + exs.length
   }, 0)
 
   // 완료 개수 계산
@@ -1018,10 +1747,17 @@ function RoutineCheckView({ workDays, goal, splitStyle, sessionMin, painParts, d
       ...prev,
       [currentDay]: text
     }))
+    setIsDirty(true)
+  }
+
+  const handleSaveSessionChanges = () => {
+    saveRoutineToDb(workoutRoutine, dailyNotes, completedExercises)
+    setIsDirty(false)
+    setIsSavedModalOpen(true)
   }
 
   return (
-    <div style={{ width: '100%', maxWidth: 760, padding: '0 20px', boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', maxWidth: 1200, padding: '0 20px', boxSizing: 'border-box' }}>
       
       {/* 상단 요약 카드 */}
       <div style={{
@@ -1059,7 +1795,7 @@ function RoutineCheckView({ workDays, goal, splitStyle, sessionMin, painParts, d
           </div>
         </div>
         <button
-          onClick={onReset}
+          onClick={() => setShowResetConfirm(true)}
           style={{
             padding: '10px 20px',
             borderRadius: 8,
@@ -1106,7 +1842,7 @@ function RoutineCheckView({ workDays, goal, splitStyle, sessionMin, painParts, d
           return (
             <button
               key={day}
-              onClick={() => setActiveDay(day)}
+              onClick={() => handleDayChange(day)}
               style={{
                 flex: 1,
                 minWidth: 70,
@@ -1129,155 +1865,421 @@ function RoutineCheckView({ workDays, goal, splitStyle, sessionMin, painParts, d
         })}
       </div>
 
-      {/* 액티브 데이의 운동 카드 리스트 */}
+      {/* 메인 대시보드 2단 레이아웃 */}
       <div style={{
-        background: '#111',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 24,
-        padding: '32px 32px 28px',
-        boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+        display: 'flex',
+        gap: 28,
+        flexWrap: 'wrap',
+        alignItems: 'flex-start',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <div>
-            <span style={{ fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.3)', fontWeight: 700, display: 'block', marginBottom: 4 }}>
-              DAILY ROUTINE
-            </span>
-            <span style={{ fontSize: 18, fontWeight: 800, color: '#FFF' }}>
-              {currentDay}요일 - {template ? template.part : '운동 계획 없음'}
-            </span>
+        {/* 왼쪽 단: 운동 리스트 & 메모 */}
+        <div style={{ flex: '1 1 560px', minWidth: 320 }}>
+          <div style={{
+            background: '#111',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 24,
+            padding: '32px 32px 28px',
+            boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <div>
+                <span style={{ fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.3)', fontWeight: 700, display: 'block', marginBottom: 4 }}>
+                  DAILY ROUTINE
+                </span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: '#FFF' }}>
+                  {currentDay}요일 - {dayParts[currentDay]} 데이
+                </span>
+              </div>
+              <span style={{ fontSize: 12, background: 'rgba(255,215,0,0.08)', color: '#FFD700', padding: '4px 10px', borderRadius: 50, border: '1px solid rgba(255,215,0,0.15)', fontWeight: 600 }}>
+                {currentDayExercises.length}가지 구성
+              </span>
+            </div>
+
+            {currentDayExercises.map(ex => {
+              const isDone = !!completedExercises[ex.id]
+              const isWarned = ex.targetPain && painParts.includes(ex.targetPain)
+              const isSelected = activeEx && activeEx.id === ex.id
+              const { sets, reps } = getScaledSetsReps(ex)
+
+              return (
+                <div
+                  key={ex.id}
+                  onClick={() => setSelectedExId(ex.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 20,
+                    padding: '20px 16px',
+                    borderRadius: 16,
+                    border: `1px solid ${isSelected ? 'rgba(255,215,0,0.35)' : 'transparent'}`,
+                    background: isSelected ? 'rgba(255,215,0,0.02)' : 'transparent',
+                    borderBottom: !isSelected ? '1px solid rgba(255,255,255,0.04)' : '1px solid rgba(255,215,0,0.35)',
+                    opacity: isDone ? 0.45 : 1,
+                    transition: 'all 0.25s',
+                    cursor: 'pointer',
+                    marginBottom: 4,
+                  }}
+                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.01)' }}
+                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                >
+                  {/* 완료 토글 체크박스 */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCompletedExercises(prev => ({ ...prev, [ex.id]: !prev[ex.id] }))
+                      setIsDirty(true)
+                    }}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      background: isDone ? '#FFD700' : 'rgba(255,255,255,0.02)',
+                      border: isDone ? 'none' : '1px solid rgba(255,255,255,0.18)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.15s ease',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isDone && <Check size={16} color="#000" strokeWidth={3.5} />}
+                  </button>
+
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', padding: '2px 8px', borderRadius: 4 }}>
+                        {EQUIPMENT_ICON[ex.eq] || '❔'} {EQUIPMENT_LABEL[ex.eq] || '기타'}
+                      </span>
+                      
+                      <span style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: isDone ? 'rgba(255,255,255,0.3)' : '#FFF',
+                        textDecoration: isDone ? 'line-through' : 'none'
+                      }}>
+                        {ex.name}
+                      </span>
+
+                      {isWarned && (
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          background: 'rgba(255,100,100,0.12)',
+                          border: '1px solid rgba(255,100,100,0.25)',
+                          color: '#FF6B6B',
+                          padding: '2px 6px',
+                          borderRadius: 50,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}>
+                          <AlertTriangle size={8} /> 우회
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.32)', lineHeight: 1.5 }}>
+                      {ex.detail}
+                    </div>
+                  </div>
+
+                  {/* 세트 / 횟수 표시 */}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: isDone ? 'rgba(255,255,255,0.2)' : '#FFD700' }}>
+                      {sets} <span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>Set</span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                      {reps} <span style={{ fontSize: 9.5 }}>Reps</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* 데일리 메모 */}
+            <div style={{ marginTop: 28, paddingTop: 12 }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontWeight: 600 }}>
+                ✍️ {currentDay}요일 피드백 및 데일리 이슈 (예: 통증, 피로도)
+              </div>
+              <textarea
+                value={dailyNotes[currentDay] || ''}
+                onChange={(e) => handleNoteChange(e.target.value)}
+                placeholder={`${currentDay}요일 운동 진행 시 느꼈던 신체 컨디션이나 통증 부위 등을 자유롭게 메모해 두세요...`}
+                style={{
+                  width: '100%',
+                  minHeight: 80,
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  background: 'rgba(0,0,0,0.18)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  color: '#E2E2E2',
+                  fontSize: 13,
+                  outline: 'none',
+                  resize: 'none',
+                  fontFamily: 'Noto Sans KR, sans-serif',
+                  lineHeight: 1.6,
+                  boxSizing: 'border-box',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={e => e.target.style.borderColor = 'rgba(255,215,0,0.3)'}
+                onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.06)'}
+              />
+            </div>
+
+            {/* 변경사항 저장 버튼 */}
+            {isDirty && (
+              <div style={{ marginTop: 16, animation: 'float-up 0.2s ease' }}>
+                <button
+                  type="button"
+                  onClick={handleSaveSessionChanges}
+                  style={{
+                    width: '100%',
+                    padding: '14px 0',
+                    borderRadius: 12,
+                    background: 'linear-gradient(135deg, #FFD700, #C8A200)',
+                    border: 'none',
+                    color: '#000',
+                    fontSize: 14,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 16px rgba(255, 215, 0, 0.2)',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  💾 변경사항 저장
+                </button>
+              </div>
+            )}
           </div>
-          <span style={{ fontSize: 12, background: 'rgba(255,215,0,0.08)', color: '#FFD700', padding: '4px 10px', borderRadius: 50, border: '1px solid rgba(255,215,0,0.15)', fontWeight: 600 }}>
-            추천 {template ? template.items.length : 0}가지
-          </span>
         </div>
 
-        {template && template.items.map(ex => {
-          const isDone = !!completedExercises[ex.id]
-          const isWarned = ex.targetPain && painParts.includes(ex.targetPain)
-          const { sets, reps } = getScaledSetsReps(ex)
+        {/* 오른쪽 단: 활성화된 운동 디테일 카드 (GIF & 대체 운동) */}
+        <div style={{ flex: '1 1 400px', minWidth: 320, position: 'sticky', top: 90 }}>
+          {activeEx ? (
+            <div style={{
+              background: '#111',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 24,
+              padding: 24,
+              boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+              animation: 'float-up 0.25s ease',
+            }} key={activeEx.name}>
+              {/* 타이틀 및 기구 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <div>
+                  <span style={{ fontSize: 10, letterSpacing: 1.5, color: '#FFD700', fontWeight: 800, display: 'block', marginBottom: 4 }}>
+                    EXERCISE DETAIL & GUIDE
+                  </span>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#FFF', margin: 0 }}>
+                    {activeEx.name}
+                  </h3>
+                </div>
+                <span style={{ fontSize: 12, background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}>
+                  {EQUIPMENT_ICON[activeEx.eq]} {EQUIPMENT_LABEL[activeEx.eq]}
+                </span>
+              </div>
 
-          return (
-            <div
-              key={ex.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 20,
-                padding: '20px 0',
-                borderBottom: '1px solid rgba(255,255,255,0.04)',
-                opacity: isDone ? 0.45 : 1,
-                transition: 'opacity 0.25s',
-              }}
-            >
-              {/* 완료 토글 체크박스 */}
-              <button
-                onClick={() => setCompletedExercises(prev => ({ ...prev, [ex.id]: !prev[ex.id] }))}
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  background: isDone ? '#FFD700' : 'rgba(255,255,255,0.02)',
-                  border: isDone ? 'none' : '1px solid rgba(255,255,255,0.18)',
+              {/* 통증 우회 가이드 (활성화 시 표시) */}
+              {activeEx.targetPain && painParts.includes(activeEx.targetPain) && (
+                <div style={{
+                  background: 'rgba(255,107,107,0.08)',
+                  border: '1px solid rgba(255,107,107,0.25)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  marginBottom: 16,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.15s ease',
-                  flexShrink: 0,
-                }}
-              >
-                {isDone && <Check size={16} color="#000" strokeWidth={3.5} />}
-              </button>
-
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', padding: '2px 8px', borderRadius: 4 }}>
-                    {EQUIPMENT_ICON[ex.eq] || '❔'} {EQUIPMENT_LABEL[ex.eq] || '기타'}
-                  </span>
-                  
-                  <span style={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: isDone ? 'rgba(255,255,255,0.3)' : '#FFF',
-                    textDecoration: isDone ? 'line-through' : 'none'
-                  }}>
-                    {ex.name}
-                  </span>
-
-                  {isWarned && (
-                    <span style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      background: 'rgba(255,100,100,0.12)',
-                      border: '1px solid rgba(255,100,100,0.25)',
-                      color: '#FF6B6B',
-                      padding: '2px 8px',
-                      borderRadius: 50,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}>
-                      <AlertTriangle size={9} />
-                      {ex.targetPain === 'shoulder' ? '어깨 불안정 우회 가이드 적용' : ex.targetPain === 'lower_back' ? '허리 디스크 요통 우회 가이드 적용' : ex.targetPain === 'wrist' ? '손목 관절 우회 가이드 적용' : '무릎 관절 보호 우회 가이드 적용'}
-                    </span>
-                  )}
+                  gap: 10,
+                }}>
+                  <AlertTriangle size={18} color="#FF6B6B" />
+                  <div style={{ fontSize: 11.5, color: '#FF9E9E', lineHeight: 1.4 }}>
+                    <strong>통증 케어 경고</strong>: 해당 운동은 {activeEx.targetPain === 'shoulder' ? '어깨' : activeEx.targetPain === 'lower_back' ? '허리' : activeEx.targetPain === 'wrist' ? '손목' : '무릎'} 부상 우회 가이드 대상입니다. 가동 범위 조절이 필수적입니다.
+                  </div>
                 </div>
-                <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.32)', lineHeight: 1.5 }}>
-                  {isWarned ? (
-                    <span style={{ color: '#FF9E66' }}>💡 [통증케어 우회] 관절 가동범위 제한 및 안전 무게 적용 권장</span>
-                  ) : (
-                    ex.detail
-                  )}
-                </div>
-              </div>
+              )}
 
-              {/* 세트 / 횟수 표시 */}
+              {/* GIF 미디어 영역 */}
               <div style={{
-                textAlign: 'right',
-                flexShrink: 0,
+                width: '100%',
+                aspectRatio: '1.45',
+                borderRadius: 16,
+                overflow: 'hidden',
+                background: '#080808',
+                border: '1px solid rgba(255,255,255,0.05)',
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
               }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: isDone ? 'rgba(255,255,255,0.2)' : '#FFD700' }}>
-                  {sets} <span style={{ fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>Set</span>
-                </div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-                  {reps} <span style={{ fontSize: 10 }}>Reps</span>
-                </div>
+                <img
+                  src={activeEx.gif}
+                  alt={activeEx.name}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/workout_guide.png';
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    maxHeight: '100%',
+                  }}
+                />
               </div>
-            </div>
-          )
-        })}
 
-        {/* 데일리 메모 */}
-        <div style={{ marginTop: 28, paddingTop: 12 }}>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontWeight: 600 }}>
-            ✍️ {currentDay}요일 피드백 및 데일리 이슈 (예: 통증, 피로도)
-          </div>
-          <textarea
-            value={dailyNotes[currentDay] || ''}
-            onChange={(e) => handleNoteChange(e.target.value)}
-            placeholder={`${currentDay}요일 운동 진행 시 느꼈던 신체 컨디션이나 통증 부위 등을 자유롭게 메모해 두세요...`}
-            style={{
-              width: '100%',
-              minHeight: 80,
-              padding: '12px 14px',
-              borderRadius: 12,
-              background: 'rgba(0,0,0,0.18)',
+              {/* 운동 디테일 텍스트 */}
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: '0 0 24px 0', background: 'rgba(0,0,0,0.15)', padding: '12px 14px', borderRadius: 12 }}>
+                💡 {activeEx.detail}
+              </p>
+
+              {/* 대체 운동 섹션 */}
+              {activeEx.alternatives && activeEx.alternatives.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.4)', marginBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: 6 }}>
+                    🔄 이 운동 대신 대체하기 (대체 운동 선택)
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {activeEx.alternatives.map(alt => (
+                      <button
+                        key={alt.name}
+                        type="button"
+                        onClick={() => handleSwapExercise(alt)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: '10px 14px',
+                          borderRadius: 10,
+                          background: 'rgba(255,255,255,0.02)',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 215, 0, 0.04)'; e.currentTarget.style.borderColor = 'rgba(255, 215, 0, 0.3)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)' }}
+                      >
+                        <span style={{ fontSize: 16 }}>🔄</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 700, color: '#FFD700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {alt.name}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {alt.detail}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              background: '#111',
               border: '1px solid rgba(255,255,255,0.06)',
-              color: '#E2E2E2',
-              fontSize: 13,
-              outline: 'none',
-              resize: 'none',
-              fontFamily: 'Noto Sans KR, sans-serif',
-              lineHeight: 1.6,
-              boxSizing: 'border-box',
-              transition: 'border-color 0.2s',
-            }}
-            onFocus={e => e.target.style.borderColor = 'rgba(255,215,0,0.3)'}
-            onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.06)'}
-          />
+              borderRadius: 24,
+              padding: 40,
+              textAlign: 'center',
+              color: 'rgba(255,255,255,0.22)',
+            }}>
+              👈 왼쪽 리스트에서 운동을 눌러 자세한 가이드와 대체 운동을 확인하세요.
+            </div>
+          )}
         </div>
       </div>
+
+      {/* 저장 완료 모달 */}
+      {isSavedModalOpen && (
+        <div onClick={() => setIsSavedModalOpen(false)} style={{
+          position: 'fixed', inset: 0, zIndex: 4000,
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#111', border: '1px solid rgba(255,215,0,0.3)',
+            borderRadius: 24, padding: '36px 32px 30px', maxWidth: 440, width: '100%',
+            boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
+            animation: 'float-up 0.3s ease',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              width: 60, height: 60, borderRadius: '50%',
+              background: 'rgba(255,215,0,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px',
+              border: '2px solid #FFD700',
+            }}>
+              <Check size={32} color="#FFD700" strokeWidth={3} />
+            </div>
+            <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 28, color: '#FFF', letterSpacing: 2, marginBottom: 8 }}>
+              ROUTINE SAVED SUCCESS!
+            </h2>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#FFD700', marginBottom: 16 }}>
+              변경된 사항이 성공적으로 저장되었습니다!
+            </div>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.75, marginBottom: 24 }}>
+              수정하신 대체 운동 목록, 운동 수행 기록(체크박스), 그리고 피드백 메모의 변경 내역이 안전하게 영구 저장되었습니다.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsSavedModalOpen(false)}
+              style={{
+                width: '100%', padding: '13px 0', borderRadius: 10,
+                background: 'linear-gradient(135deg, #FFD700, #C8A200)', border: 'none',
+                color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer',
+              }}
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 다시 설계 경고 모달 */}
+      {showResetConfirm && (
+        <div onClick={() => setShowResetConfirm(false)} style={{
+          position: 'fixed', inset: 0, zIndex: 3000,
+          background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 18, padding: '32px 28px 26px', maxWidth: 380, width: '100%',
+            boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+            animation: 'float-up 0.2s ease',
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 14 }}>⚠️</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#E2E2E2', marginBottom: 12 }}>
+              루틴을 다시 설계할까요?
+            </div>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.75, marginBottom: 24 }}>
+              다시 설계하면 <strong style={{ color: 'rgba(255,255,255,0.7)' }}>현재 기록된 운동 수행 기록과 대체 운동 설정, 데일리 메모가 모두 초기화</strong>됩니다.<br /><br />
+              정말 다시 설계하시겠습니까?
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowResetConfirm(false)} style={{
+                flex: 1, padding: '11px 0', borderRadius: 10,
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer',
+              }}>취소</button>
+              <button onClick={() => {
+                setShowResetConfirm(false)
+                onReset()
+              }} style={{
+                flex: 1, padding: '11px 0', borderRadius: 10,
+                background: '#FF6B6B', border: 'none',
+                color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer',
+              }}>다시 설계</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
 

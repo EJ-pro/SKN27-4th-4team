@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from api.views import ExerciseListView, SessionListView, SessionDetailView, MessageListView
+from api.views import ExerciseListView, SessionListView, SessionDetailView, MessageListView, RoutineView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/sessions/', SessionListView.as_view()),
     path('api/sessions/<int:session_id>/', SessionDetailView.as_view()),
     path('api/sessions/<int:session_id>/messages/', MessageListView.as_view()),
+    path('api/routines/', RoutineView.as_view()),
 ]
