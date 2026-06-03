@@ -70,7 +70,7 @@ def load_exercises(conn) -> None:
     if not ENRICHED_JSON.exists():
         raise FileNotFoundError(f"[크리티컬 에러] 적재 대상 JSON 파일이 없습니다: {ENRICHED_JSON.name}")
 
-    with open(ENRICHED_JSON, encoding="utf-8") as f:
+    with open(ENRICHED_JSON, encoding="utf-8-sig") as f:
         raw: list[dict] = json.load(f)
 
     # 원본 데이터 중복 id 제거 (첫 번째 항목 유지)
