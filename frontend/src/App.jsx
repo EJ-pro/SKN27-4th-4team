@@ -8,6 +8,8 @@ import RoutinePage from './pages/RoutinePage'
 import ConsultPage from './pages/ConsultPage'
 import LoginPage from './pages/LoginPage'
 import AlgorithmSection from './components/AlgorithmSection'
+import ChatSection from './components/ChatSection'
+import ExerciseSection from './components/ExerciseSection'
 
 export default function App() {
   const [page, setPage] = useState('home')
@@ -15,10 +17,10 @@ export default function App() {
   const renderPage = () => {
     switch (page) {
       case 'exercises': return <ExercisePage />
-      case 'routine':   return <RoutinePage />
-      case 'consult':   return <ConsultPage onNavigate={setPage} />
-      case 'login':     return <LoginPage onNavigate={setPage} />
-      default:          return <><Hero /><AlgorithmSection /><Footer /></>
+      case 'routine': return <RoutinePage />
+      case 'consult': return <ConsultPage onNavigate={setPage} />
+      case 'login': return <LoginPage onNavigate={setPage} />
+      default: return <><Hero /><AlgorithmSection /><ChatSection /><ExerciseSection /><Footer /></>
     }
   }
 
