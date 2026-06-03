@@ -238,3 +238,17 @@ input::placeholder {
 input:focus {
   outline: none;
 }
+
+/* ─── Bot markdown ─── */
+.md-bot p { margin: 0 0 10px; }
+.md-bot p:last-child { margin-bottom: 0; }
+.md-bot h1, .md-bot h2, .md-bot h3 { color: #E2E2E2; margin: 16px 0 8px; font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; }
+.md-bot ul, .md-bot ol { padding-left: 20px; margin: 8px 0; }
+.md-bot li { margin-bottom: 4px; }
+.md-bot strong { color: #E2E2E2; font-weight: 700; }
+.md-bot em { color: rgba(226,226,226,0.7); }
+.md-bot code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.md-bot pre { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px 16px; margin: 10px 0; overflow-x: auto; }
+.md-bot pre code { background: none; padding: 0; font-size: 13px; }
+.md-bot blockquote { border-left: 3px solid rgba(255,215,0,0.4); padding-left: 14px; margin: 10px 0; color: rgba(226,226,226,0.6); }
+.md-bot hr { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 14px 0; }

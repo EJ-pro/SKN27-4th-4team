@@ -83,13 +83,14 @@ CREATE TABLE IF NOT EXISTS exercises (
 CREATE TABLE IF NOT EXISTS chat_sessions (
     session_id           SERIAL PRIMARY KEY,
     user_id              INT REFERENCES users(user_id) ON DELETE CASCADE,
+    device_uuid          UUID,
+    title                VARCHAR(100) NOT NULL DEFAULT '새 상담',
     extracted_conditions JSONB,
-    -- LLM 1 파싱 결과 스냅샷
-    -- 예: {"time": 50, "parts": ["등", "하체"], "pain": ["shoulder"]}
     is_converted         BOOLEAN DEFAULT FALSE,
-    -- TRUE = 루틴 생성까지 완료된 세션
     created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_device_uuid ON chat_sessions(device_uuid);
 
 -- ────────────────────────────────────────────
 -- 5. chat_messages

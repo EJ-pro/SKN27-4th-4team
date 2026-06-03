@@ -53,7 +53,9 @@ class Exercise(models.Model):
 
 class ChatSession(models.Model):
     session_id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(AppUser, on_delete=models.CASCADE, db_column='user_id')
+    user = models.ForeignKey(AppUser, on_delete=models.CASCADE, db_column='user_id', null=True, blank=True)
+    device_uuid = models.UUIDField(null=True, blank=True)
+    title = models.CharField(max_length=100, default='새 상담')
     extracted_conditions = models.JSONField(null=True, blank=True)
     is_converted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

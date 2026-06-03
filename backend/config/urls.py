@@ -16,9 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from api.views import ExerciseListView
+from api.views import ExerciseListView, SessionListView, SessionDetailView, MessageListView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/exercises/', ExerciseListView.as_view()),
+    path('api/sessions/', SessionListView.as_view()),
+    path('api/sessions/<int:session_id>/', SessionDetailView.as_view()),
+    path('api/sessions/<int:session_id>/messages/', MessageListView.as_view()),
 ]

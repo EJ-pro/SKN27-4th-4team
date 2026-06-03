@@ -1,32 +1,29 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Dumbbell, ChevronRight, Clock, MessageSquare, Pencil, Trash2 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 
-// ─── 초기 데이터 ──────────────────────────────────────────────────────────────
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-const INITIAL_MESSAGES = [
-  {
-    id: 1, role: 'bot',
-    text: '안녕하세요! 저는 AI 운동 코치입니다 💪\n\n운동 목표, 현재 체력 수준, 통증 부위 등을 알려주시면 맞춤형 루틴을 설계해드릴게요.\n\n어떤 도움이 필요하신가요?',
-    time: '오후 2:30',
-  },
-  {
-    id: 2, role: 'user',
-    text: '어깨 통증이 있는데 운동해도 될까요? 왼쪽 어깨가 들어올릴 때 아파요.',
-    time: '오후 2:31',
-  },
-  {
-    id: 3, role: 'bot',
-    text: '어깨 통증이 있으실 때는 우선 통증 원인을 파악하는 것이 중요합니다.\n\n• 통증 지속 기간: 언제부터 시작됐나요?\n• 통증 강도: 1~10 사이로 표현하면?\n• 특정 동작에서 악화되나요?\n\n정확한 진단 전까지는 무거운 오버헤드 동작은 피하시는 것이 좋습니다.',
-    time: '오후 2:31',
-  },
-]
+// ─── UUID 쿠키 유틸 ───────────────────────────────────────────────────────────
 
-const INITIAL_SESSIONS = [
-  { id: 1, title: '어깨 통증이 있는데 어떤 운동...', date: '오늘', messages: INITIAL_MESSAGES },
-  { id: 2, title: '하체 루틴 3일 추천해줘', date: '어제', messages: [] },
-  { id: 3, title: '벤치프레스 100kg 목표 루틴', date: '3일 전', messages: [] },
-  { id: 4, title: '초보자 전신 루틴 짜줘', date: '1주 전', messages: [] },
-]
+function getOrCreateUUID() {
+  const key = 'fitai_device_uuid'
+  const match = document.cookie.split('; ').find(r => r.startsWith(key + '='))
+  if (match) return match.split('=')[1]
+  const uuid = crypto.randomUUID()
+  document.cookie = `${key}=${uuid}; max-age=${60 * 60 * 24 * 365}; path=/`
+  return uuid
+}
+
+function formatDate(iso) {
+  const d = new Date(iso), now = new Date()
+  const diff = (now - d) / 1000
+  if (diff < 60) return '방금'
+  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
+  if (diff < 86400) return '오늘'
+  if (diff < 172800) return '어제'
+  return `${Math.floor(diff / 86400)}일 전`
+}
 
 const QUICK_QUESTIONS = [
   '오늘 운동 추천',
@@ -53,39 +50,39 @@ function BotAvatar() {
 
 function Message({ msg }) {
   const isBot = msg.role === 'bot'
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: isBot ? 'row' : 'row-reverse',
-      gap: 12,
-      marginBottom: 20,
-      animation: 'float-up 0.3s ease',
-    }}>
-      {isBot && <BotAvatar />}
-      <div style={{ maxWidth: '72%' }}>
+
+  if (isBot) return (
+    <div style={{ display: 'flex', gap: 14, marginBottom: 56, animation: 'float-up 0.3s ease' }}>
+      <BotAvatar />
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          padding: '14px 18px',
-          borderRadius: isBot ? '4px 16px 16px 16px' : '16px 4px 16px 16px',
-          background: isBot
-            ? 'rgba(255,255,255,0.05)'
-            : 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(200,162,0,0.1))',
-          border: isBot
-            ? '1px solid rgba(255,255,255,0.07)'
-            : '1px solid rgba(255,215,0,0.2)',
-          fontSize: 14,
-          color: isBot ? 'rgba(255,255,255,0.82)' : '#fff',
-          lineHeight: 1.75,
-          whiteSpace: 'pre-line',
+          fontSize: 14, color: 'rgba(226,226,226,0.85)', lineHeight: 1.85,
+        }}
+          className="md-bot"
+        >
+          <ReactMarkdown>{msg.text}</ReactMarkdown>
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 8 }}>
+          {msg.time}
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 56, animation: 'float-up 0.3s ease' }}>
+      <div style={{ maxWidth: '68%' }}>
+        <div style={{
+          padding: '12px 18px',
+          borderRadius: '16px 4px 16px 16px',
+          background: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(200,162,0,0.1))',
+          border: '1px solid rgba(255,215,0,0.2)',
+          fontSize: 14, color: '#E2E2E2', lineHeight: 1.75,
+          whiteSpace: 'pre-wrap',
         }}>
           {msg.text}
         </div>
-        <div style={{
-          fontSize: 11, color: 'rgba(255,255,255,0.22)',
-          marginTop: 5,
-          textAlign: isBot ? 'left' : 'right',
-          paddingLeft: isBot ? 4 : 0,
-          paddingRight: isBot ? 0 : 4,
-        }}>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 5, textAlign: 'right' }}>
           {msg.time}
         </div>
       </div>
@@ -263,52 +260,138 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
 // ─── ConsultPage ──────────────────────────────────────────────────────────────
 
 export default function ConsultPage({ onNavigate }) {
-  const [sessions, setSessions] = useState(INITIAL_SESSIONS)
-  const [activeId, setActiveId] = useState(1)
+  const [sessions, setSessions] = useState([])
+  const [activeId, setActiveId] = useState(null)
+  const [messages, setMessages] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [renamingSession, setRenamingSession] = useState(null)
   const [deletingSession, setDeletingSession] = useState(null)
-  const nextId = useRef(100)
+  const uuid = useRef(getOrCreateUUID())
   const textareaRef = useRef(null)
+  const scrollRef = useRef(null)
+  const latestMsgRef = useRef(null)
+
+  // 새 메시지 전송 시 스크롤 맨 아래로 (paddingBottom 덕에 최신 메시지가 상단에 위치)
+  useEffect(() => {
+    if (!scrollRef.current) return
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [messages.length])
+
+  // 세션 목록 로드
+  useEffect(() => {
+    fetch(`${API_URL}/api/sessions/?device_uuid=${uuid.current}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.length > 0) {
+          const list = data.map(s => ({ id: s.session_id, title: s.title, date: formatDate(s.created_at) }))
+          setSessions(list)
+          setActiveId(list[0].id)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // 세션 전환 시 메시지 로드
+  useEffect(() => {
+    if (!activeId) return
+    fetch(`${API_URL}/api/sessions/${activeId}/messages/?device_uuid=${uuid.current}`)
+      .then(r => r.json())
+      .then(data => {
+        setMessages(data.map(m => ({
+          id: m.message_id,
+          role: m.sender,
+          text: m.content,
+          time: new Date(m.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        })))
+      })
+      .catch(() => setMessages([]))
+  }, [activeId])
 
   const handleInputChange = (e) => {
     setInputValue(e.target.value)
     const el = e.target
     el.style.height = 'auto'
-    const lineHeight = 14 * 1.6
-    const maxHeight = lineHeight * 6 + 8
+    const maxHeight = 14 * 1.6 * 6 + 8
     el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px'
     el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
   }
 
-  const activeSession = sessions.find(s => s.id === activeId) ?? sessions[0]
 
-  const createSession = () => {
-    const id = nextId.current++
-    const newSession = { id, title: '새 상담', date: '방금', messages: [] }
+  const createSession = async () => {
+    const res = await fetch(`${API_URL}/api/sessions/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_uuid: uuid.current, title: '새 상담' }),
+    })
+    const data = await res.json()
+    const newSession = { id: data.session_id, title: data.title, date: '방금' }
     setSessions(prev => [newSession, ...prev])
-    setActiveId(id)
+    setActiveId(data.session_id)
+    setMessages([])
     setInputValue('')
   }
 
-  const renameSession = (id, title) => {
+  const renameSession = async (id, title) => {
+    await fetch(`${API_URL}/api/sessions/${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_uuid: uuid.current, title }),
+    })
     setSessions(prev => prev.map(s => s.id === id ? { ...s, title } : s))
   }
 
-  const deleteSession = (id) => {
+  const deleteSession = async (id) => {
+    await fetch(`${API_URL}/api/sessions/${id}/`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_uuid: uuid.current }),
+    })
     setSessions(prev => {
       const next = prev.filter(s => s.id !== id)
-      if (next.length === 0) {
-        const fallback = { id: nextId.current++, title: '새 상담', date: '방금', messages: [] }
-        setActiveId(fallback.id)
-        return [fallback]
+      if (id === activeId) {
+        if (next.length > 0) setActiveId(next[0].id)
+        else setActiveId(null)
       }
-      if (id === activeId) setActiveId(next[0].id)
       return next
     })
   }
 
-  const hasMessages = activeSession?.messages?.length > 0
+  const sendMessage = async () => {
+    if (!inputValue.trim()) return
+    const text = inputValue.trim()
+    const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+    const title = text.slice(0, 22)
+
+    // 세션이 없으면 자동 생성
+    let sessionId = activeId
+    if (!sessionId) {
+      const res = await fetch(`${API_URL}/api/sessions/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_uuid: uuid.current, title }),
+      })
+      const data = await res.json()
+      sessionId = data.session_id
+      setSessions([{ id: sessionId, title, date: '방금' }])
+      setActiveId(sessionId)
+    } else if (messages.length === 0) {
+      renameSession(sessionId, title)
+    }
+
+    // 낙관적 UI 업데이트
+    setMessages(prev => [...prev, { id: Date.now(), role: 'user', text, time }])
+    setInputValue('')
+    if (textareaRef.current) { textareaRef.current.style.height = 'auto'; textareaRef.current.style.overflowY = 'hidden' }
+
+    // DB 저장
+    fetch(`${API_URL}/api/sessions/${sessionId}/messages/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_uuid: uuid.current, sender: 'user', content: text }),
+    }).catch(() => {})
+  }
+
+  const hasMessages = messages.length > 0
 
   return (
     <>
@@ -424,12 +507,14 @@ export default function ConsultPage({ onNavigate }) {
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: '#0F0F0F', overflow: 'hidden' }}>
 
         {/* 스크롤 메시지 영역 */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '32px 0' }}>
-          <div style={{ maxWidth: 900, margin: '0 auto', width: '100%', padding: '0 32px', boxSizing: 'border-box' }}>
+        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '56px 0 0' }}>
+          <div style={{ maxWidth: 900, margin: '0 auto', width: '100%', padding: '0 32px 60vh', boxSizing: 'border-box' }}>
             {hasMessages ? (
               <>
-                {activeSession.messages.map(msg => (
-                  <Message key={msg.id} msg={msg} />
+                {messages.map((msg, i) => (
+                  <div key={msg.id} ref={i === messages.length - 1 ? latestMsgRef : null}>
+                    <Message msg={msg} />
+                  </div>
                 ))}
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
                   <BotAvatar />
@@ -454,24 +539,20 @@ export default function ConsultPage({ onNavigate }) {
               <div style={{
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
-                minHeight: '50vh', gap: 16,
+                height: '100%', minHeight: '55vh',
+                background: 'radial-gradient(ellipse 60% 50% at 50% 55%, rgba(255,215,0,0.07) 0%, transparent 70%)',
               }}>
-                <div style={{
-                  width: 64, height: 64, borderRadius: 18,
-                  background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 0 32px rgba(255,215,0,0.2)',
+                <h1 style={{
+                  fontFamily: 'Bebas Neue',
+                  fontSize: 'clamp(28px, 3.5vw, 46px)',
+                  color: '#E2E2E2',
+                  letterSpacing: 3,
+                  textAlign: 'center',
+                  fontWeight: 400,
+                  margin: 0,
                 }}>
-                  <Dumbbell size={32} color="#000" strokeWidth={2.5} />
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: 'Bebas Neue', fontSize: 28, color: '#E2E2E2', letterSpacing: 2, marginBottom: 8 }}>
-                    AI 운동 코치
-                  </div>
-                  <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.8, maxWidth: 360 }}>
-                    운동 목표, 체력 수준, 통증 부위 등을 알려주시면<br />맞춤형 루틴을 설계해드릴게요.
-                  </p>
-                </div>
+                  무엇을 도와드릴까요?
+                </h1>
               </div>
             )}
           </div>
@@ -525,8 +606,10 @@ export default function ConsultPage({ onNavigate }) {
                 }}
                 onFocus={e => e.target.parentElement.style.borderColor = 'rgba(255,215,0,0.35)'}
                 onBlur={e => e.target.parentElement.style.borderColor = 'rgba(255,255,255,0.08)'}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
               />
               <button
+                onClick={sendMessage}
                 disabled={!inputValue.trim()}
                 style={{
                   width: 42, height: 42, borderRadius: 10,
