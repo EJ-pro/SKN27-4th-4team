@@ -6,6 +6,7 @@ import Footer from './components/Footer'
 import ExercisePage from './pages/ExercisePage'
 import RoutinePage from './pages/RoutinePage'
 import ConsultPage from './pages/ConsultPage'
+import LoginPage from './pages/LoginPage'
 
 export default function App() {
   const [page, setPage] = useState('home')
@@ -15,11 +16,12 @@ export default function App() {
       case 'exercises': return <ExercisePage />
       case 'routine':   return <RoutinePage />
       case 'consult':   return <ConsultPage onNavigate={setPage} />
+      case 'login':     return <LoginPage onNavigate={setPage} />
       default:          return <><Hero /><Footer /></>
     }
   }
 
-  const isFullscreen = page === 'consult'
+  const isFullscreen = page === 'consult' || page === 'login'
 
   return (
     <div style={{ minHeight: '100vh', background: '#080808' }}>

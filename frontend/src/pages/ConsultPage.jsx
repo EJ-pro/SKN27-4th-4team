@@ -476,15 +476,16 @@ export default function ConsultPage({ onNavigate }) {
 
         {/* 유저 프로필 */}
         <div style={{ padding: '12px 8px 20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 12px', borderRadius: 10,
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            cursor: 'pointer',
-            transition: 'background 0.2s',
-          }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+          <button
+            onClick={() => onNavigate('login')}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 12px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              cursor: 'pointer', transition: 'background 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
           >
             <div style={{
@@ -494,11 +495,8 @@ export default function ConsultPage({ onNavigate }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0, fontSize: 15,
             }}>👤</div>
-            <div>
-              <div style={{ fontSize: 12, color: 'rgba(226,226,226,0.8)', fontWeight: 600 }}>게스트</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>초급 · 로그인 필요</div>
-            </div>
-          </div>
+            <span style={{ fontSize: 13, color: 'rgba(226,226,226,0.75)', fontWeight: 500 }}>게스트</span>
+          </button>
         </div>
 
       </aside>
