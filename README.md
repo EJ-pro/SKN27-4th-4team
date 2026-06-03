@@ -95,3 +95,36 @@ gq.get_split_stats()
 
 gq.close()
 ```
+## 1차 구현
+
+### 구현 범위
+
+추천 서비스의 1차 구현에서는 기존 Graph DB를 기반으로 LangGraph 구조의 운동 루틴 추천 시스템 골격을 구성했습니다.  
+Django, React 등 화면/서버 구현은 제외하고, 추천 로직 자체에 집중했습니다.
+
+### 주요 구현 내용
+
+- Neo4j Graph DB 연동 확인
+- LangGraph 기반 추천 워크플로우 구현
+- Supervisor Agent 기반 라우팅 구조 구현
+- 사용자 프로필 추출 Agent 구현
+- 추천 파라미터 생성 Agent 구현
+- Graph DB 운동 후보 조회 Tool 구현
+- 루틴 구성 Agent 구현
+- 루틴 검증 Agent 구현
+- 루틴 수정 Agent 구현
+- 최종 응답 생성 Agent 구현
+- 마지막 Human-in-the-loop 구조 구현
+
+### 추천 플로우
+
+```text
+사용자 설문 입력
+→ 사용자 프로필 추출
+→ 추천 파라미터 생성
+→ Neo4j Graph DB 운동 후보 조회
+→ 5분할 루틴 구성
+→ 루틴 검증
+→ 최종 사용자 확인
+→ 승인 시 최종 추천 응답 생성
+→ 수정 요청 시 루틴 수정 후 재검증
