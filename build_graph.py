@@ -299,6 +299,7 @@ class GraphBuilder:
         """, rows)
 
     # ── 6. HAS_INTENSITY 엣지 ─────────────────────────────────────────────
+    # 난이도
     def create_intensity_edges(self, data: list[dict]):
         print("  [9] HAS_INTENSITY 엣지 생성...")
         rows = [
