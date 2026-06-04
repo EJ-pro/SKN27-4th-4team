@@ -6,3 +6,10 @@ and GraphDB metadata schemas when those interfaces are finalized.
 
 SENIOR_AGE_THRESHOLD = 65
 LOW_SPINE_RISK_LEVELS = {"medium", "high"}
+
+SESSION_EXERCISE_COUNT_POLICY = {
+    30: 3,
+    45: 3,
+    60: 4,
+    90: 5,
+}

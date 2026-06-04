@@ -14,6 +14,8 @@ def create_llm():
     if settings.llm_provider == "groq":
         if not settings.groq_api_key:
             raise RuntimeError("GROQ_API_KEY or GROQ must be set when LLM_PROVIDER=groq.")
+        if not settings.groq_model:
+            raise RuntimeError("GROQ_MODEL or LLM_MODEL must be set when LLM_PROVIDER=groq.")
         return ChatGroq(
             model=settings.groq_model,
             api_key=settings.groq_api_key,
@@ -21,6 +23,8 @@ def create_llm():
         )
 
     if settings.llm_provider == "ollama":
+        if not settings.ollama_model:
+            raise RuntimeError("OLLAMA_MODEL or LLM_MODEL must be set when LLM_PROVIDER=ollama.")
         return ChatOllama(
             model=settings.ollama_model,
             base_url=settings.ollama_base_url,

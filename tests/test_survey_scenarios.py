@@ -1,7 +1,12 @@
 import unittest
 from unittest.mock import patch
 
-from recommendation_service.agents import build_recommendation_params_from_profile, supervisor_agent, user_profile_tool
+from recommendation_service.agents import (
+    _ensure_split_routine,
+    build_recommendation_params_from_profile,
+    supervisor_agent,
+    user_profile_tool,
+)
 from recommendation_service.state import initial_state
 from recommendation_service.survey_scenarios import SURVEY_SCENARIOS, survey_to_user_profile
 
@@ -62,6 +67,40 @@ class SurveyScenarioTests(unittest.TestCase):
                 profile,
                 parsed={"goal": "hypertrophy"},
             )
+
+    def test_missing_session_min_stops_recommendation_params(self):
+        profile = survey_to_user_profile(SURVEY_SCENARIOS[0]["survey"])
+        profile.pop("session_min")
+
+        with self.assertRaises(ValueError):
+            build_recommendation_params_from_profile(profile, parsed={})
+
+    def test_session_min_controls_exercise_count_per_split(self):
+        expected_counts = {30: 3, 45: 3, 60: 4, 90: 5}
+        candidates = {
+            "CHEST": [
+                {"id": index, "name_kor": f"운동{index}", "equipment": "body"}
+                for index in range(1, 7)
+            ]
+        }
+        parsed_routine = {
+            "days": [
+                {
+                    "day": "월",
+                    "target": "CHEST",
+                    "exercises": [
+                        {"name": f"운동{index}"}
+                        for index in range(1, 7)
+                    ],
+                }
+            ]
+        }
+
+        for minutes, expected in expected_counts.items():
+            with self.subTest(minutes=minutes):
+                params = {"split_targets": ["CHEST"], "session_min": minutes}
+                routine = _ensure_split_routine(parsed_routine, candidates, params)
+                self.assertEqual(len(routine["days"][0]["exercises"]), expected)
 
     def test_pain_scenarios_force_low_spine_load(self):
         for scenario in SURVEY_SCENARIOS:

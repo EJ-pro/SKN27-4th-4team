@@ -10,8 +10,8 @@ Planfit 5분할 그래프 DB 구축 스크립트
   python build_graph.py
 
 .env:
-  NEO4J_URI=bolt://localhost:7687
-  NEO4J_USER=neo4j
+  NEO4J_URI=your-neo4j-bolt-uri
+  NEO4J_USER=your-neo4j-user
   NEO4J_PASSWORD=your-password
 """
 

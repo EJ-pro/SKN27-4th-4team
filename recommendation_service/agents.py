@@ -14,6 +14,7 @@ from .llm import invoke_json, invoke_text
 from .policies import (
     LOW_SPINE_RISK_LEVELS,
     SENIOR_AGE_THRESHOLD,
+    SESSION_EXERCISE_COUNT_POLICY,
 )
 from .state import ALLOWED_ACTIONS, RecommendationState
 
@@ -141,6 +142,7 @@ def build_recommendation_params_from_profile(
     profile_level = _required_profile_value(profile, "level")
     profile_equipment = _required_profile_value(profile, "available_equipment")
     profile_home_only = _required_profile_value(profile, "home_only")
+    profile_session_min = _required_profile_value(profile, "session_min")
 
     split_targets = normalize_split_targets(
         parsed.get("split_targets") or profile_split_targets,
@@ -165,6 +167,7 @@ def build_recommendation_params_from_profile(
         "exclude_exercises": parsed.get("exclude_exercises") or profile.get("disliked_exercises") or [],
         "avoid_conditions": avoid_conditions,
         "home_only": parsed["home_only"] if parsed.get("home_only") is not None else profile_home_only,
+        "session_min": profile_session_min,
         "spine": spine,
         "intensity_bias": parsed.get("intensity_bias") or profile.get("intensity_bias") or "standard",
         "candidate_limit_per_target": int(parsed.get("candidate_limit_per_target", 12)),
@@ -181,12 +184,13 @@ def graph_search_tool(state: RecommendationState) -> dict[str, Any]:
 def routine_composition_agent(state: RecommendationState) -> dict[str, Any]:
     system = (
         "당신은 Routine Composition Agent입니다. 제공된 Neo4j 운동 후보 안에서만 5분할 루틴을 구성하세요. "
-        "후보에 없는 운동을 만들면 안 됩니다. 각 분할마다 3~5개 운동을 고르고 sets/reps/rest_seconds/reason을 포함하세요. "
+        "후보에 없는 운동을 만들면 안 됩니다. session_min에 맞춰 각 분할의 운동 개수를 조절하고 sets/reps/rest_seconds/reason을 포함하세요. "
         "응답은 JSON만 반환하세요: {\"split_type\":\"5-day\",\"days\":[...]}"
     )
     parsed = invoke_json(system, compact_json({
         "profile": state.get("user_profile", {}),
         "params": state.get("recommendation_params", {}),
+        "exercise_count_per_split": _exercise_count_for_session(state.get("user_profile", {})),
         "exercise_candidates": _slim_candidates(state.get("exercise_candidates", {})),
     }))
     repaired = _ensure_split_routine(
@@ -379,6 +383,7 @@ def _ensure_split_routine(
     params: dict[str, Any],
 ) -> dict[str, Any]:
     targets = params.get("split_targets") or SPLIT_TARGETS
+    target_count = _exercise_count_for_session(routine.get("profile", {}), params)
     days = routine.get("days") if isinstance(routine, dict) else []
     days = days if isinstance(days, list) else []
     normalized_days = []
@@ -402,7 +407,7 @@ def _ensure_split_routine(
                 })
 
         for row in candidates.get(target, []):
-            if len(existing) >= 3:
+            if len(existing) >= target_count:
                 break
             name = str(row.get("name_kor") or row.get("name_eng") or row.get("id"))
             if name in {item.get("name") for item in existing}:
@@ -420,7 +425,7 @@ def _ensure_split_routine(
         normalized_days.append({
             "day": source_day.get("day") or f"Day {index + 1}",
             "target": target,
-            "exercises": existing[:5],
+            "exercises": existing[:target_count],
         })
 
     return {
@@ -428,6 +433,24 @@ def _ensure_split_routine(
         "split_type": "5-day",
         "days": normalized_days,
     }
+
+
+def _exercise_count_for_session(profile: dict[str, Any], params: dict[str, Any] | None = None) -> int:
+    session_min = profile.get("session_min")
+    if session_min is None and params:
+        session_min = params.get("session_min")
+    try:
+        minutes = int(session_min)
+    except (TypeError, ValueError):
+        minutes = 60
+
+    if minutes <= 30:
+        return SESSION_EXERCISE_COUNT_POLICY[30]
+    if minutes <= 45:
+        return SESSION_EXERCISE_COUNT_POLICY[45]
+    if minutes <= 60:
+        return SESSION_EXERCISE_COUNT_POLICY[60]
+    return SESSION_EXERCISE_COUNT_POLICY[90]
 
 
 def _exercise_name(exercise: dict[str, Any]) -> str:
