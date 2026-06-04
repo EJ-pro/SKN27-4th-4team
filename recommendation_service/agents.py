@@ -2,10 +2,20 @@ from typing import Any
 
 from langgraph.types import interrupt
 
-from .graph_tools import SPLIT_TARGETS, normalize_equipment, normalize_level, normalize_spine
+from .graph_tools import (
+    SPLIT_TARGETS,
+    normalize_equipment,
+    normalize_level,
+    normalize_spine,
+    normalize_split_targets,
+)
 from .json_utils import compact_json
 from .llm import invoke_json, invoke_text
-from .state import ALLOWED_ACTIONS, DEFAULT_PROFILE, RecommendationState
+from .policies import (
+    LOW_SPINE_RISK_LEVELS,
+    SENIOR_AGE_THRESHOLD,
+)
+from .state import ALLOWED_ACTIONS, RecommendationState
 
 
 def _history(state: RecommendationState, action: str) -> list[str]:
@@ -13,11 +23,40 @@ def _history(state: RecommendationState, action: str) -> list[str]:
 
 
 def supervisor_agent(state: RecommendationState) -> dict[str, Any]:
+    current_step = _supervisor_step_count(state)
+    max_steps = _max_supervisor_steps(state)
+    if state.get("final_response"):
+        action = "END"
+        return {
+            "next_action": action,
+            "action_reason": "final_response already exists",
+            "action_history": _history(state, action),
+            "supervisor_step_count": current_step + 1,
+        }
+
+    if current_step >= max_steps:
+        action = _loop_guard_action(state)
+        result = {
+            "next_action": action,
+            "action_reason": f"Supervisor loop guard reached max_supervisor_steps={max_steps}.",
+            "action_history": _history(state, action),
+            "supervisor_step_count": current_step + 1,
+            "errors": [
+                *state.get("errors", []),
+                f"Supervisor loop guard reached max_supervisor_steps={max_steps}.",
+            ],
+        }
+        if action == "END" and not state.get("final_response"):
+            result["final_response"] = (
+                "추천 루프가 최대 단계 수에 도달해 안전하게 중단했습니다. "
+                "입력값, GraphDB 후보, 검증 결과를 확인한 뒤 다시 시도해주세요."
+            )
+        return result
+
     system = (
         "당신은 5분할 루틴 추천 LangGraph의 Routine Supervisor Agent입니다. "
         "현재 State를 보고 다음 action 하나만 JSON으로 선택하세요. "
         "허용 action: " + ", ".join(sorted(ALLOWED_ACTIONS)) + ". "
-        "프론트엔드 설문에서 필수 정보 입력을 보장하므로 추천 시작 전 REQUEST_REQUIRED_INFO는 선택하지 마세요. "
         "루틴 생성 전에는 프로필 확인, 추천 파라미터 생성, 그래프 검색, 루틴 구성, 검증, 최종 확인, 최종 응답 순서를 지켜야 합니다. "
         "최종 확인 단계에서는 REQUEST_FINAL_HUMAN_REVIEW를 선택해야 합니다. "
         "응답은 반드시 {\"next_action\":\"...\",\"reason\":\"...\"} JSON만 반환하세요."
@@ -44,49 +83,25 @@ def supervisor_agent(state: RecommendationState) -> dict[str, Any]:
         "next_action": action,
         "action_reason": parsed.get("reason", "fallback route selected"),
         "action_history": _history(state, action),
+        "supervisor_step_count": current_step + 1,
     }
 
 
 def user_profile_tool(state: RecommendationState) -> dict[str, Any]:
-    system = (
-        "You are a User Profile Extraction Agent for a workout recommendation service. "
-        "Extract only facts stated by the completed frontend survey or user message. "
-        "Return JSON only with these optional fields: age, gender, level, goal, "
-        "available_days, available_equipment, injuries, pain_points, preferences, "
-        "disliked_exercises, home_only, spine. "
-        "Normalize level to beginner/intermediate/advanced, goal to "
-        "hypertrophy/strength/fat_loss/health, and spine to all/mid/low. "
-        "Use [] for empty list fields and null for unknown scalar fields."
-    )
-    parsed = invoke_json(system, compact_json({
-        "user_message": state.get("user_message", ""),
-        "existing_profile": state.get("user_profile", {}),
-    }))
+    if not state.get("user_profile"):
+        message = "구조화된 프론트 설문 user_profile이 없어 추천을 진행할 수 없습니다."
+        return {
+            "final_response": message,
+            "next_action": "END",
+            "errors": [*state.get("errors", []), message],
+        }
     profile = _normalize_profile(
-        {**DEFAULT_PROFILE, **state.get("user_profile", {}), **parsed},
-        state.get("user_message", ""),
+        state.get("user_profile", {}),
     )
-    return {"user_profile": profile, "workout_history": state.get("workout_history", [])}
-
-
-def profile_clarification_agent(state: RecommendationState) -> dict[str, Any]:
-    system = (
-        "당신은 Profile Clarification Agent입니다. 사용자의 요청과 현재 프로필에서 "
-        "5분할 루틴 추천에 필요한 필수 정보 누락을 판단하세요. "
-        "필수 필드: level, goal, available_days, available_equipment, injuries 또는 pain_points. "
-        "응답은 JSON만 반환하세요: "
-        "{\"missing_fields\":[],\"clarification_question\":\"...\",\"structured_answers\":{...}}"
-    )
-    parsed = invoke_json(system, compact_json({
-        "user_message": state.get("user_message", ""),
-        "user_profile": state.get("user_profile", {}),
-        "human_answers": state.get("human_answers", {}),
-    }))
-    missing = parsed.get("missing_fields") or []
     return {
-        "missing_fields": missing,
-        "human_answers": parsed.get("structured_answers", state.get("human_answers", {})),
-        "final_response": parsed.get("clarification_question") if missing else state.get("final_response"),
+        "user_profile": profile,
+        "profile_normalized": True,
+        "workout_history": state.get("workout_history", []),
     }
 
 
@@ -98,21 +113,62 @@ def recommendation_param_agent(state: RecommendationState) -> dict[str, Any]:
         "spine은 all/mid/low 중 하나입니다. 응답은 JSON만 반환하세요."
     )
     parsed = invoke_json(system, compact_json({
-        "user_message": state.get("user_message", ""),
         "user_profile": state.get("user_profile", {}),
     }))
-    params = {
-        "split_targets": parsed.get("split_targets") or SPLIT_TARGETS,
-        "goal": parsed.get("goal") or state.get("user_profile", {}).get("goal") or "hypertrophy",
-        "level": parsed.get("level") or state.get("user_profile", {}).get("level") or "intermediate",
-        "available_equipment": parsed.get("available_equipment") or state.get("user_profile", {}).get("available_equipment") or [],
-        "exclude_exercises": parsed.get("exclude_exercises") or state.get("user_profile", {}).get("disliked_exercises") or [],
-        "avoid_conditions": parsed.get("avoid_conditions") or state.get("user_profile", {}).get("pain_points") or [],
-        "home_only": parsed.get("home_only", state.get("user_profile", {}).get("home_only", False)),
-        "spine": parsed.get("spine") or state.get("user_profile", {}).get("spine") or "all",
+    try:
+        return {
+            "recommendation_params": build_recommendation_params_from_profile(
+                state.get("user_profile", {}),
+                parsed,
+            )
+        }
+    except ValueError as exc:
+        message = str(exc)
+        return {
+            "final_response": message,
+            "next_action": "END",
+            "errors": [*state.get("errors", []), message],
+        }
+
+
+def build_recommendation_params_from_profile(
+    profile: dict[str, Any],
+    parsed: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    parsed = parsed or {}
+    profile_split_targets = _required_profile_value(profile, "split_targets")
+    profile_goal = _required_profile_value(profile, "goal")
+    profile_level = _required_profile_value(profile, "level")
+    profile_equipment = _required_profile_value(profile, "available_equipment")
+    profile_home_only = _required_profile_value(profile, "home_only")
+
+    split_targets = normalize_split_targets(
+        parsed.get("split_targets") or profile_split_targets,
+    )
+
+    spine = normalize_spine(parsed.get("spine") or profile.get("spine") or "all")
+    if _needs_low_spine_load(profile):
+        spine = "low"
+
+    avoid_conditions = parsed.get("avoid_conditions") or profile.get("pain_points") or []
+    if not isinstance(avoid_conditions, list):
+        avoid_conditions = [avoid_conditions]
+    for item in [*profile.get("injuries", []), *profile.get("pain_points", [])]:
+        if item and item not in avoid_conditions:
+            avoid_conditions.append(item)
+
+    return {
+        "split_targets": split_targets,
+        "goal": parsed.get("goal") or profile_goal,
+        "level": parsed.get("level") or profile_level,
+        "available_equipment": parsed.get("available_equipment") or profile_equipment,
+        "exclude_exercises": parsed.get("exclude_exercises") or profile.get("disliked_exercises") or [],
+        "avoid_conditions": avoid_conditions,
+        "home_only": parsed["home_only"] if parsed.get("home_only") is not None else profile_home_only,
+        "spine": spine,
+        "intensity_bias": parsed.get("intensity_bias") or profile.get("intensity_bias") or "standard",
         "candidate_limit_per_target": int(parsed.get("candidate_limit_per_target", 12)),
     }
-    return {"recommendation_params": params}
 
 
 def graph_search_tool(state: RecommendationState) -> dict[str, Any]:
@@ -155,7 +211,7 @@ def routine_validation_agent(state: RecommendationState) -> dict[str, Any]:
     if "is_valid" not in parsed:
         parsed["is_valid"] = False
         parsed["issues"] = [{"type": "invalid_validation_output", "message": "validation JSON missing is_valid"}]
-    return {"validation_result": parsed}
+    return {"validation_result": _apply_deterministic_validation(state, parsed)}
 
 
 def routine_revision_agent(state: RecommendationState) -> dict[str, Any]:
@@ -220,7 +276,9 @@ def final_response_generator(state: RecommendationState) -> dict[str, Any]:
 
 
 def _fallback_next_action(state: RecommendationState) -> str:
-    if not state.get("user_profile"):
+    if state.get("final_response"):
+        return "END"
+    if not state.get("profile_normalized"):
         return "CALL_USER_PROFILE_TOOL"
     if not state.get("recommendation_params"):
         return "CALL_RECOMMENDATION_PARAM_AGENT"
@@ -242,10 +300,38 @@ def _fallback_next_action(state: RecommendationState) -> str:
     return "END"
 
 
+def _supervisor_step_count(state: RecommendationState) -> int:
+    try:
+        return int(state.get("supervisor_step_count", len(state.get("action_history", []))))
+    except (TypeError, ValueError):
+        return len(state.get("action_history", []))
+
+
+def _max_supervisor_steps(state: RecommendationState) -> int:
+    try:
+        return int(state.get("max_supervisor_steps") or 1)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _loop_guard_action(state: RecommendationState) -> str:
+    if state.get("final_response"):
+        return "END"
+
+    validation = state.get("validation_result")
+    review = state.get("human_review_result")
+    if validation and validation.get("is_valid") and not review:
+        return "REQUEST_FINAL_HUMAN_REVIEW"
+    if review and review.get("decision") == "approve" and not state.get("final_response"):
+        return "CALL_FINAL_RESPONSE_GENERATOR"
+    return "END"
+
+
 def _routing_state_summary(state: RecommendationState) -> dict[str, Any]:
     candidates = state.get("exercise_candidates", {})
     return {
         "has_user_profile": bool(state.get("user_profile")),
+        "profile_normalized": bool(state.get("profile_normalized")),
         "has_recommendation_params": bool(state.get("recommendation_params")),
         "candidate_counts": {split: len(rows) for split, rows in candidates.items()},
         "insufficient_targets": state.get("insufficient_targets", []),
@@ -253,6 +339,8 @@ def _routing_state_summary(state: RecommendationState) -> dict[str, Any]:
         "validation_result": state.get("validation_result"),
         "human_review_result": state.get("human_review_result"),
         "has_final_response": bool(state.get("final_response")),
+        "supervisor_step_count": _supervisor_step_count(state),
+        "max_supervisor_steps": _max_supervisor_steps(state),
         "last_actions": state.get("action_history", [])[-8:],
     }
 
@@ -350,31 +438,142 @@ def _exercise_name(exercise: dict[str, Any]) -> str:
     return ""
 
 
-def _normalize_profile(profile: dict[str, Any], user_message: str) -> dict[str, Any]:
-    text = user_message.lower()
-    normalized = {**DEFAULT_PROFILE, **profile}
-    ko_beginner = "\ucd08\uae09"
-    ko_intermediate = "\uc911\uae09"
-    ko_advanced = "\uc0c1\uae09"
-    ko_hypertrophy = "\uadfc\ube44\ub300"
-    ko_week_5 = "\uc8fc 5\uc77c"
-    ko_day_5 = "5\uc77c"
-    ko_dumbbell = "\ub364\ubca8"
-    ko_machine = "\uba38\uc2e0"
-    ko_injury = "\ubd80\uc0c1"
-    ko_pain = "\ud1b5\uc99d"
-    ko_none = "\uc5c6\uc74c"
-    ko_prefer = "\uc120\ud638"
-    ko_dislike = "\uc2eb"
-    ko_exclude = "\uc81c\uc678"
+def _needs_low_spine_load(profile: dict[str, Any]) -> bool:
+    age = profile.get("age")
+    try:
+        senior = int(age) >= SENIOR_AGE_THRESHOLD if age is not None else False
+    except (TypeError, ValueError):
+        senior = False
+    risk_level = str(profile.get("risk_level") or "").lower()
+    requested_spine = normalize_spine(profile.get("spine"))
+    return (
+        senior
+        or bool(profile.get("injuries"))
+        or bool(profile.get("pain_points"))
+        or risk_level in LOW_SPINE_RISK_LEVELS
+        or requested_spine == "low"
+    )
 
-    normalized["level"] = normalize_level(normalized.get("level"))
-    if ko_intermediate in user_message:
-        normalized["level"] = "intermediate"
-    elif ko_beginner in user_message:
-        normalized["level"] = "beginner"
-    elif ko_advanced in user_message:
-        normalized["level"] = "advanced"
+
+def _apply_deterministic_validation(
+    state: RecommendationState,
+    validation: dict[str, Any],
+) -> dict[str, Any]:
+    result = {
+        **validation,
+        "issues": list(validation.get("issues") or []),
+        "revision_instructions": list(validation.get("revision_instructions") or []),
+    }
+    params = state.get("recommendation_params", {})
+    routine = state.get("routine_draft") or {}
+    candidates = state.get("exercise_candidates", {})
+    expected_targets = normalize_split_targets(params.get("split_targets") or SPLIT_TARGETS)
+    days = routine.get("days") if isinstance(routine, dict) else []
+    days = days if isinstance(days, list) else []
+    days_by_target = {
+        str(day.get("target")): day
+        for day in days
+        if isinstance(day, dict) and day.get("target")
+    }
+
+    missing_targets = [target for target in expected_targets if target not in days_by_target]
+    if missing_targets:
+        _add_validation_issue(
+            result,
+            "missing_split_target",
+            f"5분할 필수 부위가 누락되었습니다: {', '.join(missing_targets)}",
+            "누락된 분할 부위를 포함해 루틴을 다시 구성하세요.",
+            risk_level="medium",
+        )
+
+    for target in expected_targets:
+        day = days_by_target.get(target, {})
+        exercises = day.get("exercises", []) if isinstance(day, dict) else []
+        exercises = exercises if isinstance(exercises, list) else []
+        if len(exercises) < 3:
+            _add_validation_issue(
+                result,
+                "too_few_exercises",
+                f"{target} 분할의 운동 수가 3개 미만입니다.",
+                "각 분할마다 GraphDB 후보 안에서 최소 3개 운동을 배치하세요.",
+                risk_level="medium",
+            )
+
+    candidate_index = _candidate_row_index(candidates)
+    low_spine_required = _needs_low_spine_load(state.get("user_profile", {})) or normalize_spine(params.get("spine")) == "low"
+
+    for target in expected_targets:
+        day = days_by_target.get(target, {})
+        exercises = day.get("exercises", []) if isinstance(day, dict) else []
+        for exercise in exercises if isinstance(exercises, list) else []:
+            if not isinstance(exercise, dict):
+                continue
+            name = _exercise_name(exercise)
+            row = candidate_index.get(target, {}).get(name)
+            if not row:
+                _add_validation_issue(
+                    result,
+                    "exercise_not_in_candidates",
+                    f"{target} 분할의 '{name}' 운동이 GraphDB 후보에 없습니다.",
+                    "루틴은 GraphDB 검색 후보에 포함된 운동으로만 다시 구성하세요.",
+                    risk_level="medium",
+                )
+                continue
+            if low_spine_required and row.get("spine_loading") == "상":
+                _add_validation_issue(
+                    result,
+                    "high_spine_loading",
+                    f"통증/부상/저부담 조건에서 고부하 운동 '{name}'이 포함되었습니다.",
+                    "spine_loading이 '하'인 운동 후보로 대체하세요.",
+                    risk_level="high",
+                )
+
+    result["is_valid"] = bool(result.get("is_valid", True)) and not result["issues"]
+    if not result["issues"]:
+        result["risk_level"] = result.get("risk_level") or "low"
+    return result
+
+
+def _candidate_row_index(
+    candidates: dict[str, list[dict[str, Any]]],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    indexed: dict[str, dict[str, dict[str, Any]]] = {}
+    for target, rows in candidates.items():
+        indexed[target] = {}
+        for row in rows:
+            for key in ["name_kor", "name_eng", "id"]:
+                name = row.get(key)
+                if name:
+                    indexed[target][str(name)] = row
+    return indexed
+
+
+def _add_validation_issue(
+    validation: dict[str, Any],
+    issue_type: str,
+    message: str,
+    instruction: str,
+    risk_level: str,
+) -> None:
+    issue = {"type": issue_type, "message": message}
+    if issue not in validation["issues"]:
+        validation["issues"].append(issue)
+    if instruction not in validation["revision_instructions"]:
+        validation["revision_instructions"].append(instruction)
+    validation["risk_level"] = _max_risk(validation.get("risk_level"), risk_level)
+
+
+def _max_risk(current: Any, new: str) -> str:
+    rank = {"low": 0, "medium": 1, "high": 2}
+    current_text = str(current or "low").lower()
+    return new if rank.get(new, 0) > rank.get(current_text, 0) else current_text
+
+
+def _normalize_profile(profile: dict[str, Any]) -> dict[str, Any]:
+    normalized = {**profile}
+
+    if normalized.get("level"):
+        normalized["level"] = normalize_level(normalized.get("level"))
 
     goal = str(normalized.get("goal") or "").strip().lower()
     goal_aliases = {
@@ -389,28 +588,17 @@ def _normalize_profile(profile: dict[str, Any], user_message: str) -> dict[str, 
         "건강": "health",
     }
     normalized["goal"] = goal_aliases.get(goal, normalized.get("goal"))
-    if ko_hypertrophy in user_message:
-        normalized["goal"] = "hypertrophy"
 
     days = normalized.get("available_days")
     if isinstance(days, list):
         normalized["available_days"] = len(days)
-    if ko_week_5 in user_message or ko_day_5 in user_message:
-        normalized["available_days"] = 5
+    elif not normalized.get("available_days") and isinstance(normalized.get("work_days"), list):
+        normalized["available_days"] = len(normalized["work_days"])
 
-    normalized["available_equipment"] = normalize_equipment(normalized.get("available_equipment"))
-    explicit_equipment = []
-    if ko_dumbbell in user_message or "dumbbell" in text:
-        explicit_equipment.append("dumbbell")
-    if ko_machine in user_message or "machine" in text:
-        explicit_equipment.append("machine")
-    if explicit_equipment:
-        normalized["available_equipment"] = normalize_equipment(explicit_equipment)
-
-    if ko_injury in user_message and ko_none in user_message:
-        normalized["injuries"] = []
-    if (ko_pain in user_message or "pain" in text) and ko_none in user_message:
-        normalized["pain_points"] = []
+    if normalized.get("available_equipment"):
+        normalized["available_equipment"] = normalize_equipment(normalized.get("available_equipment"))
+    else:
+        normalized["available_equipment"] = []
 
     if not normalized.get("injuries"):
         normalized["injuries"] = []
@@ -419,25 +607,29 @@ def _normalize_profile(profile: dict[str, Any], user_message: str) -> dict[str, 
     normalized["spine"] = normalize_spine(normalized.get("spine"))
     if not normalized["injuries"] and not normalized["pain_points"]:
         normalized["spine"] = "all"
+    elif normalized["spine"] == "all":
+        normalized["spine"] = "low"
 
     for key in ["preferences", "disliked_exercises"]:
         if not isinstance(normalized.get(key), list):
             normalized[key] = []
-    if ko_prefer not in user_message and "prefer" not in text:
-        normalized["preferences"] = []
-    if ko_dislike not in user_message and ko_exclude not in user_message and "dislike" not in text and "exclude" not in text:
-        normalized["disliked_exercises"] = []
-    normalized["home_only"] = bool(normalized.get("home_only", False))
+    if "home_only" not in normalized:
+        normalized["home_only"] = normalized.get("place") == "home"
     return normalized
+
+
+def _required_profile_value(profile: dict[str, Any], key: str) -> Any:
+    value = profile.get(key)
+    if value is None or value == "" or value == []:
+        raise ValueError(f"필수 설문 항목 '{key}' 값이 없어 추천을 진행할 수 없습니다.")
+    return value
 
 
 def _is_action_allowed_now(action: str, state: RecommendationState) -> bool:
     if action == "CALL_USER_PROFILE_TOOL":
-        return not bool(state.get("user_profile"))
-    if action == "REQUEST_REQUIRED_INFO":
-        return False
+        return not bool(state.get("profile_normalized"))
     if action == "CALL_RECOMMENDATION_PARAM_AGENT":
-        return bool(state.get("user_profile")) and not bool(state.get("recommendation_params"))
+        return bool(state.get("profile_normalized")) and not bool(state.get("recommendation_params"))
     if action == "CALL_GRAPH_SEARCH_TOOL":
         return bool(state.get("recommendation_params")) and not bool(state.get("exercise_candidates"))
     if action == "CALL_COMPOSITION_AGENT":

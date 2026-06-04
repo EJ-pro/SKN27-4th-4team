@@ -11,8 +11,9 @@ from .workflow import build_recommendation_graph
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run LangGraph routine recommendation.")
-    parser.add_argument("message", help="User request text.")
+    parser.add_argument("message", nargs="?", default="", help="Optional run label. Natural-language profile extraction is disabled.")
     parser.add_argument("--user-id", default=None)
+    parser.add_argument("--profile-json", default=None, help="Structured frontend survey/user_profile JSON.")
     parser.add_argument("--json", action="store_true", help="Print final state as JSON.")
     parser.add_argument("--auto-approve", action="store_true", help="Approve final human review automatically.")
     args = parser.parse_args()
@@ -23,7 +24,8 @@ def main() -> int:
         "configurable": {"thread_id": args.user_id or str(uuid4())},
     }
 
-    result = graph.invoke(initial_state(args.message, user_id=args.user_id), config)
+    user_profile = json.loads(args.profile_json) if args.profile_json else None
+    result = graph.invoke(initial_state(user_id=args.user_id, user_profile=user_profile), config)
     while "__interrupt__" in result:
         payload = result["__interrupt__"][0].value
         if args.json:

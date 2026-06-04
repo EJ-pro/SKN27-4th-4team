@@ -1,9 +1,10 @@
 from typing import Any, Literal, TypedDict
 
+from .config import settings
+
 
 Action = Literal[
     "CALL_USER_PROFILE_TOOL",
-    "REQUEST_REQUIRED_INFO",
     "CALL_RECOMMENDATION_PARAM_AGENT",
     "CALL_GRAPH_SEARCH_TOOL",
     "CALL_COMPOSITION_AGENT",
@@ -17,7 +18,6 @@ Action = Literal[
 
 ALLOWED_ACTIONS: set[str] = {
     "CALL_USER_PROFILE_TOOL",
-    "REQUEST_REQUIRED_INFO",
     "CALL_RECOMMENDATION_PARAM_AGENT",
     "CALL_GRAPH_SEARCH_TOOL",
     "CALL_COMPOSITION_AGENT",
@@ -31,11 +31,9 @@ ALLOWED_ACTIONS: set[str] = {
 
 class RecommendationState(TypedDict, total=False):
     user_id: str | None
-    user_message: str
     user_profile: dict[str, Any]
+    profile_normalized: bool
     workout_history: list[dict[str, Any]]
-    missing_fields: list[str]
-    human_answers: dict[str, Any]
     recommendation_params: dict[str, Any]
     exercise_candidates: dict[str, list[dict[str, Any]]]
     insufficient_targets: list[str]
@@ -47,33 +45,21 @@ class RecommendationState(TypedDict, total=False):
     next_action: str
     action_reason: str
     action_history: list[str]
+    supervisor_step_count: int
+    max_supervisor_steps: int
     errors: list[str]
 
 
-DEFAULT_PROFILE: dict[str, Any] = {
-    "age": None,
-    "gender": None,
-    "level": None,
-    "goal": None,
-    "available_days": 5,
-    "available_equipment": [],
-    "injuries": [],
-    "pain_points": [],
-    "preferences": [],
-    "disliked_exercises": [],
-    "home_only": False,
-    "spine": "all",
-}
-
-
-def initial_state(user_message: str, user_id: str | None = None) -> RecommendationState:
+def initial_state(
+    user_id: str | None = None,
+    user_profile: dict[str, Any] | None = None,
+    workout_history: list[dict[str, Any]] | None = None,
+) -> RecommendationState:
     return {
         "user_id": user_id,
-        "user_message": user_message,
-        "user_profile": {},
-        "workout_history": [],
-        "missing_fields": [],
-        "human_answers": {},
+        "user_profile": user_profile or {},
+        "profile_normalized": False,
+        "workout_history": workout_history or [],
         "recommendation_params": {},
         "exercise_candidates": {},
         "insufficient_targets": [],
@@ -85,6 +71,8 @@ def initial_state(user_message: str, user_id: str | None = None) -> Recommendati
         "next_action": "CALL_USER_PROFILE_TOOL",
         "action_reason": "",
         "action_history": [],
+        "supervisor_step_count": 0,
+        "max_supervisor_steps": settings.max_supervisor_steps,
         "errors": [],
     }
 
