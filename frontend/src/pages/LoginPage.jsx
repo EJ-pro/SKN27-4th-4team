@@ -1,4 +1,8 @@
-export default function LoginPage({ onNavigate }) {
+import { useNavigate } from 'react-router-dom'
+
+export default function LoginPage() {
+  const navigate = useNavigate()
+
   return (
     <div style={{
       height: '100vh', background: '#0F0F0F',
@@ -10,7 +14,7 @@ export default function LoginPage({ onNavigate }) {
         </div>
         <p>준비 중입니다.</p>
         <button
-          onClick={() => onNavigate('consult')}
+          onClick={() => navigate('/consult')}
           style={{
             marginTop: 20, padding: '10px 24px', borderRadius: 8,
             background: 'rgba(255,215,0,0.1)', border: '1px solid rgba(255,215,0,0.2)',
