@@ -78,8 +78,8 @@ export default function Navbar({ currentPage, onNavigate }) {
                             onMouseLeave={() => setHoveredLink(null)}
                             style={{
                                 background: 'none', border: 'none',
-                                fontSize: 13, fontWeight: 500,
-                                color: isActive ? '#FFD700' : hoveredLink === label ? '#FFD700' : 'rgba(255,255,255,0.5)',
+                                fontSize: 15, fontWeight: 500,
+                                color: isActive ? '#FFD700' : hoveredLink === label ? '#FFD700' : 'rgba(255, 255, 255, 0.884)',
                                 letterSpacing: 0.5,
                                 cursor: page ? 'pointer' : 'default',
                                 transition: 'color 0.2s ease',
@@ -107,10 +107,10 @@ export default function Navbar({ currentPage, onNavigate }) {
                 <button
                     style={{
                         background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                        color: '#000', fontWeight: 800, fontSize: 12,
-                        padding: '10px 22px', borderRadius: 2,
+                        color: '#111111', fontWeight: 800, fontSize: 15,
+                        padding: '10px 20px', borderRadius: 2,
                         letterSpacing: 1,
-                        boxShadow: '0 2px 18px rgba(255,215,0,0.22)',
+                        boxShadow: '0 2px 18px #111111',
                         transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                     }}
                     onMouseEnter={e => {
@@ -118,7 +118,7 @@ export default function Navbar({ currentPage, onNavigate }) {
                         e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'
                     }}
                     onMouseLeave={e => {
-                        e.currentTarget.style.boxShadow = '0 2px 18px rgba(255,215,0,0.22)'
+                        e.currentTarget.style.boxShadow = '0 2px 18px #111111'
                         e.currentTarget.style.transform = 'none'
                     }}
                 >로그인</button>

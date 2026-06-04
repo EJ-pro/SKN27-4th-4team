@@ -29,32 +29,43 @@ function gifUrl(ex) {
   return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
 }
 
+function videoUrl(ex) {
+  return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
+}
+
 function ExerciseCard({ ex, onClick }) {
   const [hovered, setHovered] = useState(false)
   const [videoOk, setVideoOk] = useState(true)
-  const [isInViewport, setIsInViewport] = useState(false)
-  const cardRef = useRef(null)
+  const [loaded, setLoaded] = useState(false)
+  const videoRef = useRef(null)
 
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
 
   useEffect(() => {
+    if (!videoRef.current) return
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setIsInViewport(entry.isIntersecting)
+        if (entry.isIntersecting) {
+          videoRef.current.play().catch(() => {
+            // Autoplay blocking fallback (since video is muted, it should play fine)
+          })
+        } else {
+          videoRef.current.pause()
+        }
       },
       { rootMargin: '100px' }
     )
-    if (cardRef.current) {
-      observer.observe(cardRef.current)
-    }
+
+    observer.observe(videoRef.current)
+
     return () => {
       observer.disconnect()
     }
-  }, [])
+  }, [videoOk])
 
   return (
     <div
-      ref={cardRef}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => onClick(ex)}
@@ -71,37 +82,54 @@ function ExerciseCard({ ex, onClick }) {
     >
       {/* Video */}
       <div style={{ position: 'relative', height: 220, background: '#0A0A0A', overflow: 'hidden' }}>
-        {isInViewport && videoOk ? (
-          <img
-            src={gifUrl(ex)}
-            alt={ex.name_kor}
+        {/* Placeholder / Background */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          background: `linear-gradient(135deg, ${accentColor}10, transparent)`,
+          zIndex: 1,
+        }}>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
+            {!videoOk ? '영상 없음' : '영상 불러오는 중'}
+          </span>
+        </div>
+
+        {videoOk && (
+          <video
+            ref={videoRef}
+            src={videoUrl(ex)}
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            onLoadedData={() => setLoaded(true)}
             onError={() => setVideoOk(false)}
-            loading="lazy"
             style={{
-              width: '100%', height: '100%', objectFit: 'cover',
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
               transform: hovered ? 'scale(1.04)' : 'scale(1)',
-              transition: 'transform 0.5s ease',
+              opacity: loaded ? 1 : 0,
+              transition: 'transform 0.5s ease, opacity 0.3s ease',
+              zIndex: 2,
             }}
           />
-        ) : (
-          <div style={{
-            width: '100%', height: '100%',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: 10,
-            background: `linear-gradient(135deg, ${accentColor}10, transparent)`,
-          }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
-              {!videoOk ? '영상 없음' : '이미지 준비중'}
-            </span>
-          </div>
         )}
 
         {/* Overlay */}
         <div style={{
-          position: 'absolute', inset: 0,
+          position: 'absolute',
+          inset: 0,
           background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)',
           pointerEvents: 'none',
+          zIndex: 3,
         }} />
 
         {/* Category badge */}
@@ -111,6 +139,7 @@ function ExerciseCard({ ex, onClick }) {
           color: '#000', fontSize: 10, fontWeight: 800,
           padding: '3px 10px', borderRadius: 2,
           letterSpacing: 0.5,
+          zIndex: 4,
         }}>{ex.category}</div>
 
         {/* Difficulty */}
@@ -120,6 +149,7 @@ function ExerciseCard({ ex, onClick }) {
           borderRadius: 50, padding: '3px 10px',
           display: 'flex', gap: 2, backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.1)',
+          zIndex: 4,
         }}>
           {[1, 2, 3].map(n => (
             <span key={n} style={{
@@ -214,12 +244,15 @@ function DetailModal({ ex, onClose, onNavigate, exercises }) {
           boxShadow: `0 40px 100px rgba(0,0,0,0.7), 0 0 60px ${accentColor}10`,
         }}
       >
-        {/* Left: gif */}
+        {/* Left: video */}
         <div style={{ width: 340, flexShrink: 0, background: '#0A0A0A', position: 'relative' }}>
-          <img
+          <video
             ref={videoRef}
-            src={gifUrl(ex)}
-            alt={ex.name_kor}
+            src={videoUrl(ex)}
+            loop
+            muted
+            autoPlay
+            playsInline
             style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 520, display: 'block' }}
           />
           <div style={{
