@@ -60,7 +60,7 @@ export default function Hero() {
           display: 'inline-flex', alignItems: 'center', gap: 8,
           background: 'rgba(255,215,0,0.07)',
           border: '1px solid rgba(255,215,0,0.22)',
-          padding: '7px 20px', borderRadius: 50,
+          padding: '7px 20px', borderRadius: 2,
           marginBottom: 32, width: 'fit-content',
           opacity: visible ? 1 : 0,
           transform: visible ? 'translateY(0)' : 'translateY(-16px)',
@@ -130,7 +130,7 @@ export default function Hero() {
               style={{
                 background: 'linear-gradient(135deg, #FFD700, #C8A200)',
                 color: '#000', fontWeight: 800, fontSize: 13,
-                padding: '16px 40px', borderRadius: 5,
+                padding: '16px 40px', borderRadius: 2,
                 letterSpacing: 0.8,
                 boxShadow: '0 4px 32px rgba(255,215,0,0.28), 0 2px 8px rgba(0,0,0,0.4)',
                 transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -154,7 +154,7 @@ export default function Hero() {
               style={{
                 background: 'rgba(255,255,255,0.03)',
                 color: 'rgba(255,255,255,0.58)', fontWeight: 600, fontSize: 13,
-                padding: '16px 32px', borderRadius: 5,
+                padding: '16px 32px', borderRadius: 2,
                 border: '1px solid rgba(255,255,255,0.1)',
                 transition: 'all 0.25s ease',
                 letterSpacing: 0.4,
@@ -256,7 +256,7 @@ export default function Hero() {
             <div key={s.label} style={{
               background: 'rgba(5,5,5,0.6)',
               border: '1px solid rgba(255,215,0,0.16)',
-              borderRadius: 13,
+              borderRadius: 3,
               padding: '15px 22px',
               backdropFilter: 'blur(28px)',
               WebkitBackdropFilter: 'blur(28px)',

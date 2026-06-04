@@ -44,7 +44,7 @@ export default function Navbar({ currentPage, onNavigate }) {
                     style={{
                         width: 36, height: 36,
                         background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                        borderRadius: 9,
+                        borderRadius: 2,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         boxShadow: '0 0 18px rgba(255,215,0,0.18)',
                         transition: 'box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -106,7 +106,7 @@ export default function Navbar({ currentPage, onNavigate }) {
                     style={{
                         background: 'linear-gradient(135deg, #FFD700, #C8A200)',
                         color: '#000', fontWeight: 800, fontSize: 12,
-                        padding: '10px 22px', borderRadius: 5,
+                        padding: '10px 22px', borderRadius: 2,
                         letterSpacing: 1,
                         boxShadow: '0 2px 18px rgba(255,215,0,0.22)',
                         transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',

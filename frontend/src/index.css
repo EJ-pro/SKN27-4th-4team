@@ -227,7 +227,7 @@ img {
 .surface-card {
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  border-radius: 4px;
 }
 
 /* 입력 placeholder 전역 */
@@ -286,7 +286,7 @@ input:focus {
 .md-bot pre {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 14px 16px;
   margin: 10px 0;
   overflow-x: auto;

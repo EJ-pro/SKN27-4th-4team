@@ -39,7 +39,7 @@ function MiniCard({ ex, onClick }) {
       style={{
         background: '#0F0F0F',
         border: hovered ? `1px solid ${color}55` : '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 14,
+        borderRadius: 4,
         overflow: 'hidden',
         cursor: 'pointer',
         transform: hovered ? 'translateY(-4px)' : 'none',
@@ -73,7 +73,7 @@ function MiniCard({ ex, onClick }) {
           background: `${color}22`,
           border: `1px solid ${color}55`,
           color, fontSize: 9, fontWeight: 800,
-          padding: '3px 9px', borderRadius: 50,
+          padding: '3px 9px', borderRadius: 2,
           letterSpacing: 0.8, backdropFilter: 'blur(6px)',
         }}>{ex.category}</div>
 
@@ -81,7 +81,7 @@ function MiniCard({ ex, onClick }) {
         <div style={{
           position: 'absolute', top: 10, right: 10,
           display: 'flex', gap: 2, alignItems: 'center',
-          background: 'rgba(0,0,0,0.6)', borderRadius: 50,
+          background: 'rgba(0,0,0,0.6)', borderRadius: 2,
           padding: '4px 8px', backdropFilter: 'blur(6px)',
         }}>
           {[1, 2, 3, 4, 5].map(n => (
@@ -138,7 +138,7 @@ function DetailModal({ ex, onClose }) {
       animation: 'float-up 0.3s ease',
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: '#111', border: `1px solid ${color}25`, borderRadius: 18,
+        background: '#111', border: `1px solid ${color}25`, borderRadius: 4,
         width: '100%', maxWidth: 860, maxHeight: '88vh', overflow: 'hidden',
         display: 'flex', boxShadow: `0 40px 100px rgba(0,0,0,0.7)`,
       }}>
@@ -150,7 +150,7 @@ function DetailModal({ ex, onClose }) {
           />
           <div style={{
             position: 'absolute', top: 14, left: 14, background: color, color: '#000',
-            fontSize: 11, fontWeight: 800, padding: '4px 12px', borderRadius: 50
+            fontSize: 11, fontWeight: 800, padding: '4px 12px', borderRadius: 2
           }}>{ex.category}</div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -163,11 +163,11 @@ function DetailModal({ ex, onClose }) {
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>{ex.name_eng}</div>
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                 {ex.tag && <span style={{
-                  fontSize: 10, padding: '3px 10px', borderRadius: 50,
+                  fontSize: 10, padding: '3px 10px', borderRadius: 2,
                   background: `${color}15`, border: `1px solid ${color}30`, color
                 }}>{ex.tag}</span>}
                 <span style={{
-                  fontSize: 10, padding: '3px 10px', borderRadius: 50,
+                  fontSize: 10, padding: '3px 10px', borderRadius: 2,
                   background: `${DIFF_COLOR[ex.difficulty]}15`, border: `1px solid ${DIFF_COLOR[ex.difficulty]}30`,
                   color: DIFF_COLOR[ex.difficulty]
                 }}>{'●'.repeat(ex.difficulty)}{'○'.repeat(5 - ex.difficulty)}</span>
@@ -295,7 +295,7 @@ export default function ExerciseSection({ onNavigate }) {
             background: 'transparent',
             border: '1px solid rgba(255,215,0,0.28)',
             color: '#FFD700', fontSize: 13, fontWeight: 700,
-            padding: '10px 26px', borderRadius: 50, cursor: 'pointer',
+            padding: '10px 26px', borderRadius: 3, cursor: 'pointer',
             transition: 'all 0.25s ease', letterSpacing: 0.6,
             display: 'flex', alignItems: 'center', gap: 6,
           }}
@@ -324,7 +324,7 @@ export default function ExerciseSection({ onNavigate }) {
               const color = p === '전체' ? '#FFD700' : (CAT_COLOR[p] || CAT_COLOR['이두'])
               return (
                 <button key={p} onClick={() => setPart(p)} style={{
-                  padding: '6px 16px', borderRadius: 50, fontSize: 12, cursor: 'pointer',
+                  padding: '6px 16px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
                   background: active ? color : 'rgba(255,255,255,0.04)',
                   border: active ? `1px solid ${color}` : '1px solid rgba(255,255,255,0.08)',
                   color: active ? '#000' : 'rgba(255,255,255,0.5)',
@@ -347,7 +347,7 @@ export default function ExerciseSection({ onNavigate }) {
               const active = place === p
               return (
                 <button key={p} onClick={() => setPlace(active ? null : p)} style={{
-                  padding: '6px 16px', borderRadius: 50, fontSize: 12, cursor: 'pointer',
+                  padding: '6px 16px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
                   background: active ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.04)',
                   border: active ? '1px solid rgba(255,215,0,0.4)' : '1px solid rgba(255,255,255,0.08)',
                   color: active ? '#FFD700' : 'rgba(255,255,255,0.5)',
@@ -370,13 +370,13 @@ export default function ExerciseSection({ onNavigate }) {
             ? Array.from({ length: 8 }).map((_, i) => (
               <div key={i} style={{
                 background: '#0F0F0F', border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 14, overflow: 'hidden', height: 220,
+                borderRadius: 4, overflow: 'hidden', height: 220,
                 animation: 'pulse 1.5s ease infinite',
               }}>
                 <div style={{ height: 168, background: 'rgba(255,255,255,0.04)' }} />
                 <div style={{ padding: '12px 14px' }}>
-                  <div style={{ height: 12, width: '70%', background: 'rgba(255,255,255,0.06)', borderRadius: 4, marginBottom: 6 }} />
-                  <div style={{ height: 10, width: '45%', background: 'rgba(255,255,255,0.04)', borderRadius: 4 }} />
+                  <div style={{ height: 12, width: '70%', background: 'rgba(255,255,255,0.06)', borderRadius: 1, marginBottom: 6 }} />
+                  <div style={{ height: 10, width: '45%', background: 'rgba(255,255,255,0.04)', borderRadius: 1 }} />
                 </div>
               </div>
             ))
@@ -395,7 +395,7 @@ export default function ExerciseSection({ onNavigate }) {
             background: 'rgba(255,215,0,0.08)',
             border: '1px solid rgba(255,215,0,0.25)',
             color: '#FFD700', fontSize: 13, fontWeight: 700,
-            padding: '13px 36px', borderRadius: 50, cursor: 'pointer',
+            padding: '13px 36px', borderRadius: 3, cursor: 'pointer',
             transition: 'all 0.25s',
           }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,215,0,0.15)'}

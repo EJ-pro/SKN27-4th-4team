@@ -40,7 +40,7 @@ function TypingDots() {
   return (
     <div style={{
       display: 'flex', gap: 4, padding: '12px 14px', background: '#1C1C1C',
-      borderRadius: '14px 14px 14px 4px', border: '1px solid rgba(255,255,255,0.06)',
+      borderRadius: '4px 4px 4px 1px', border: '1px solid rgba(255,255,255,0.06)',
       width: 'fit-content', alignItems: 'center'
     }}>
       {[0, 1, 2].map(i => (
@@ -182,10 +182,10 @@ export default function ChatSection() {
                 padding: '13px 16px',
                 background: 'rgba(255,255,255,0.025)',
                 border: '1px solid rgba(255,255,255,0.05)',
-                borderRadius: 10,
+                borderRadius: 3,
               }}>
                 <div style={{
-                  width: 34, height: 34, borderRadius: 9,
+                  width: 34, height: 34, borderRadius: 3,
                   background: `${color}14`,
                   border: `1px solid ${color}28`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -201,7 +201,7 @@ export default function ChatSection() {
           <button style={{
             background: 'linear-gradient(135deg, #FFD700, #C8A200)',
             color: '#000', fontWeight: 800, fontSize: 13,
-            padding: '14px 36px', borderRadius: 5, letterSpacing: 1.5,
+            padding: '14px 36px', borderRadius: 3, letterSpacing: 1.5,
             boxShadow: '0 4px 24px rgba(255,215,0,0.25)',
             transition: 'all 0.25s',
           }}
@@ -221,7 +221,7 @@ export default function ChatSection() {
           <div style={{
             background: '#0C0C0C',
             border: '1px solid rgba(255,215,0,0.14)',
-            borderRadius: 22,
+            borderRadius: 4,
             overflow: 'hidden',
             boxShadow: '0 48px 96px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)',
           }}>
@@ -235,7 +235,7 @@ export default function ChatSection() {
               <div style={{
                 width: 38, height: 38,
                 background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                borderRadius: '50%',
+                borderRadius: 4,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '0 0 14px rgba(255,215,0,0.3)',
               }}>
@@ -271,7 +271,7 @@ export default function ChatSection() {
                     <div style={{
                       width: 26, height: 26,
                       background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                      borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-end', marginRight: 8,
+                      borderRadius: 3, flexShrink: 0, alignSelf: 'flex-end', marginRight: 8,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                       <Sparkles size={12} color="#000" />
@@ -280,7 +280,7 @@ export default function ChatSection() {
                   <div style={{
                     maxWidth: '78%',
                     padding: '10px 14px',
-                    borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                    borderRadius: msg.role === 'user' ? '4px 4px 1px 4px' : '4px 4px 4px 1px',
                     background: msg.role === 'user'
                       ? 'linear-gradient(135deg, #FFD700, #C8A200)'
                       : '#1A1A1A',
@@ -302,7 +302,7 @@ export default function ChatSection() {
                   <div style={{
                     width: 26, height: 26,
                     background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                    borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <Sparkles size={12} color="#000" />
                   </div>
@@ -319,7 +319,7 @@ export default function ChatSection() {
             }}>
               {QUICK_BTNS.map(btn => (
                 <button key={btn} onClick={() => handleQuick(btn)} style={{
-                  padding: '4px 12px', borderRadius: 50, fontSize: 11, cursor: 'pointer',
+                  padding: '4px 12px', borderRadius: 2, fontSize: 11, cursor: 'pointer',
                   background: 'rgba(255,215,0,0.07)',
                   border: '1px solid rgba(255,215,0,0.2)',
                   color: 'rgba(255,215,0,0.8)', fontWeight: 600,
@@ -345,7 +345,7 @@ export default function ChatSection() {
                 style={{
                   flex: 1, background: '#141414',
                   border: '1px solid rgba(255,255,255,0.09)',
-                  borderRadius: 50, padding: '11px 18px',
+                  borderRadius: 4, padding: '11px 18px',
                   color: '#FFF', fontSize: 12.5,
                   outline: 'none',
                   transition: 'border-color 0.22s ease',

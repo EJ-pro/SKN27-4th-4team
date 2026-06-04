@@ -139,7 +139,7 @@ function DayTimeline({ day, time, maxTime, activePain, index, visible }) {
               border: excluded
                 ? '1px solid rgba(244,67,54,0.3)'
                 : isShown ? '1px solid rgba(255,255,255,0.05)' : '1px solid transparent',
-              borderRadius: 7,
+              borderRadius: 2,
               opacity: isShown ? 1 : 0.25,
               transition: 'all 0.35s ease',
             }}>
@@ -173,7 +173,7 @@ function DayTimeline({ day, time, maxTime, activePain, index, visible }) {
             padding: '6px 10px',
             background: 'rgba(0,212,160,0.08)',
             border: '1px solid rgba(0,212,160,0.25)',
-            borderRadius: 7,
+            borderRadius: 2,
             animation: 'float-up 0.3s ease',
           }}>
             <CheckCircle size={11} color="#00D4A0" />
@@ -370,7 +370,7 @@ export default function AlgorithmSection() {
                 const active = pain === p.key
                 return (
                   <button key={p.key} onClick={() => setPain(p.key)} style={{
-                    padding: '6px 14px', borderRadius: 50, fontSize: 12, cursor: 'pointer',
+                    padding: '6px 14px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
                     background: active
                       ? (p.key === '없음' ? '#FFD700' : '#F44336')
                       : 'rgba(255,255,255,0.04)',
@@ -403,7 +403,7 @@ export default function AlgorithmSection() {
         <div style={{
           background: 'rgba(17,17,17,0.95)',
           border: '1px solid rgba(255,215,0,0.1)',
-          borderRadius: 18,
+          borderRadius: 4,
           padding: '28px 28px 24px',
           boxShadow: '0 24px 72px rgba(0,0,0,0.55)',
           backdropFilter: 'blur(8px)',
@@ -427,7 +427,7 @@ export default function AlgorithmSection() {
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 7,
                 background: 'rgba(244,67,54,0.1)', border: '1px solid rgba(244,67,54,0.25)',
-                padding: '6px 14px', borderRadius: 50,
+                padding: '6px 14px', borderRadius: 2,
                 fontSize: 11, color: '#F44336', fontWeight: 700,
                 animation: 'float-up 0.3s ease',
               }}>
