@@ -45,15 +45,6 @@ export default function Hero() {
           transition: 'width 1.3s cubic-bezier(0.22, 1, 0.36, 1) 0.3s',
           borderRadius: '0 2px 2px 0',
         }} />
-        {/* 하단 Purple accent */}
-        <div style={{
-          position: 'absolute', bottom: '22%', left: 0,
-          width: visible ? '130px' : 0,
-          height: 2,
-          background: 'linear-gradient(90deg, #7C72FF, transparent)',
-          transition: 'width 0.9s ease 0.7s',
-          borderRadius: '0 2px 2px 0',
-        }} />
 
         {/* Headline line 1 */}
         <h1 style={{
@@ -95,8 +86,8 @@ export default function Hero() {
 
         {/* Description */}
         <p style={{
-          fontSize: 14.5, color: 'rgba(255,255,255,0.4)',
-          lineHeight: 2.05, marginBottom: 50,
+          fontSize: 14.5, color: 'rgba(255, 255, 255, 0.726)',
+          lineHeight: 2.05, marginBottom: 50, marginLeft: 20,
           fontWeight: 300, letterSpacing: 0.2,
           opacity: visible ? 1 : 0,
           transition: 'all 0.7s ease 0.36s',
@@ -115,7 +106,7 @@ export default function Hero() {
             <button
               style={{
                 background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                color: '#000', fontWeight: 800, fontSize: 13,
+                color: '#000', fontWeight: 800, fontSize: 15,
                 padding: '16px 40px', borderRadius: 2,
                 letterSpacing: 0.8,
                 boxShadow: '0 4px 32px rgba(255,215,0,0.28), 0 2px 8px rgba(0,0,0,0.4)',
@@ -131,31 +122,30 @@ export default function Hero() {
                 e.currentTarget.style.boxShadow = '0 4px 32px rgba(255,215,0,0.28), 0 2px 8px rgba(0,0,0,0.4)'
               }}
             >
-              이번 주 루틴 설계 시작하기
-              <ArrowRight size={14} />
+              루틴 설계 시작하기
             </button>
 
             {/* Secondary CTA */}
             <button
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                color: 'rgba(255,255,255,0.58)', fontWeight: 600, fontSize: 13,
+                background: '#111111',
+                color: '#F1F3F5', fontWeight: 600, fontSize: 15,
                 padding: '16px 32px', borderRadius: 2,
-                border: '1px solid rgba(255,255,255,0.1)',
+                border: '2px solid #F1F3F5',
                 transition: 'all 0.25s ease',
                 letterSpacing: 0.4,
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.07)'
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)'
-                e.currentTarget.style.color = 'rgba(255,255,255,0.88)'
+                e.currentTarget.style.background = '#F1F3F5'
+                e.currentTarget.style.borderColor = '#F1F3F5'
+                e.currentTarget.style.color = '#111111'
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
-                e.currentTarget.style.color = 'rgba(255,255,255,0.58)'
+                e.currentTarget.style.background = '#111111'
+                e.currentTarget.style.borderColor = '#F1F3F5'
+                e.currentTarget.style.color = '#F1F3F5'
               }}
-            >운동 목록 보기</button>
+            >운동 백과</button>
           </div>
         </div>
       </div>
@@ -216,12 +206,12 @@ export default function Hero() {
           display: 'flex', gap: 12,
         }}>
           {[
-            { val: '30K+', label: '활성 회원' },
-            { val: '97%', label: '목표 달성률' },
+            { val: '900+', label: '운동 데이터' },
+            { val: '365일', label: '새로운 자극' },
           ].map(s => (
             <div key={s.label} style={{
               background: 'rgba(5,5,5,0.6)',
-              border: '1px solid rgba(255,215,0,0.16)',
+              border: '2px solid #FFD700',
               borderRadius: 3,
               padding: '15px 22px',
               backdropFilter: 'blur(28px)',
@@ -233,7 +223,7 @@ export default function Hero() {
                 lineHeight: 1, filter: 'drop-shadow(0 0 12px rgba(255,215,0,0.55))',
               }}>{s.val}</div>
               <div style={{
-                fontSize: 10, color: 'rgba(255,255,255,0.36)',
+                fontSize: 12, color: 'rgb(255, 255, 255)',
                 marginTop: 5, letterSpacing: 1.5,
               }}>{s.label}</div>
             </div>

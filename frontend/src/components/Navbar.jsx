@@ -12,8 +12,8 @@ export default function Navbar({ currentPage, onNavigate }) {
     }, [])
 
     const links = [
-        { label: '운동 둘러보기', page: 'exercises' },
-        { label: '주간 루틴 설계', page: 'routine' },
+        { label: '운동 백과', page: 'exercises' },
+        { label: '주간 루틴', page: 'routine' },
         { label: '운동 상담', page: 'consult' },
     ]
 
@@ -60,7 +60,7 @@ export default function Navbar({ currentPage, onNavigate }) {
                 >
                     <Dumbbell size={19} color="#000" strokeWidth={2.8} />
                 </div>
-                <span style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 5, color: '#FFD700' }}>FitAI</span>
+                <span style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
             </button>
 
             {/* Nav links */}

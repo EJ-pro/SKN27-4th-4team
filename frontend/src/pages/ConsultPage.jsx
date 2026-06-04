@@ -428,7 +428,7 @@ export default function ConsultPage({ onNavigate }) {
             }}>
               <Dumbbell size={17} color="#000" strokeWidth={2.8} />
             </div>
-            <span style={{ fontFamily: 'Bebas Neue', fontSize: 22, letterSpacing: 5, color: '#FFD700' }}>FitAI</span>
+            <span style={{ fontFamily: 'Bebas Neue', fontSize: 22, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
           </button>
         </div>
 
