@@ -32,16 +32,18 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <img
-                src="/logo_small.png"
-                alt="HELBOTIN Logo"
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 2,
-                  boxShadow: '0 0 16px rgba(255,215,0,0.2)',
-                }}
-              />
+              <div style={{
+                width: 36,
+                height: 36,
+                background: 'linear-gradient(135deg, #FFD700, #C8A200)',
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 16px rgba(255,215,0,0.2)',
+              }}>
+                <Dumbbell size={19} color="#000" strokeWidth={2.8} />
+              </div>
               <span style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
             </div>
             <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.3)', lineHeight: 1.9, marginBottom: 22, maxWidth: 220 }}>

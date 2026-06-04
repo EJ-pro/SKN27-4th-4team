@@ -35,14 +35,14 @@ const QUICK_QUESTIONS = [
 
 function BotAvatar() {
   return (
-    <img
-      src="/logo_small.png"
-      alt="HELBOTIN Logo"
-      style={{
-        width: 36, height: 36, borderRadius: 2, flexShrink: 0,
-        boxShadow: '0 0 14px rgba(255,215,0,0.25)',
-      }}
-    />
+    <div style={{
+      width: 36, height: 36,
+      background: 'linear-gradient(135deg, #FFD700, #C8A200)',
+      borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0, boxShadow: '0 0 14px rgba(255,215,0,0.25)',
+    }}>
+      <Dumbbell size={19} color="#000" strokeWidth={2.8} />
+    </div>
   )
 }
 
@@ -419,15 +419,14 @@ export default function ConsultPage({ onNavigate }) {
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,215,0,0.06)'}
             onMouseLeave={e => e.currentTarget.style.background = 'none'}
           >
-            <img
-              src="/logo_small.png"
-              alt="HELBOTIN Logo"
-              style={{
-                width: 32, height: 32,
-                borderRadius: 2,
-                flexShrink: 0,
-              }}
-            />
+            <div style={{
+              width: 32, height: 32,
+              background: 'linear-gradient(135deg, #FFD700, #C8A200)',
+              borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Dumbbell size={17} color="#000" strokeWidth={2.8} />
+            </div>
             <span style={{ fontFamily: 'Bebas Neue', fontSize: 22, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
           </button>
         </div>

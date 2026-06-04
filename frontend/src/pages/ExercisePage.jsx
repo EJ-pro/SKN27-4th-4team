@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Search, X, Play, Dumbbell, RotateCcw, Filter } from 'lucide-react'
+import {
+  Search, X, Play, Dumbbell, RotateCcw, Filter,
+  User, Wrench, Infinity, Weight, ArrowUpToLine, ArrowDownToLine,
+  Disc, Circle, Clipboard, HelpCircle
+} from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -15,9 +19,9 @@ const EQUIPMENT_LABEL = {
 }
 
 const EQUIPMENT_ICON = {
-  barbell: '🏋️', dumbbell: '💪', machine: '⚙️', body: '🤸',
-  band: '🔴', kettlebell: '🔔', pull_up_bar: '🔺', dips_bar: '⬆️',
-  foamroller: '🔵', massageball: '⚫', normal: '📋', '': '❔',
+  barbell: Dumbbell, dumbbell: Dumbbell, machine: Wrench, body: User,
+  band: Infinity, kettlebell: Weight, pull_up_bar: ArrowUpToLine, dips_bar: ArrowDownToLine,
+  foamroller: Disc, massageball: Circle, normal: Clipboard, '': HelpCircle,
 }
 
 const DIFF_LABEL = { 1: '초급', 2: '중급', 3: '고급' }
@@ -29,22 +33,38 @@ const CAT_COLOR = {
   유산소: '#E63946', 스트레칭: '#06D6A0',
 }
 
-const PAGE_SIZE = 40
+const PAGE_SIZE = 16
 
 function gifUrl(ex) {
   return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
 }
 
-// ─── ExerciseCard ─────────────────────────────────────────────────────────────
-
 function ExerciseCard({ ex, onClick }) {
   const [hovered, setHovered] = useState(false)
   const [videoOk, setVideoOk] = useState(true)
+  const [isInViewport, setIsInViewport] = useState(false)
+  const cardRef = useRef(null)
 
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInViewport(entry.isIntersecting)
+      },
+      { rootMargin: '100px' }
+    )
+    if (cardRef.current) {
+      observer.observe(cardRef.current)
+    }
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
   return (
     <div
+      ref={cardRef}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => onClick(ex)}
@@ -60,12 +80,13 @@ function ExerciseCard({ ex, onClick }) {
       }}
     >
       {/* Video */}
-      <div style={{ position: 'relative', height: 180, background: '#0A0A0A', overflow: 'hidden' }}>
-        {videoOk ? (
+      <div style={{ position: 'relative', height: 220, background: '#0A0A0A', overflow: 'hidden' }}>
+        {isInViewport && videoOk ? (
           <img
             src={gifUrl(ex)}
             alt={ex.name_kor}
             onError={() => setVideoOk(false)}
+            loading="lazy"
             style={{
               width: '100%', height: '100%', objectFit: 'cover',
               transform: hovered ? 'scale(1.04)' : 'scale(1)',
@@ -80,8 +101,8 @@ function ExerciseCard({ ex, onClick }) {
             gap: 10,
             background: `linear-gradient(135deg, ${accentColor}10, transparent)`,
           }}>
-            <Dumbbell size={40} color={`${accentColor}50`} />
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>영상 없음</span>
+            <Dumbbell size={40} color={`${accentColor}30`} />
+            {!videoOk && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>영상 없음</span>}
           </div>
         )}
 
@@ -89,6 +110,7 @@ function ExerciseCard({ ex, onClick }) {
         <div style={{
           position: 'absolute', inset: 0,
           background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)',
+          pointerEvents: 'none',
         }} />
 
         {/* Category badge */}
@@ -118,26 +140,23 @@ function ExerciseCard({ ex, onClick }) {
       </div>
 
       {/* Info */}
-      <div style={{ padding: '14px 16px 16px' }}>
-        <div style={{ fontFamily: 'Bebas Neue', fontSize: 17, color: '#FFF', letterSpacing: 0.5, marginBottom: 4, lineHeight: 1.2 }}>
-          {ex.name_kor}
-        </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 10 }}>{ex.name_eng}</div>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-            <span>{EQUIPMENT_ICON[ex.equipment] || '❔'}</span>
+      <div style={{ padding: '12px 14px 14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontFamily: 'Bebas Neue', fontSize: 16, color: '#FFF', letterSpacing: 0.5, lineHeight: 1.25, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              {ex.name_kor}
+            </div>
+            <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.3)', marginTop: 2, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              {ex.name_eng}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.03)', padding: '3px 8px', borderRadius: 2, border: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+            {(() => {
+              const Icon = EQUIPMENT_ICON[ex.equipment] || HelpCircle
+              return <Icon size={12} style={{ color: 'rgba(255,255,255,0.5)' }} />
+            })()}
             <span>{EQUIPMENT_LABEL[ex.equipment] || '기타'}</span>
           </div>
-          {ex.tag && (
-            <span style={{
-              fontSize: 10, padding: '2px 8px', borderRadius: 2,
-              background: `${accentColor}15`,
-              border: `1px solid ${accentColor}25`,
-              color: `${accentColor}CC`,
-              maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>{ex.tag}</span>
-          )}
         </div>
       </div>
     </div>
@@ -239,11 +258,18 @@ function DetailModal({ ex, onClose, onNavigate }) {
               </h2>
               <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>{ex.name_eng}</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{
+                 <span style={{
                   fontSize: 11, padding: '3px 12px', borderRadius: 2,
                   background: `${accentColor}15`, border: `1px solid ${accentColor}30`,
                   color: accentColor,
-                }}>{EQUIPMENT_ICON[ex.equipment]} {EQUIPMENT_LABEL[ex.equipment]}</span>
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                }}>
+                  {(() => {
+                    const Icon = EQUIPMENT_ICON[ex.equipment] || HelpCircle
+                    return <Icon size={12} />
+                  })()}
+                  {EQUIPMENT_LABEL[ex.equipment]}
+                </span>
                 <span style={{
                   fontSize: 11, padding: '3px 12px', borderRadius: 2,
                   background: `${DIFF_COLOR[ex.difficulty]}15`,
@@ -369,6 +395,7 @@ export default function ExercisePage() {
   const [selected, setSelected] = useState(null)
   const [showFilters, setShowFilters] = useState(false)
   const listRef = useRef(null)
+  const loaderRef = useRef(null)
 
   useEffect(() => {
     fetch(`${API_URL}/api/exercises/`)
@@ -378,7 +405,7 @@ export default function ExercisePage() {
   }, [])
 
   const filtered = useMemo(() => {
-    let list = exercises
+    let list = exercises.filter(e => CATEGORIES.includes(e.category))
     if (category !== '전체') list = list.filter(e => e.category === category)
     if (equipment !== '전체') list = list.filter(e => e.equipment === equipment)
     if (difficulty > 0) list = list.filter(e => e.difficulty === difficulty)
@@ -389,11 +416,44 @@ export default function ExercisePage() {
         (e.name_eng && e.name_eng.toLowerCase().includes(q))
       )
     }
-    return list
+
+    // 카테고리 순서 정의 (등 -> 가슴 -> 어깨 -> 하체 -> 코어 -> 이두 -> 삼두 -> 전완근 -> 유산소 -> 스트레칭)
+    const categoryOrder = CATEGORIES.slice(1)
+
+    return [...list].sort((a, b) => {
+      const indexA = categoryOrder.indexOf(a.category)
+      const indexB = categoryOrder.indexOf(b.category)
+      if (indexA !== indexB) {
+        return indexA - indexB
+      }
+      return a.difficulty - b.difficulty
+    })
   }, [exercises, search, category, equipment, difficulty])
 
   const displayed = filtered.slice(0, page * PAGE_SIZE)
   const hasMore = displayed.length < filtered.length
+
+  useEffect(() => {
+    if (!hasMore) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setPage(p => p + 1)
+        }
+      },
+      { rootMargin: '200px' }
+    )
+    const currentLoader = loaderRef.current
+    if (currentLoader) {
+      observer.observe(currentLoader)
+    }
+    return () => {
+      if (currentLoader) {
+        observer.unobserve(currentLoader)
+      }
+    }
+  }, [hasMore])
+
 
   const handleCategoryChange = useCallback((cat) => {
     setCategory(cat)
@@ -410,9 +470,36 @@ export default function ExercisePage() {
   }, [])
 
   const equipmentOptions = useMemo(() => {
-    const set = new Set(exercises.map(e => e.equipment))
-    return ['전체', ...Array.from(set).sort()]
-  }, [exercises])
+    let list = exercises
+    if (category !== '전체') {
+      list = list.filter(e => e.category === category)
+    }
+    const set = new Set(list.map(e => e.equipment))
+    const customOrder = [
+      'body', 'barbell', 'dumbbell', 'machine', 'band', 'kettlebell',
+      'pull_up_bar', 'dips_bar', 'normal', 'foamroller', 'massageball', ''
+    ]
+    const array = Array.from(set).sort((a, b) => {
+      let idxA = customOrder.indexOf(a)
+      let idxB = customOrder.indexOf(b)
+      if (idxA === -1) idxA = 999
+      if (idxB === -1) idxB = 999
+      return idxA - idxB
+    })
+    return ['전체', ...array]
+  }, [exercises, category])
+
+  useEffect(() => {
+    if (equipment === '전체') return
+    let list = exercises
+    if (category !== '전체') {
+      list = list.filter(e => e.category === category)
+    }
+    const available = new Set(list.map(e => e.equipment))
+    if (!available.has(equipment)) {
+      setEquipment('전체')
+    }
+  }, [category, exercises, equipment])
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#080808', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -523,8 +610,8 @@ export default function ExercisePage() {
           {/* Extended filters */}
           {showFilters && (
             <div style={{
-              background: 'rgba(255,255,255,0.025)',
-              border: '1px solid rgba(255,255,255,0.07)',
+              background: '#222222',
+              border: '2px solid #ffd90058',
               borderRadius: 2,
               padding: '20px 24px',
               marginBottom: 16,
@@ -533,7 +620,7 @@ export default function ExercisePage() {
               <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
                 {/* Equipment */}
                 <div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, marginBottom: 10 }}>기구</div>
+                  <div style={{ fontSize: 12, fontWeight: 'bold', color: '#FFD700', letterSpacing: 2, marginBottom: 10 }}>기구</div>
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                     {equipmentOptions.map(eq => (
                       <button key={eq} onClick={() => { setEquipment(eq); setPage(1) }} style={{
@@ -542,8 +629,17 @@ export default function ExercisePage() {
                         border: equipment === eq ? '1px solid #FFD700' : '1px solid rgba(255,255,255,0.08)',
                         color: equipment === eq ? '#000' : 'rgba(255,255,255,0.45)',
                         transition: 'all 0.18s',
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
                       }}>
-                        {eq === '전체' ? '전체' : `${EQUIPMENT_ICON[eq] || ''} ${EQUIPMENT_LABEL[eq] || eq}`}
+                        {eq === '전체' ? '전체' : (
+                          <>
+                            {(() => {
+                              const Icon = EQUIPMENT_ICON[eq] || HelpCircle
+                              return <Icon size={12} />
+                            })()}
+                            <span>{EQUIPMENT_LABEL[eq] || eq}</span>
+                          </>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -551,7 +647,7 @@ export default function ExercisePage() {
 
                 {/* Difficulty */}
                 <div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, marginBottom: 10 }}>난이도</div>
+                  <div style={{ fontSize: 12, fontWeight: 'bold', color: '#FFD700', letterSpacing: 2, marginBottom: 10 }}>난이도</div>
                   <div style={{ display: 'flex', gap: 7 }}>
                     <button onClick={() => { setDifficulty(0); setPage(1) }} style={{
                       padding: '5px 14px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
@@ -618,7 +714,7 @@ export default function ExercisePage() {
             <>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(285px, 1fr))',
                 gap: 18,
                 marginBottom: 36,
               }}>
@@ -628,22 +724,24 @@ export default function ExercisePage() {
               </div>
 
               {hasMore && (
-                <div style={{ textAlign: 'center', paddingBottom: 48 }}>
-                  <button
-                    onClick={() => setPage(p => p + 1)}
+                <div ref={loaderRef} style={{ textAlign: 'center', padding: '24px 0 48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                  <style>{`
+                    @keyframes spin-loader {
+                      0% { transform: rotate(0deg); }
+                      100% { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                  <Dumbbell
+                    size={24}
+                    color="#FFD700"
                     style={{
-                      background: 'rgba(255,215,0,0.08)',
-                      border: '1px solid rgba(255,215,0,0.25)',
-                      color: '#FFD700', fontSize: 14, fontWeight: 700,
-                      padding: '14px 40px', borderRadius: 3,
-                      cursor: 'pointer',
-                      transition: 'all 0.25s',
+                      animation: 'spin-loader 1.2s linear infinite',
+                      opacity: 0.8,
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,215,0,0.15)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,215,0,0.08)' }}
-                  >
-                    더 보기 ({filtered.length - displayed.length}개 남음)
-                  </button>
+                  />
+                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.5 }}>
+                    더 많은 운동 불러오는 중... ({(filtered.length - displayed.length).toLocaleString()}개 남음)
+                  </span>
                 </div>
               )}
             </>
