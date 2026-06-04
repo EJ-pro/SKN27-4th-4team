@@ -3,6 +3,25 @@ import { Sparkles, Send, MessageSquare, SlidersHorizontal, MousePointerClick } f
 
 const QUICK_BTNS = ['초보자 시작 방법', '어깨 통증 대체 운동', '허리 안 아픈 스쿼트', '손목 보호 운동']
 
+const QUICK_RESPONSES = {
+  '초보자 시작 방법': {
+    user: '운동을 처음 시작하려는데 어떤 루틴부터 시작해야 하나요?',
+    ai: '초보자의 경우 무리한 중량 운동보다는 주 3회 전신 무산소 운동과 유산소 운동을 병행하는 것이 좋습니다.\n\n1단계: 맨몸 운동(스쿼트, 푸쉬업, 플랭크)으로 기초 체력을 다집니다.\n2단계: 머신 운동(체스트 프레스, 랫 풀다운, 레그 프레스)을 통해 올바른 자세를 안전하게 연습합니다.\n3단계: 1~2개월 후 기초 체력이 올라가면 점진적으로 가벼운 프리웨이트(덤벨, 바벨)를 루틴에 추가해 보세요.'
+  },
+  '어깨 통증 대체 운동': {
+    user: '어깨 통증 없이 할 수 있는 가슴 운동과 등 운동을 추천해 주세요.',
+    ai: '어깨(특히 회전근개)에 통증이 있을 때는 어깨 관절을 내회전시키거나 으쓱하게 만드는 바벨 프레스 및 비하인드 넥 풀다운 동작을 피해야 합니다.\n\n- 가슴 대체 운동: 덤벨 프레스(뉴트럴 그립), 펙덱 플라이 머신\n- 등 대체 운동: 시티드 케이블 로우(언더/패러렐 그립), 체스트 서포티드 머신 로우\n\n통증이 없는 가동 범위 내에서 저중량으로 수축을 느끼는 것에 집중해 보세요.'
+  },
+  '허리 안 아픈 스쿼트': {
+    user: '스쿼트만 하면 허리가 아픈데, 허리에 부담이 덜 가는 스쿼트 방법이나 대체 운동이 있나요?',
+    ai: '스쿼트 시 허리 통증은 과도한 상체 숙임이나 요추 골반의 말림(벗윙크) 때문일 가능성이 큽니다.\n\n- 스쿼트 자세 팁: 바벨을 앞에 얹는 고블렛 스쿼트나 프론트 스쿼트를 수행하면 무게 중심이 앞에 있어 상체를 자연스럽게 세울 수 있어 허리 부담이 크게 줄어듭니다.\n- 완벽한 대체 운동: 등과 척추를 든든하게 받쳐주는 레그 프레스나 기립근 개입이 전혀 없는 레그 익스텐션/레그 컬을 추천합니다.'
+  },
+  '손목 보호 운동': {
+    user: '바벨 컬이나 푸쉬업할 때 손목이 시큰거려요. 손목을 보호하는 팁과 대체 방법이 궁금해요.',
+    ai: '손목 관절이 꺾여 체중이나 중량을 지탱하게 되면 손목 인대에 과부하가 걸려 통증이 유발됩니다.\n\n1. 푸쉬업 바 사용: 푸쉬업 바를 잡고 주먹을 쥔 형태로 손목을 수직으로 고정하면 손목 꺾임이 방지됩니다.\n2. 이지바(EZ-bar) 사용: 일자 바벨 대신 꺾여 있는 이지바를 사용하면 손목이 자연스럽게 사선으로 쥐어져 꺾임을 예방합니다.\n3. 덤벨 해머 컬: 손바닥이 마주보는 중립 그립으로 진행하므로 손목 꺾임 없이 상완이두근과 상완요골근을 안전하게 단련할 수 있습니다.'
+  }
+}
+
 const CHAT_SCRIPT = [
   {
     role: 'user',
@@ -106,7 +125,51 @@ export default function ChatSection() {
     if (el) el.scrollTop = el.scrollHeight
   }, [messages, typing])
 
-  const handleQuick = (val) => setInput(prev => prev ? prev + ' ' + val : val)
+  const stopDemo = () => {
+    setMsgIdx(CHAT_SCRIPT.length) // Stops the auto-script
+  }
+
+  const sendMessage = (text) => {
+    if (!text.trim()) return
+    stopDemo()
+
+    // Add user message
+    const userMsg = { role: 'user', text }
+    setMessages(prev => [...prev, userMsg])
+    setInput('')
+
+    // Check if it matches a quick button response
+    let aiResponseText = 'HELBOTIN 운동 백과입니다! 해당 운동 및 건강 정보에 관한 추천 가이드를 확인해 보시기 바랍니다. 다른 궁금한 점이 있으시다면 언제든 질문해 주세요!'
+    
+    // Match logic
+    const keys = Object.keys(QUICK_RESPONSES)
+    const matchedKey = keys.find(key => text.includes(key) || key.includes(text))
+    if (matchedKey) {
+      aiResponseText = QUICK_RESPONSES[matchedKey].ai
+    } else {
+      for (const [key, val] of Object.entries(QUICK_RESPONSES)) {
+        if (text.includes(key) || key.includes(text) || text.includes(val.user) || val.user.includes(text)) {
+          aiResponseText = val.ai
+          break
+        }
+      }
+    }
+
+    setTyping(true)
+    setTimeout(() => {
+      setTyping(false)
+      setMessages(prev => [...prev, { role: 'ai', text: aiResponseText }])
+    }, 1200)
+  }
+
+  const handleQuick = (val) => {
+    const matched = QUICK_RESPONSES[val]
+    if (matched) {
+      sendMessage(matched.user)
+    } else {
+      sendMessage(val)
+    }
+  }
 
   return (
     <section ref={sectionRef} style={{
@@ -341,6 +404,7 @@ export default function ChatSection() {
               <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') sendMessage(input) }}
                 placeholder="운동 목표나 조건을 말씀해주세요..."
                 style={{
                   flex: 1, background: '#141414',
@@ -354,6 +418,7 @@ export default function ChatSection() {
                 onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.09)'}
               />
               <button
+                onClick={() => sendMessage(input)}
                 style={{
                   width: 40, height: 40,
                   background: 'linear-gradient(135deg, #FFD700, #C8A200)',
@@ -361,6 +426,7 @@ export default function ChatSection() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   boxShadow: '0 4px 16px rgba(255,215,0,0.3)',
                   transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  cursor: 'pointer',
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.transform = 'scale(1.1)'
