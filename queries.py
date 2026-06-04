@@ -3,7 +3,8 @@ Planfit Graph DB — Cypher 쿼리 모음
 ────────────────────────────────────
 사용법:
     from queries import GraphQuery
-    gq = GraphQuery("bolt://localhost:7687", "neo4j", "password")
+    import os
+    gq = GraphQuery(os.environ["NEO4J_URI"], os.environ["NEO4J_USER"], os.environ["NEO4J_PASSWORD"])
     result = gq.get_exercises_by_split("CHEST", spine="mid", equip=["dumbbell"])
     gq.close()
 """
