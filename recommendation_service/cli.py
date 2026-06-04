@@ -94,13 +94,13 @@ def _auto_review() -> dict[str, str]:
 
 
 def _prompt_review() -> dict[str, str]:
-    decision = input("Type approve to accept, or revise to request changes: ").strip().lower()
-    if decision not in {"approve", "revise"}:
-        decision = "revise"
-    feedback = ""
+    raw = input("Type approve to accept, revise to request changes, or enter feedback directly: ").strip()
+    decision = raw.lower()
+    if decision in {"approve", "accept"}:
+        return {"decision": "approve", "feedback": ""}
     if decision == "revise":
-        feedback = input("Revision feedback: ").strip()
-    return {"decision": decision, "feedback": feedback}
+        return {"decision": "revise", "feedback": input("Revision feedback: ").strip()}
+    return {"decision": "revise", "feedback": raw}
 
 
 def _print_review_payload(payload: dict) -> None:
@@ -114,6 +114,10 @@ def _print_review_payload(payload: dict) -> None:
     validation = payload.get("validation_result")
     if validation:
         print(f"validation: valid={validation.get('is_valid')} risk={validation.get('risk_level')}")
+        if validation.get("reason"):
+            print(f"reason: {validation.get('reason')}")
+        for warning in validation.get("safety_warnings", []):
+            print(f"warning: {warning}")
     print()
 
 

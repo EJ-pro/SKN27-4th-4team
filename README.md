@@ -23,8 +23,8 @@ exercise_edges.json                ← 엣지 데이터
 pip install neo4j python-dotenv
 
 # .env 생성
-echo "NEO4J_URI=bolt://localhost:7687" > .env
-echo "NEO4J_USER=neo4j"              >> .env
+echo "NEO4J_URI=your-neo4j-bolt-uri" > .env
+echo "NEO4J_USER=your-neo4j-user"    >> .env
 echo "NEO4J_PASSWORD=your-password"  >> .env
 
 # DB 구축
@@ -63,8 +63,9 @@ python build_graph.py
 
 ```python
 from queries import GraphQuery
+import os
 
-gq = GraphQuery("bolt://localhost:7687", "neo4j", "password")
+gq = GraphQuery(os.environ["NEO4J_URI"], os.environ["NEO4J_USER"], os.environ["NEO4J_PASSWORD"])
 
 # 분할별 운동 (척추·장비·난이도 필터)
 gq.get_exercises_by_split("LEG", spine="mid", equip=["machine"], level="beginner")

@@ -41,6 +41,7 @@ class RecommendationState(TypedDict, total=False):
     validation_result: dict[str, Any] | None
     human_review_result: dict[str, Any] | None
     revision_request: dict[str, Any] | None
+    revision_constraints: dict[str, Any] | None
     final_response: str | None
     next_action: str
     action_reason: str
@@ -67,6 +68,7 @@ def initial_state(
         "validation_result": None,
         "human_review_result": None,
         "revision_request": None,
+        "revision_constraints": None,
         "final_response": None,
         "next_action": "CALL_USER_PROFILE_TOOL",
         "action_reason": "",

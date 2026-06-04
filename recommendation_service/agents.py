@@ -78,8 +78,13 @@ def supervisor_agent(state: RecommendationState) -> dict[str, Any]:
     })
     parsed = invoke_json(system, user)
     action = parsed.get("next_action")
-    if action not in ALLOWED_ACTIONS or not _is_action_allowed_now(action, state):
-        action = _fallback_next_action(state)
+    expected_action = _fallback_next_action(state)
+    if (
+        action not in ALLOWED_ACTIONS
+        or not _is_action_allowed_now(action, state)
+        or action != expected_action
+    ):
+        action = expected_action
     return {
         "next_action": action,
         "action_reason": parsed.get("reason", "fallback route selected"),
@@ -178,7 +183,22 @@ def graph_search_tool(state: RecommendationState) -> dict[str, Any]:
     from .graph_tools import search_exercises
 
     candidates, insufficient = search_exercises(state.get("recommendation_params", {}))
-    return {"exercise_candidates": candidates, "insufficient_targets": insufficient}
+    result: dict[str, Any] = {
+        "exercise_candidates": candidates,
+        "insufficient_targets": insufficient,
+    }
+    if insufficient:
+        result["final_response"] = _insufficient_candidates_message(
+            state.get("recommendation_params", {}),
+            candidates,
+            insufficient,
+        )
+        result["next_action"] = "END"
+        result["errors"] = [
+            *state.get("errors", []),
+            f"GraphDB candidates are insufficient for: {', '.join(insufficient)}",
+        ]
+    return result
 
 
 def routine_composition_agent(state: RecommendationState) -> dict[str, Any]:
@@ -204,7 +224,10 @@ def routine_composition_agent(state: RecommendationState) -> dict[str, Any]:
 def routine_validation_agent(state: RecommendationState) -> dict[str, Any]:
     system = (
         "당신은 Routine Validation Agent입니다. 루틴이 후보 운동만 사용했는지, 장비/난이도/통증/부위 균형 조건을 만족하는지 검증하세요. "
-        "응답은 JSON만 반환하세요: {\"is_valid\":true,\"risk_level\":\"low|medium|high\",\"issues\":[],\"revision_instructions\":[]}"
+        "부상이나 통증 조건이 있으면 루틴이 유효하더라도 risk_level을 낮게 평가하지 마세요. "
+        "장비 다양성은 검증 기준이 아니며, 사용 가능한 장비 안에서 머신 중심으로 구성된 것을 문제로 평가하지 마세요. "
+        "응답은 JSON만 반환하세요: "
+        "{\"is_valid\":true,\"risk_level\":\"low|medium|high\",\"issues\":[],\"revision_instructions\":[]}"
     )
     parsed = invoke_json(system, compact_json({
         "profile": state.get("user_profile", {}),
@@ -219,19 +242,49 @@ def routine_validation_agent(state: RecommendationState) -> dict[str, Any]:
 
 
 def routine_revision_agent(state: RecommendationState) -> dict[str, Any]:
+    human_review = state.get("human_review_result") or {}
+    feedback = str(human_review.get("feedback") or "").strip()
+    if feedback:
+        constraint_request = _extract_human_revision_constraints(state, feedback)
+        updated_params = (
+            constraint_request.get("updated_params")
+            if isinstance(constraint_request.get("updated_params"), dict)
+            else {}
+        )
+        if updated_params:
+            merged_params = _merge_recommendation_params(
+                state.get("recommendation_params", {}),
+                updated_params,
+            )
+            return {
+                "revision_request": constraint_request,
+                "revision_constraints": updated_params,
+                "recommendation_params": merged_params,
+                "exercise_candidates": {},
+                "insufficient_targets": [],
+                "routine_draft": None,
+                "validation_result": None,
+                "human_review_result": None,
+            }
+
     system = (
-        "당신은 Routine Revision Agent입니다. 검증 이슈 또는 사용자 피드백을 반영해 기존 루틴을 최소 수정하세요. "
-        "운동 후보 안에서만 수정하세요. 응답은 JSON만 반환하세요: "
+        "당신은 Routine Revision Agent입니다. 검증 이슈 또는 사용자 피드백을 반영하세요. "
+        "현재 GraphDB 후보 안에서 해결 가능한 수정만 수행하세요. "
+        "사람 피드백의 구조화 제약은 이미 별도 단계에서 처리되었습니다. "
+        "응답은 JSON만 반환하세요: "
         "{\"revision_type\":\"...\",\"revision_reason\":\"...\",\"routine_draft\":{...}}"
     )
     parsed = invoke_json(system, compact_json({
         "routine_draft": state.get("routine_draft"),
         "validation_result": state.get("validation_result"),
-        "human_review_result": state.get("human_review_result"),
+        "human_review_result": human_review,
+        "current_params": state.get("recommendation_params", {}),
         "allowed_exercises": _candidate_name_index(state.get("exercise_candidates", {})),
     }))
+
     return {
         "revision_request": parsed,
+        "revision_constraints": None,
         "routine_draft": _ensure_split_routine(
             parsed.get("routine_draft", state.get("routine_draft")),
             state.get("exercise_candidates", {}),
@@ -240,6 +293,42 @@ def routine_revision_agent(state: RecommendationState) -> dict[str, Any]:
         "validation_result": None,
         "human_review_result": None,
     }
+
+
+def _extract_human_revision_constraints(
+    state: RecommendationState,
+    feedback: str,
+) -> dict[str, Any]:
+    system = (
+        "당신은 Human Feedback Constraint Agent입니다. 사용자의 수정 요청을 추천 시스템이 실행할 수 있는 "
+        "구조화된 파라미터 변경으로 변환하세요. 루틴을 작성하지 마세요. "
+        "updated_params에는 현재값과 달라져야 하는 키만 넣고, 현재 파라미터 전체를 복사하지 마세요. "
+        "사용자가 명시적으로 요청하지 않은 목표, 분할 부위, 분할 순서, 장소, 장비, 시간, 레벨은 변경하지 마세요. "
+        "안전, 통증, 부상, 부담 감소 요청은 최우선으로 반영해야 하며 기존의 넓은 검색 조건을 그대로 유지하면 안 됩니다. "
+        "spine은 척추 부하 허용 범위이며 all은 상/중/하, mid는 중/하, low는 하만 허용합니다. "
+        "새로운 통증 또는 부상으로 척추 부담 감소가 필요하면 spine을 low로 제한하고 avoid_conditions에 상태를 추가하세요. "
+        "운동 강도, 장소, 장비, 목표, 운동 시간, 제외 운동처럼 GraphDB 검색 또는 추천 조건에 영향을 주는 요청도 "
+        "반드시 updated_params에 반영하세요. "
+        "updated_params에는 split_targets, goal, level, available_equipment, exclude_exercises, "
+        "avoid_conditions, home_only, session_min, spine, intensity_bias, candidate_limit_per_target 중 필요한 키만 넣으세요. "
+        "updated_params가 하나라도 있으면 requires_research=true입니다. 기존 후보 안에서 순서나 세트만 바꾸면 false입니다. "
+        "응답은 JSON만 반환하세요: "
+        "{\"requires_research\":true,\"revision_reason\":\"...\",\"updated_params\":{}}"
+    )
+    parsed = invoke_json(system, compact_json({
+        "feedback": feedback,
+        "current_params": state.get("recommendation_params", {}),
+        "profile": state.get("user_profile", {}),
+        "validation_result": state.get("validation_result"),
+    }))
+    if not isinstance(parsed.get("updated_params"), dict):
+        parsed["updated_params"] = {}
+    parsed["updated_params"] = _changed_recommendation_params(
+        state.get("recommendation_params", {}),
+        parsed["updated_params"],
+    )
+    parsed["requires_research"] = bool(parsed["updated_params"])
+    return parsed
 
 
 def final_human_review_node(state: RecommendationState) -> dict[str, Any]:
@@ -255,6 +344,8 @@ def final_human_review_node(state: RecommendationState) -> dict[str, Any]:
     if not isinstance(review, dict):
         review = {"decision": "revise", "feedback": str(review)}
     decision = str(review.get("decision", "revise")).lower()
+    if decision == "accept":
+        decision = "approve"
     if decision not in {"approve", "revise"}:
         decision = "revise"
     return {
@@ -268,14 +359,11 @@ def final_human_review_node(state: RecommendationState) -> dict[str, Any]:
 def final_response_generator(state: RecommendationState) -> dict[str, Any]:
     system = (
         "당신은 Final Response Generator입니다. 확정된 5분할 루틴을 한국어로 보기 좋은 표와 주의사항으로 정리하세요. "
-        "추천 이유, 조건 반영 내용, 통증 주의사항을 포함하세요."
+        "추천 이유, 조건 반영 내용, 통증 주의사항을 포함하세요. "
+        "제공된 내용은 모두 사용자에게 보여도 되는 정보입니다. "
+        "내부 시스템 구조를 추측하거나 기술 용어를 추가하지 말고 자연스러운 사용자 안내문만 작성하세요."
     )
-    text = invoke_text(system, compact_json({
-        "profile": state.get("user_profile", {}),
-        "routine": state.get("routine_draft"),
-        "validation": state.get("validation_result"),
-        "review": state.get("human_review_result"),
-    }))
+    text = invoke_text(system, compact_json(_final_response_payload(state)))
     return {"final_response": text, "next_action": "END"}
 
 
@@ -461,6 +549,111 @@ def _exercise_name(exercise: dict[str, Any]) -> str:
     return ""
 
 
+def _insufficient_candidates_message(
+    params: dict[str, Any],
+    candidates: dict[str, list[dict[str, Any]]],
+    insufficient: list[str],
+) -> str:
+    counts = ", ".join(
+        f"{target} {len(candidates.get(target, []))}개"
+        for target in params.get("split_targets", candidates.keys())
+    )
+    return (
+        "현재 GraphDB 후보가 부족해 안전한 추천 루틴을 생성하지 않았습니다.\n"
+        f"부족한 분할: {', '.join(insufficient)}\n"
+        f"조회된 후보 수: {counts}\n"
+        "프론트 설문 조건이 너무 엄격하거나 GraphDB 데이터 커버리지가 부족합니다. "
+        "장비/운동 장소/통증 조건을 완화하거나 GraphDB에 해당 조건의 운동 데이터를 보강한 뒤 다시 시도해주세요."
+    )
+
+
+def _condition_summary(state: RecommendationState) -> list[str]:
+    constraints = state.get("revision_constraints") or {}
+    validation = state.get("validation_result") or {}
+    summary: list[str] = []
+
+    if constraints.get("spine") == "low":
+        summary.append("사람 피드백을 반영해 척추 부하가 낮은 운동 후보만 GraphDB에서 다시 검색했습니다.")
+    avoid_conditions = constraints.get("avoid_conditions") or []
+    if avoid_conditions:
+        summary.append(f"주의 조건으로 {', '.join(str(item) for item in avoid_conditions)}을 반영했습니다.")
+    if validation.get("risk_level") == "medium":
+        summary.append("루틴은 추천 제약을 만족하지만 부상 또는 통증 이력으로 인해 주의가 필요합니다.")
+    return summary
+
+
+def _final_response_payload(state: RecommendationState) -> dict[str, Any]:
+    validation = state.get("validation_result") or {}
+    profile = state.get("user_profile", {})
+    return {
+        "확정 루틴": state.get("routine_draft"),
+        "사용자 조건": {
+            "운동 목표": profile.get("goal"),
+            "세션 시간": profile.get("session_min"),
+        },
+        "조건 반영 설명": _condition_summary(state),
+        "주의 수준": _risk_label(validation.get("risk_level")),
+        "주의사항": list(validation.get("safety_warnings") or []),
+    }
+
+
+def _risk_label(value: Any) -> str:
+    return {
+        "low": "낮음",
+        "medium": "주의 필요",
+        "high": "높음",
+    }.get(str(value or "").lower(), "확인 필요")
+
+
+def _merge_recommendation_params(
+    current: dict[str, Any],
+    updates: dict[str, Any],
+) -> dict[str, Any]:
+    merged = {**current}
+    for key, value in updates.items():
+        if value is None or value == "":
+            continue
+        if key == "avoid_conditions":
+            merged[key] = _merge_unique_list(current.get(key, []), value)
+        elif key == "exclude_exercises":
+            merged[key] = _merge_unique_list(current.get(key, []), value)
+        elif key == "available_equipment":
+            merged[key] = normalize_equipment(value)
+        elif key == "split_targets":
+            merged[key] = normalize_split_targets(value)
+        elif key == "level":
+            merged[key] = normalize_level(value)
+        elif key == "spine":
+            merged[key] = normalize_spine(value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _changed_recommendation_params(
+    current: dict[str, Any],
+    updates: dict[str, Any],
+) -> dict[str, Any]:
+    merged = _merge_recommendation_params(current, updates)
+    return {
+        key: merged[key]
+        for key in updates
+        if key in merged and merged.get(key) != current.get(key)
+    }
+
+
+def _merge_unique_list(current: Any, updates: Any) -> list[Any]:
+    if not isinstance(current, list):
+        current = [current] if current else []
+    if not isinstance(updates, list):
+        updates = [updates] if updates else []
+    merged = list(current)
+    for item in updates:
+        if item not in merged:
+            merged.append(item)
+    return merged
+
+
 def _needs_low_spine_load(profile: dict[str, Any]) -> bool:
     age = profile.get("age")
     try:
@@ -485,6 +678,7 @@ def _apply_deterministic_validation(
     result = {
         **validation,
         "issues": list(validation.get("issues") or []),
+        "safety_warnings": [],
         "revision_instructions": list(validation.get("revision_instructions") or []),
     }
     params = state.get("recommendation_params", {})
@@ -542,19 +736,41 @@ def _apply_deterministic_validation(
                     risk_level="medium",
                 )
                 continue
-            if low_spine_required and row.get("spine_loading") == "상":
+            if low_spine_required and row.get("spine_loading") != "하":
                 _add_validation_issue(
                     result,
-                    "high_spine_loading",
-                    f"통증/부상/저부담 조건에서 고부하 운동 '{name}'이 포함되었습니다.",
+                    "non_low_spine_loading",
+                    f"통증/부상/저부담 조건에서 척추 부하가 낮지 않은 운동 '{name}'이 포함되었습니다.",
                     "spine_loading이 '하'인 운동 후보로 대체하세요.",
                     risk_level="high",
                 )
 
+    if _has_health_risk_context(state):
+        _add_safety_warning(
+            result,
+            "부상 또는 통증 관련 조건을 반영해 루틴을 구성했지만, 현재 통증과 운동 가능 여부를 확인한 뒤 진행해야 합니다.",
+            risk_level="medium",
+        )
+
     result["is_valid"] = bool(result.get("is_valid", True)) and not result["issues"]
     if not result["issues"]:
+        result["revision_instructions"] = []
+    if not result["issues"]:
         result["risk_level"] = result.get("risk_level") or "low"
+    result["reason"] = _validation_reason(result)
     return result
+
+
+def _has_health_risk_context(state: RecommendationState) -> bool:
+    profile = state.get("user_profile", {})
+    params = state.get("recommendation_params", {})
+    constraints = state.get("revision_constraints") or {}
+    return bool(
+        profile.get("injuries")
+        or profile.get("pain_points")
+        or params.get("avoid_conditions")
+        or constraints.get("avoid_conditions")
+    )
 
 
 def _candidate_row_index(
@@ -584,6 +800,24 @@ def _add_validation_issue(
     if instruction not in validation["revision_instructions"]:
         validation["revision_instructions"].append(instruction)
     validation["risk_level"] = _max_risk(validation.get("risk_level"), risk_level)
+
+
+def _add_safety_warning(
+    validation: dict[str, Any],
+    message: str,
+    risk_level: str,
+) -> None:
+    if message not in validation["safety_warnings"]:
+        validation["safety_warnings"].append(message)
+    validation["risk_level"] = _max_risk(validation.get("risk_level"), risk_level)
+
+
+def _validation_reason(validation: dict[str, Any]) -> str:
+    if validation.get("issues"):
+        return "루틴 구성 또는 안전 조건에 해결이 필요한 문제가 있습니다."
+    if validation.get("safety_warnings"):
+        return "루틴은 현재 추천 제약을 만족하지만, 부상 또는 통증 이력으로 인해 주의가 필요합니다."
+    return "루틴이 현재 추천 조건과 GraphDB 후보 제약을 만족합니다."
 
 
 def _max_risk(current: Any, new: str) -> str:

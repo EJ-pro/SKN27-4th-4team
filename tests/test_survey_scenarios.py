@@ -2,11 +2,17 @@ import unittest
 from unittest.mock import patch
 
 from recommendation_service.agents import (
+    _apply_deterministic_validation,
+    _condition_summary,
     _ensure_split_routine,
+    _final_response_payload,
     build_recommendation_params_from_profile,
+    graph_search_tool,
+    routine_revision_agent,
     supervisor_agent,
     user_profile_tool,
 )
+from recommendation_service.cli import _prompt_review
 from recommendation_service.state import initial_state
 from recommendation_service.survey_scenarios import SURVEY_SCENARIOS, survey_to_user_profile
 
@@ -120,6 +126,199 @@ class SurveyScenarioTests(unittest.TestCase):
             with self.subTest(scenario=scenario["id"]):
                 expected = "slightly_conservative" if profile["gender"] == "female" else "standard"
                 self.assertEqual(params["intensity_bias"], expected)
+
+    def test_human_revision_constraints_trigger_graphdb_research(self):
+        state = initial_state(user_profile=survey_to_user_profile(SURVEY_SCENARIOS[0]["survey"]))
+        state.update({
+            "recommendation_params": {
+                "split_targets": ["CHEST", "BACK"],
+                "goal": "hypertrophy",
+                "level": "intermediate",
+                "available_equipment": ["machine", "body"],
+                "avoid_conditions": [],
+                "exclude_exercises": [],
+                "home_only": False,
+                "session_min": 60,
+                "spine": "all",
+            },
+            "exercise_candidates": {"CHEST": [{"name_kor": "푸쉬업"}]},
+            "routine_draft": {"days": [{"target": "CHEST", "exercises": [{"name": "푸쉬업"}]}]},
+            "validation_result": {"is_valid": True, "issues": []},
+            "human_review_result": {
+                "decision": "revise",
+                "feedback": "허리에 부담이 덜 가게 수정해주세요.",
+            },
+        })
+
+        with patch("recommendation_service.agents.invoke_json", return_value={
+            "revision_type": "constraint_update",
+            "revision_reason": "새 안전 제약으로 GraphDB 재검색이 필요합니다.",
+            "requires_research": True,
+            "updated_params": {
+                "spine": "low",
+                "avoid_conditions": ["lower_back"],
+            },
+        }):
+            result = routine_revision_agent(state)
+
+        self.assertEqual(result["recommendation_params"]["spine"], "low")
+        self.assertEqual(result["recommendation_params"]["avoid_conditions"], ["lower_back"])
+        self.assertEqual(result["exercise_candidates"], {})
+        self.assertIsNone(result["routine_draft"])
+        self.assertIsNone(result["validation_result"])
+        self.assertIsNone(result["human_review_result"])
+
+    def test_graph_search_stops_when_graphdb_candidates_are_insufficient(self):
+        state = initial_state(user_profile=survey_to_user_profile(SURVEY_SCENARIOS[1]["survey"]))
+        state["recommendation_params"] = {
+            "split_targets": ["LEG", "SHOULDER", "ARM"],
+            "level": "beginner",
+            "available_equipment": ["body", "dumbbell", "band"],
+            "home_only": True,
+            "session_min": 45,
+            "spine": "low",
+        }
+
+        with patch("recommendation_service.graph_tools.search_exercises", return_value=(
+            {
+                "LEG": [{"name_kor": "운동1"}, {"name_kor": "운동2"}],
+                "SHOULDER": [{"name_kor": "운동3"}],
+                "ARM": [{"name_kor": "운동4"}, {"name_kor": "운동5"}],
+            },
+            ["LEG", "SHOULDER", "ARM"],
+        )):
+            result = graph_search_tool(state)
+
+        self.assertEqual(result["next_action"], "END")
+        self.assertIn("GraphDB 후보가 부족", result["final_response"])
+        self.assertEqual(result["insufficient_targets"], ["LEG", "SHOULDER", "ARM"])
+
+    def test_cli_accept_alias_is_treated_as_approval(self):
+        with patch("builtins.input", return_value="accept"):
+            result = _prompt_review()
+
+        self.assertEqual(result, {"decision": "approve", "feedback": ""})
+
+    def test_valid_routine_with_pain_context_has_medium_risk_warning(self):
+        profile = survey_to_user_profile(SURVEY_SCENARIOS[1]["survey"])
+        state = initial_state(user_profile=profile)
+        state.update({
+            "recommendation_params": {
+                "split_targets": ["LEG"],
+                "spine": "low",
+                "avoid_conditions": ["knee"],
+            },
+            "exercise_candidates": {
+                "LEG": [
+                    {"id": 1, "name_kor": "운동1", "spine_loading": "하"},
+                    {"id": 2, "name_kor": "운동2", "spine_loading": "하"},
+                    {"id": 3, "name_kor": "운동3", "spine_loading": "하"},
+                ]
+            },
+            "routine_draft": {
+                "days": [{
+                    "target": "LEG",
+                    "exercises": [
+                        {"name": "운동1"},
+                        {"name": "운동2"},
+                        {"name": "운동3"},
+                    ],
+                }]
+            },
+        })
+
+        result = _apply_deterministic_validation(state, {
+            "is_valid": True,
+            "risk_level": "low",
+            "issues": [],
+            "safety_warnings": ["다른 장비를 추가하세요."],
+            "revision_instructions": ["장비를 다양하게 구성하세요."],
+        })
+
+        self.assertTrue(result["is_valid"])
+        self.assertEqual(result["risk_level"], "medium")
+        self.assertEqual(len(result["safety_warnings"]), 1)
+        self.assertNotIn("다른 장비를 추가하세요.", result["safety_warnings"])
+        self.assertEqual(result["revision_instructions"], [])
+        self.assertIn("주의가 필요", result["reason"])
+
+    def test_low_spine_constraint_rejects_medium_spine_loading(self):
+        profile = survey_to_user_profile(SURVEY_SCENARIOS[0]["survey"])
+        state = initial_state(user_profile=profile)
+        state.update({
+            "recommendation_params": {
+                "split_targets": ["LEG"],
+                "spine": "low",
+                "avoid_conditions": ["lower_back"],
+            },
+            "exercise_candidates": {
+                "LEG": [
+                    {"id": 1, "name_kor": "운동1", "spine_loading": "중"},
+                    {"id": 2, "name_kor": "운동2", "spine_loading": "하"},
+                    {"id": 3, "name_kor": "운동3", "spine_loading": "하"},
+                ]
+            },
+            "routine_draft": {
+                "days": [{
+                    "target": "LEG",
+                    "exercises": [
+                        {"name": "운동1"},
+                        {"name": "운동2"},
+                        {"name": "운동3"},
+                    ],
+                }]
+            },
+        })
+
+        result = _apply_deterministic_validation(state, {
+            "is_valid": True,
+            "risk_level": "low",
+            "issues": [],
+        })
+
+        self.assertFalse(result["is_valid"])
+        self.assertEqual(result["risk_level"], "high")
+        self.assertEqual(result["issues"][0]["type"], "non_low_spine_loading")
+
+    def test_condition_summary_explains_human_feedback_constraints(self):
+        state = initial_state()
+        state.update({
+            "revision_constraints": {
+                "spine": "low",
+                "avoid_conditions": ["통증", "부상"],
+            },
+            "validation_result": {
+                "risk_level": "medium",
+            },
+        })
+
+        summary = _condition_summary(state)
+
+        self.assertTrue(any("GraphDB" in item for item in summary))
+        self.assertTrue(any("통증, 부상" in item for item in summary))
+        self.assertTrue(any("주의가 필요" in item for item in summary))
+
+    def test_final_response_payload_exposes_only_user_facing_fields(self):
+        state = initial_state()
+        state.update({
+            "user_profile": {"goal": "hypertrophy", "session_min": 60},
+            "routine_draft": {"days": []},
+            "revision_constraints": {"spine": "low", "avoid_conditions": ["통증"]},
+            "validation_result": {
+                "risk_level": "medium",
+                "safety_warnings": ["운동 가능 여부를 확인하세요."],
+            },
+        })
+
+        payload = _final_response_payload(state)
+
+        self.assertEqual(
+            set(payload),
+            {"확정 루틴", "사용자 조건", "조건 반영 설명", "주의 수준", "주의사항"},
+        )
+        self.assertNotIn("validation", payload)
+        self.assertNotIn("revision_constraints", payload)
+        self.assertEqual(payload["주의 수준"], "주의 필요")
 
 
 if __name__ == "__main__":
