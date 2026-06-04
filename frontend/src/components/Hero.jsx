@@ -122,7 +122,7 @@ export default function Hero() {
                 e.currentTarget.style.boxShadow = '0 4px 32px rgba(255,215,0,0.28), 0 2px 8px rgba(0,0,0,0.4)'
               }}
             >
-              루틴 설계 시작하기
+              HELBOTIN 시작하기
             </button>
 
             {/* Secondary CTA */}

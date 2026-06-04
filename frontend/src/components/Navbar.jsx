@@ -40,12 +40,13 @@ export default function Navbar({ currentPage, onNavigate }) {
                     background: 'none', border: 'none', cursor: 'pointer', padding: 0,
                 }}
             >
-                <div
+                <img
+                    src="/logo_big.png"
+                    alt="HELBOTIN Logo"
                     style={{
-                        width: 36, height: 36,
-                        background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                        borderRadius: 2,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: 36,
+                        height: 36,
+                        borderRadius: 200,
                         boxShadow: '0 0 18px rgba(255,215,0,0.18)',
                         transition: 'box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
                     }}
@@ -57,9 +58,7 @@ export default function Navbar({ currentPage, onNavigate }) {
                         e.currentTarget.style.boxShadow = '0 0 18px rgba(255,215,0,0.18)'
                         e.currentTarget.style.transform = 'none'
                     }}
-                >
-                    <Dumbbell size={19} color="#000" strokeWidth={2.8} />
-                </div>
+                />
                 <span style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
             </button>
 

@@ -3,7 +3,7 @@ import { Minus, Plus, AlertTriangle, CheckCircle } from 'lucide-react'
 
 const DAYS = [
   {
-    label: '월', cat: '등', color: '#FFD700',
+    label: '월', cat: '가슴', color: '#FFD700',
     exercises: [
       { name: '데드리프트', sets: 4 },
       { name: '바벨 로우', sets: 3 },
@@ -11,7 +11,7 @@ const DAYS = [
     ],
   },
   {
-    label: '화', cat: '가슴', color: '#FF6B35',
+    label: '화', cat: '등', color: '#FF6B35',
     exercises: [
       { name: '벤치 프레스', sets: 4 },
       { name: '덤벨 플라이', sets: 3 },
@@ -55,45 +55,47 @@ const PAIN_OPTIONS = [
 ]
 
 const isExcluded = (ex, activePain) => {
-  if (activePain === '없음') return false;
-  if (activePain === '어깨') {
-    return ex.name === '벤치 프레스' || ex.name === '오버헤드 프레스';
+  if (activePain.includes('없음')) return false;
+  if (activePain.includes('어깨') && (ex.name === '벤치 프레스' || ex.name === '오버헤드 프레스')) {
+    return true;
   }
-  if (activePain === '허리') {
-    return ex.name === '데드리프트' || ex.name === '바벨 로우' || ex.name === '스쿼트';
+  if (activePain.includes('허리') && (ex.name === '데드리프트' || ex.name === '바벨 로우' || ex.name === '스쿼트')) {
+    return true;
   }
-  if (activePain === '무릎') {
-    return ex.name === '스쿼트' || ex.name === '런지';
+  if (activePain.includes('무릎') && (ex.name === '스쿼트' || ex.name === '런지')) {
+    return true;
   }
-  if (activePain === '손목') {
-    return ex.name === '바벨 컬' || ex.name === '딥스';
+  if (activePain.includes('손목') && (ex.name === '바벨 컬' || ex.name === '딥스')) {
+    return true;
   }
   return false;
 };
 
-const getAlternativeForDay = (dayLabel, activePain) => {
-  if (activePain === '어깨') {
-    if (dayLabel === '화') return { name: '펙덱 플라이 머신 (대체)', sets: 3 };
-    if (dayLabel === '목') return { name: '시티드 레터럴 레이즈 머신 (대체)', sets: 3 };
+const getAlternativesForDay = (dayLabel, activePain) => {
+  if (activePain.includes('없음')) return [];
+  const alts = [];
+  if (activePain.includes('어깨')) {
+    if (dayLabel === '화') alts.push({ name: '펙덱 플라이 머신 (대체)', sets: 3 });
+    if (dayLabel === '목') alts.push({ name: '시티드 레터럴 레이즈 머신 (대체)', sets: 3 });
   }
-  if (activePain === '허리') {
-    if (dayLabel === '월') return { name: '시티드 케이블 로우 (대체)', sets: 3 };
-    if (dayLabel === '수') return { name: '레그 프레스 (대체)', sets: 3 };
+  if (activePain.includes('허리')) {
+    if (dayLabel === '월') alts.push({ name: '시티드 케이블 로우 (대체)', sets: 3 });
+    if (dayLabel === '수') alts.push({ name: '레그 프레스 (대체)', sets: 3 });
   }
-  if (activePain === '무릎') {
-    if (dayLabel === '수') return { name: '레그 익스텐션 (대체)', sets: 3 };
+  if (activePain.includes('무릎')) {
+    if (dayLabel === '수') alts.push({ name: '레그 익스텐션 (대체)', sets: 3 });
   }
-  if (activePain === '손목') {
-    if (dayLabel === '화') return { name: '체스트 프레스 머신 (대체)', sets: 3 };
-    if (dayLabel === '금') return { name: '덤벨 해머 컬 (대체)', sets: 3 };
+  if (activePain.includes('손목')) {
+    if (dayLabel === '화') alts.push({ name: '체스트 프레스 머신 (대체)', sets: 3 });
+    if (dayLabel === '금') alts.push({ name: '덤벨 해머 컬 (대체)', sets: 3 });
   }
-  return null;
+  return alts;
 };
 
 function DayTimeline({ day, time, maxTime, activePain, index, visible }) {
   const exercisesShown = time >= 40 ? day.exercises : day.exercises.slice(0, Math.max(1, day.exercises.length - 1))
   const pct = (time / maxTime) * 100
-  const alternative = getAlternativeForDay(day.label, activePain)
+  const alternatives = getAlternativesForDay(day.label, activePain)
 
   return (
     <div style={{
@@ -167,8 +169,8 @@ function DayTimeline({ day, time, maxTime, activePain, index, visible }) {
         })}
 
         {/* Alternative for excluded */}
-        {alternative && (
-          <div style={{
+        {alternatives.map((alt, i) => (
+          <div key={i} style={{
             display: 'flex', alignItems: 'center', gap: 7,
             padding: '6px 10px',
             background: 'rgba(0,212,160,0.08)',
@@ -177,10 +179,10 @@ function DayTimeline({ day, time, maxTime, activePain, index, visible }) {
             animation: 'float-up 0.3s ease',
           }}>
             <CheckCircle size={11} color="#00D4A0" />
-            <span style={{ fontSize: 11, color: '#00D4A0' }}>{alternative.name}</span>
-            <span style={{ fontSize: 10, color: 'rgba(0,212,160,0.5)', marginLeft: 'auto' }}>{alternative.sets}세트</span>
+            <span style={{ fontSize: 11, color: '#00D4A0' }}>{alt.name}</span>
+            <span style={{ fontSize: 10, color: 'rgba(0,212,160,0.5)', marginLeft: 'auto' }}>{alt.sets}세트</span>
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
@@ -212,7 +214,7 @@ const getNextTimeStep = (current, delta) => {
 
 export default function AlgorithmSection() {
   const [times, setTimes] = useState([60, 45, 90, 45, 30])
-  const [pain, setPain] = useState('없음')
+  const [pain, setPain] = useState(['없음'])
   const [visible, setVisible] = useState(false)
   const ref = useRef()
   const maxTime = 90
@@ -231,7 +233,25 @@ export default function AlgorithmSection() {
     })
   }
 
-  const painActive = pain !== '없음'
+  const painActive = pain.length > 0 && !pain.includes('없음')
+
+  const handlePainToggle = (key) => {
+    setPain(prev => {
+      if (key === '없음') {
+        return ['없음'];
+      }
+      let next = prev.filter(p => p !== '없음');
+      if (next.includes(key)) {
+        next = next.filter(p => p !== key);
+      } else {
+        next.push(key);
+      }
+      if (next.length === 0) {
+        return ['없음'];
+      }
+      return next;
+    });
+  }
 
   const getActiveExercisesCount = () => {
     let count = 0
@@ -243,9 +263,7 @@ export default function AlgorithmSection() {
           count++
         }
       })
-      if (getAlternativeForDay(day.label, pain)) {
-        count++
-      }
+      count += getAlternativesForDay(day.label, pain).length
     })
     return count
   }
@@ -297,106 +315,16 @@ export default function AlgorithmSection() {
           transition: 'all 0.6s ease',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 14 }}>
-            <span style={{ width: 24, height: 2, background: 'linear-gradient(90deg, transparent, #7C72FF)', borderRadius: 2 }} />
-            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 5.5, color: '#7C72FF', opacity: 0.85 }}>
+            <span style={{ width: 24, height: 2, background: 'linear-gradient(90deg, transparent, #FFD700)', borderRadius: 2 }} />
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 5.5, color: '#FFD700', opacity: 0.85 }}>
               WEEKLY PLANNER
             </span>
             <span style={{ width: 24, height: 2, background: 'linear-gradient(90deg, #FFD700, transparent)', borderRadius: 2 }} />
           </div>
           <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(42px, 5.5vw, 70px)', color: '#FFF', lineHeight: 1, marginBottom: 16 }}>
-            과학적으로 설계된<br />
-            <span className="gold-text">일주일 루틴 플래너</span>
+            불편한 곳이 있다면,<br />
+            <span className="gold-text">루틴도 다르게.</span>
           </h2>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.38)', lineHeight: 1.9 }}>
-            가용 시간과 컨디션을 입력하면 내 일정에 맞는 루틴이 자동 완성됩니다.
-          </p>
-          <div className="divider-gold" />
-        </div>
-
-        {/* Controls */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 32,
-          marginBottom: 28, flexWrap: 'wrap',
-          opacity: visible ? 1 : 0, transition: 'all 0.6s ease 0.15s',
-        }}>
-          {/* Time controls */}
-          <div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: 3, marginBottom: 10 }}>요일별 가용 시간 조절</div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              {DAYS.map((day, i) => (
-                <div key={day.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  {/* Plus Button */}
-                  <button onClick={() => setTime(i, 1)} style={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    background: `${day.color}18`, border: `1px solid ${day.color}35`,
-                    color: day.color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Plus size={13} />
-                  </button>
-
-                  {/* Day Label (e.g. 월, 화) */}
-                  <span style={{ fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 800, fontSize: 16, color: day.color }}>
-                    {day.label}
-                  </span>
-
-                  {/* Time Label (e.g. 30분, 45분) */}
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#E2E2E2' }}>
-                    {times[i]}분
-                  </span>
-
-                  {/* Minus Button */}
-                  <button onClick={() => setTime(i, -1)} style={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-                    color: 'rgba(255,255,255,0.4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Minus size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div style={{ width: 1, height: 80, background: 'rgba(255,255,255,0.08)' }} />
-
-          {/* Pain area selector */}
-          <div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: 3, marginBottom: 10 }}>
-              통증 부위 선택
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {PAIN_OPTIONS.map(p => {
-                const active = pain === p.key
-                return (
-                  <button key={p.key} onClick={() => setPain(p.key)} style={{
-                    padding: '6px 14px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
-                    background: active
-                      ? (p.key === '없음' ? '#FFD700' : '#F44336')
-                      : 'rgba(255,255,255,0.04)',
-                    border: active
-                      ? `1px solid ${p.key === '없음' ? '#FFD700' : '#F44336'}`
-                      : '1px solid rgba(255,255,255,0.08)',
-                    color: active ? (p.key === '없음' ? '#000' : '#fff') : 'rgba(255,255,255,0.5)',
-                    fontWeight: active ? 700 : 400, transition: 'all 0.2s',
-                  }}>{p.label}</button>
-                )
-              })}
-            </div>
-            {pain !== '없음' && (
-              <div style={{
-                marginTop: 10, display: 'flex', alignItems: 'center', gap: 7,
-                fontSize: 11, color: '#F44336',
-                animation: 'float-up 0.3s ease',
-              }}>
-                <AlertTriangle size={12} />
-                {pain === '어깨' && '어깨 관절에 무리가 가는 프레스 동작이 제외되고 안전한 머신/레이즈 대체 운동이 추가됩니다.'}
-                {pain === '허리' && '허리 척추에 압박을 주는 데드리프트/로우/스쿼트가 제외되고 척추 부담이 적은 머신 운동으로 대체됩니다.'}
-                {pain === '손목' && '손목에 꺾임 자극을 주는 프리웨이트 컬/딥스가 제외되고 안전한 중립 그립 대체 운동이 추가됩니다.'}
-                {pain === '무릎' && '무릎 관절에 체중이 실리는 스쿼트/런지가 제외되고 관절 충격이 적은 익스텐션/레그프레스로 대체됩니다.'}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Timeline dashboard */}
@@ -407,34 +335,138 @@ export default function AlgorithmSection() {
           padding: '28px 28px 24px',
           boxShadow: '0 24px 72px rgba(0,0,0,0.55)',
           backdropFilter: 'blur(8px)',
-          opacity: visible ? 1 : 0, transition: 'all 0.6s ease 0.25s',
+          opacity: visible ? 1 : 0, transition: 'all 0.6s ease 0.15s',
         }}>
-          {/* Dashboard header */}
+          {/* Dashboard header (with integrated controls on the right) */}
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginBottom: 24, paddingBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 24,
+            paddingBottom: 20,
             borderBottom: '1px solid rgba(255,255,255,0.05)',
+            flexWrap: 'wrap',
+            gap: 24,
           }}>
-            <div>
-              <div style={{ fontFamily: 'Bebas Neue', fontSize: 20, color: '#FFF', letterSpacing: 1 }}>
-                주간 루틴
+            {/* Left Group: Title, Info & Pain Selector */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 32,
+              flexWrap: 'wrap',
+            }}>
+              {/* Title & Info */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontFamily: 'Bebas Neue', fontSize: 24, color: '#FFF', letterSpacing: 1.5 }}>
+                  주간 루틴
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
+                  총 {times.reduce((a, b) => a + b, 0)}분 · {getActiveExercisesCount()}개 운동
+                </div>
               </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
-                총 {times.reduce((a, b) => a + b, 0)}분 · {getActiveExercisesCount()}개 운동
+
+              {/* 통증 부위 선택 */}
+              <div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: 2, marginBottom: 8 }}>
+                  통증 부위 선택
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {PAIN_OPTIONS.map(p => {
+                    const active = pain.includes(p.key)
+                    return (
+                      <button key={p.key} onClick={() => handlePainToggle(p.key)} style={{
+                        padding: '5px 12px', borderRadius: 2, fontSize: 11, cursor: 'pointer',
+                        background: active
+                          ? (p.key === '없음' ? '#FFD700' : '#F44336')
+                          : 'rgba(255,255,255,0.04)',
+                        border: active
+                          ? `1px solid ${p.key === '없음' ? '#FFD700' : '#F44336'}`
+                          : '1px solid rgba(255,255,255,0.08)',
+                        color: active ? (p.key === '없음' ? '#000' : '#fff') : 'rgba(255,255,255,0.5)',
+                        fontWeight: active ? 700 : 400, transition: 'all 0.2s',
+                      }}>{p.label}</button>
+                    )
+                  })}
+                </div>
+                {painActive && (
+                  <div style={{
+                    marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6,
+                    fontSize: 10, color: '#F44336',
+                    maxWidth: 600,
+                    lineHeight: 1.3,
+                  }}>
+                    {pain.map(pKey => {
+                      if (pKey === '없음') return null;
+                      return (
+                        <div key={pKey} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <AlertTriangle size={11} style={{ flexShrink: 0 }} />
+                          <span>
+                            {pKey === '어깨' && '어깨 관절에 무리가 가는 프레스 동작 대신 안전한 대체 운동이 추가됩니다.'}
+                            {pKey === '허리' && '허리에 압박을 주는 데드리프트/로우/스쿼트 대신 머신 운동으로 대체됩니다.'}
+                            {pKey === '손목' && '손목에 자극을 주는 프리웨이트 컬/딥스 대신 안전한 대체 운동이 추가됩니다.'}
+                            {pKey === '무릎' && '무릎에 체중이 실리는 스쿼트/런지 대신 머신 운동으로 대체됩니다.'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
-            {painActive && (
+
+            {/* Right Group: Divider, Time controls & Bypass Mode Badge (at the far right, bottom-aligned) */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end',
+              gap: 8,
+            }}>
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                background: 'rgba(244,67,54,0.1)', border: '1px solid rgba(244,67,54,0.25)',
-                padding: '6px 14px', borderRadius: 2,
-                fontSize: 11, color: '#F44336', fontWeight: 700,
-                animation: 'float-up 0.3s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 24,
               }}>
-                <AlertTriangle size={12} />
-                {PAIN_OPTIONS.find(p => p.key === pain)?.label || pain} 통증 우회 모드 ON
+                {/* Vertical line divider */}
+                <div style={{ width: 1, height: 64, background: 'rgba(255,255,255,0.08)' }} />
+
+                {/* 요일별 가용 시간 조절 */}
+                <div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {DAYS.map((day, i) => (
+                      <div key={day.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        {/* Plus Button */}
+                        <button onClick={() => setTime(i, 1)} style={{
+                          width: 24, height: 24, borderRadius: '50%',
+                          background: `${day.color}18`, border: `1px solid ${day.color}35`,
+                          color: day.color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Plus size={10} />
+                        </button>
+
+                        {/* Day Label */}
+                        <span style={{ fontFamily: 'Noto Sans KR, sans-serif', fontWeight: 800, fontSize: 13, color: day.color, lineHeight: 1.1 }}>
+                          {day.label}
+                        </span>
+
+                        {/* Time Label */}
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#E2E2E2', lineHeight: 1.1 }}>
+                          {times[i]}분
+                        </span>
+
+                        {/* Minus Button */}
+                        <button onClick={() => setTime(i, -1)} style={{
+                          width: 24, height: 24, borderRadius: '50%',
+                          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+                          color: 'rgba(255,255,255,0.4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Minus size={10} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Day columns */}
@@ -451,6 +483,27 @@ export default function AlgorithmSection() {
               />
             ))}
           </div>
+
+          {/* painActive badge moved to bottom-right of the dashboard card */}
+          {painActive && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              marginTop: 20,
+            }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                background: 'rgba(244,67,54,0.1)', border: '1px solid rgba(244,67,54,0.25)',
+                padding: '6px 14px', borderRadius: 2,
+                fontSize: 11, color: '#F44336', fontWeight: 700,
+                width: 'fit-content',
+                animation: 'float-up 0.3s ease',
+              }}>
+                <AlertTriangle size={12} />
+                {PAIN_OPTIONS.filter(p => pain.includes(p.key) && p.key !== '없음').map(p => p.label).join(', ')} 통증 우회 모드 ON
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>
