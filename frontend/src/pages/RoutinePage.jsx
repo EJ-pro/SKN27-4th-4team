@@ -136,7 +136,7 @@ function Step1({ value, onChange }) {
           return (
             <button key={opt.key} onClick={() => toggle(opt.key)} style={{
               display: 'flex', alignItems: 'center', gap: 14,
-              padding: '16px 20px', borderRadius: 14,
+              padding: '16px 20px', borderRadius: 4,
               background: active ? 'rgba(255,215,0,0.08)' : 'rgba(255,255,255,0.03)',
               border: `1px solid ${active ? 'rgba(255,215,0,0.35)' : 'rgba(255,255,255,0.08)'}`,
               cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s',
@@ -186,7 +186,7 @@ function StepSplitStyle({ value, onChange }) {
           return (
             <button key={opt.key} onClick={() => onChange(opt.key)} style={{
               display: 'flex', alignItems: 'flex-start', gap: 16,
-              padding: '20px 22px', borderRadius: 16, textAlign: 'left',
+              padding: '20px 22px', borderRadius: 4, textAlign: 'left',
               background: active ? 'rgba(255,215,0,0.07)' : 'rgba(255,255,255,0.03)',
               border: `1px solid ${active ? 'rgba(255,215,0,0.4)' : 'rgba(255,255,255,0.08)'}`,
               cursor: 'pointer', transition: 'all 0.2s',
@@ -207,7 +207,7 @@ function StepSplitStyle({ value, onChange }) {
                   </span>
                   {opt.tag && (
                     <span style={{
-                      fontSize: 10, padding: '2px 8px', borderRadius: 50,
+                      fontSize: 10, padding: '2px 8px', borderRadius: 2,
                       background: 'rgba(255,215,0,0.15)', color: '#FFD700',
                       border: '1px solid rgba(255,215,0,0.25)', fontWeight: 700, letterSpacing: 0.5,
                     }}>{opt.tag}</span>
@@ -332,7 +332,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
         display: 'flex',
         background: 'rgba(255,255,255,0.02)',
         border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 12,
+        borderRadius: 4,
         padding: 4,
         marginBottom: 28,
       }}>
@@ -344,7 +344,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
             recalculateAutoParts(workDays)
           }}
           style={{
-            flex: 1, padding: '10px 0', borderRadius: 9, border: 'none',
+            flex: 1, padding: '10px 0', borderRadius: 3, border: 'none',
             background: !isDetailMode ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'transparent',
             color: !isDetailMode ? '#000' : 'rgba(255,255,255,0.4)',
             fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
@@ -359,7 +359,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
             setActiveEditingDay(null)
           }}
           style={{
-            flex: 1, padding: '10px 0', borderRadius: 9, border: 'none',
+            flex: 1, padding: '10px 0', borderRadius: 3, border: 'none',
             background: isDetailMode ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'transparent',
             color: isDetailMode ? '#000' : 'rgba(255,255,255,0.4)',
             fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
@@ -392,7 +392,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
               }}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '14px 0', borderRadius: 12,
+                padding: '14px 0', borderRadius: 4,
                 background: isEditing
                   ? 'rgba(255,215,0,0.15)'
                   : isSelected
@@ -456,7 +456,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
           <div style={{
             background: '#1A1A1A',
             border: '1px solid rgba(255,215,0,0.25)',
-            borderRadius: 18,
+            borderRadius: 4,
             padding: '24px 28px',
             animation: 'float-up 0.25s ease',
           }}>
@@ -489,7 +489,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
                     onClick={() => setSelectedPartForEditingDay(opt)}
                     style={{
                       padding: '12px 0',
-                      borderRadius: 8,
+                      borderRadius: 2,
                       fontSize: 13,
                       fontWeight: 700,
                       background: active ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.03)',
@@ -512,7 +512,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
                 type="button"
                 onClick={() => setActiveEditingDay(null)}
                 style={{
-                  flex: 1, padding: '11px 0', borderRadius: 8,
+                  flex: 1, padding: '11px 0', borderRadius: 3,
                   background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
                   color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer'
                 }}
@@ -523,7 +523,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
                 type="button"
                 onClick={handleSaveDetail}
                 style={{
-                  flex: 2, padding: '11px 0', borderRadius: 8,
+                  flex: 2, padding: '11px 0', borderRadius: 3,
                   background: 'linear-gradient(135deg, #FFD700, #C8A200)', border: 'none',
                   color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer',
                   boxShadow: '0 4px 16px rgba(255,215,0,0.2)'
@@ -539,7 +539,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
       {/* 안내 문구 */}
       {!activeEditingDay && (
         <div style={{
-          padding: '16px 20px', borderRadius: 12,
+          padding: '16px 20px', borderRadius: 4,
           background: 'rgba(255,255,255,0.02)',
           border: '1px solid rgba(255,255,255,0.06)',
           fontSize: 12.5, color: 'rgba(255,255,255,0.35)',
@@ -576,7 +576,7 @@ function Step4({ value, onChange }) {
           return (
             <button key={opt.key} onClick={() => onChange(opt.key)} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-              padding: '20px 18px', borderRadius: 16, textAlign: 'left',
+              padding: '20px 18px', borderRadius: 4, textAlign: 'left',
               background: active ? `${opt.color}12` : 'rgba(255,255,255,0.03)',
               border: `1px solid ${active ? `${opt.color}50` : 'rgba(255,255,255,0.08)'}`,
               cursor: 'pointer', transition: 'all 0.2s', gap: 10,
@@ -628,7 +628,7 @@ function Step5({ value, onChange }) {
           return (
             <button key={opt.value} onClick={() => onChange(opt.value)} style={{
               display: 'flex', alignItems: 'center', gap: 18,
-              padding: '18px 22px', borderRadius: 14, textAlign: 'left',
+              padding: '18px 22px', borderRadius: 4, textAlign: 'left',
               background: active ? 'rgba(255,215,0,0.07)' : 'rgba(255,255,255,0.03)',
               border: `1px solid ${active ? 'rgba(255,215,0,0.4)' : 'rgba(255,255,255,0.08)'}`,
               cursor: 'pointer', transition: 'all 0.2s',
@@ -646,7 +646,7 @@ function Step5({ value, onChange }) {
                 </div>
                 {opt.tag && (
                   <span style={{
-                    fontSize: 10, padding: '2px 8px', borderRadius: 50,
+                    fontSize: 10, padding: '2px 8px', borderRadius: 2,
                     background: 'rgba(255,215,0,0.12)', color: '#FFD700',
                     border: '1px solid rgba(255,215,0,0.2)', fontWeight: 700,
                   }}>{opt.tag}</span>
@@ -1081,7 +1081,7 @@ export default function RoutinePage() {
         <div style={{
           background: '#111',
           border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 24,
+          borderRadius: 4,
           overflow: 'hidden',
           boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
         }}>
@@ -1091,7 +1091,7 @@ export default function RoutinePage() {
               height: '100%',
               width: `${((step + 1) / TOTAL) * 100}%`,
               background: 'linear-gradient(90deg, #FFD700, #C8A200)',
-              borderRadius: 3,
+              borderRadius: 1,
               transition: 'width 0.4s ease',
             }} />
           </div>
@@ -1122,7 +1122,7 @@ export default function RoutinePage() {
               {step > 0 && (
                 <button onClick={() => setStep(s => s - 1)} style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '13px 22px', borderRadius: 10,
+                  padding: '13px 22px', borderRadius: 3,
                   background: 'rgba(255,255,255,0.04)',
                   border: '1px solid rgba(255,255,255,0.1)',
                   color: 'rgba(255,255,255,0.5)', fontSize: 14, cursor: 'pointer',
@@ -1139,7 +1139,7 @@ export default function RoutinePage() {
                 onClick={() => setStep(s => s + 1)}
                 style={{
                   flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  padding: '13px 24px', borderRadius: 10,
+                  padding: '13px 24px', borderRadius: 3,
                   background: canNext ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.05)',
                   border: 'none',
                   color: canNext ? '#000' : 'rgba(255,255,255,0.2)',
@@ -1182,7 +1182,7 @@ export default function RoutinePage() {
         }}>
           <div onClick={e => e.stopPropagation()} style={{
             background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 18, padding: '32px 28px 26px', maxWidth: 380, width: '100%',
+            borderRadius: 4, padding: '32px 28px 26px', maxWidth: 380, width: '100%',
             boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
             animation: 'float-up 0.2s ease',
           }}>
@@ -1196,7 +1196,7 @@ export default function RoutinePage() {
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowAutoWarning(false)} style={{
-                flex: 1, padding: '11px 0', borderRadius: 10,
+                flex: 1, padding: '11px 0', borderRadius: 3,
                 background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
                 color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer',
               }}>직접 입력할게요</button>
@@ -1209,7 +1209,7 @@ export default function RoutinePage() {
                 setStep(TOTAL - 1)
                 setShowAutoWarning(false)
               }} style={{
-                flex: 1, padding: '11px 0', borderRadius: 10,
+                flex: 1, padding: '11px 0', borderRadius: 3,
                 background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)',
                 color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
               }}>자동으로 설정</button>
@@ -1763,7 +1763,7 @@ function RoutineCheckView({
       <div style={{
         background: '#111',
         border: '1px solid rgba(255,215,0,0.15)',
-        borderRadius: 20,
+        borderRadius: 4,
         padding: '28px 32px',
         marginBottom: 24,
         display: 'flex',
@@ -1782,11 +1782,11 @@ function RoutineCheckView({
           </h2>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
             <span>⚡ {splitStyle === 'bodybuilding' ? '보디빌딩 5분할' : splitStyle === 'lower_core' ? '하체/코어 강화' : '스트렝스 중심'}</span>
-            <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+            <span style={{ width: 4, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.2)' }} />
             <span>⏱️ 세션당 {sessionMin}분</span>
             {painParts.length > 0 && !painParts.includes('none') && (
               <>
-                <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+                <span style={{ width: 4, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.2)' }} />
                 <span style={{ color: '#FF6B6B', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <AlertTriangle size={12} /> {painParts.length}개 통증 우회 적용 중
                 </span>
@@ -1798,7 +1798,7 @@ function RoutineCheckView({
           onClick={() => setShowResetConfirm(true)}
           style={{
             padding: '10px 20px',
-            borderRadius: 8,
+            borderRadius: 4,
             background: 'rgba(255,255,255,0.03)',
             border: '1px solid rgba(255,255,255,0.1)',
             color: 'rgba(255,255,255,0.6)',
@@ -1822,7 +1822,7 @@ function RoutineCheckView({
       <div style={{
         background: '#111',
         border: '1px solid rgba(255,255,255,0.05)',
-        borderRadius: 16,
+        borderRadius: 4,
         padding: '18px 24px',
         marginBottom: 24,
       }}>
@@ -1830,7 +1830,7 @@ function RoutineCheckView({
           <span>이번 주 루틴 총 완료도</span>
           <span style={{ color: '#FFD700', fontWeight: 800 }}>{progressPercent}% 완료 ({completedCount}/{totalExercises}개)</span>
         </div>
-        <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 1, overflow: 'hidden' }}>
           <div style={{ width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(90deg, #FFD700, #C8A200)', transition: 'width 0.4s ease' }} />
         </div>
       </div>
@@ -1847,7 +1847,7 @@ function RoutineCheckView({
                 flex: 1,
                 minWidth: 70,
                 padding: '14px 0',
-                borderRadius: 12,
+                borderRadius: 4,
                 background: isActive ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.02)',
                 border: isActive ? 'none' : '1px solid rgba(255,255,255,0.06)',
                 color: isActive ? '#000' : 'rgba(255,255,255,0.5)',
@@ -1877,7 +1877,7 @@ function RoutineCheckView({
           <div style={{
             background: '#111',
             border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 24,
+            borderRadius: 4,
             padding: '32px 32px 28px',
             boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
           }}>
@@ -1890,7 +1890,7 @@ function RoutineCheckView({
                   {currentDay}요일 - {dayParts[currentDay]} 데이
                 </span>
               </div>
-              <span style={{ fontSize: 12, background: 'rgba(255,215,0,0.08)', color: '#FFD700', padding: '4px 10px', borderRadius: 50, border: '1px solid rgba(255,215,0,0.15)', fontWeight: 600 }}>
+              <span style={{ fontSize: 12, background: 'rgba(255,215,0,0.08)', color: '#FFD700', padding: '4px 10px', borderRadius: 4, border: '1px solid rgba(255,215,0,0.15)', fontWeight: 600 }}>
                 {currentDayExercises.length}가지 구성
               </span>
             </div>
@@ -1910,7 +1910,7 @@ function RoutineCheckView({
                     alignItems: 'center',
                     gap: 20,
                     padding: '20px 16px',
-                    borderRadius: 16,
+                    borderRadius: 4,
                     border: `1px solid ${isSelected ? 'rgba(255,215,0,0.35)' : 'transparent'}`,
                     background: isSelected ? 'rgba(255,215,0,0.02)' : 'transparent',
                     borderBottom: !isSelected ? '1px solid rgba(255,255,255,0.04)' : '1px solid rgba(255,215,0,0.35)',
@@ -1932,7 +1932,7 @@ function RoutineCheckView({
                     style={{
                       width: 26,
                       height: 26,
-                      borderRadius: 8,
+                      borderRadius: 4,
                       cursor: 'pointer',
                       background: isDone ? '#FFD700' : 'rgba(255,255,255,0.02)',
                       border: isDone ? 'none' : '1px solid rgba(255,255,255,0.18)',
@@ -1969,7 +1969,7 @@ function RoutineCheckView({
                           border: '1px solid rgba(255,100,100,0.25)',
                           color: '#FF6B6B',
                           padding: '2px 6px',
-                          borderRadius: 50,
+                          borderRadius: 4,
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 3,
@@ -2009,7 +2009,7 @@ function RoutineCheckView({
                   width: '100%',
                   minHeight: 80,
                   padding: '12px 14px',
-                  borderRadius: 12,
+                  borderRadius: 4,
                   background: 'rgba(0,0,0,0.18)',
                   border: '1px solid rgba(255,255,255,0.06)',
                   color: '#E2E2E2',
@@ -2035,7 +2035,7 @@ function RoutineCheckView({
                   style={{
                     width: '100%',
                     padding: '14px 0',
-                    borderRadius: 12,
+                    borderRadius: 4,
                     background: 'linear-gradient(135deg, #FFD700, #C8A200)',
                     border: 'none',
                     color: '#000',
@@ -2061,7 +2061,7 @@ function RoutineCheckView({
             <div style={{
               background: '#111',
               border: '1px solid rgba(255,255,255,0.06)',
-              borderRadius: 24,
+              borderRadius: 4,
               padding: 24,
               boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
               animation: 'float-up 0.25s ease',
@@ -2076,7 +2076,7 @@ function RoutineCheckView({
                     {activeEx.name}
                   </h3>
                 </div>
-                <span style={{ fontSize: 12, background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}>
+                <span style={{ fontSize: 12, background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: 4, fontWeight: 700 }}>
                   {EQUIPMENT_ICON[activeEx.eq]} {EQUIPMENT_LABEL[activeEx.eq]}
                 </span>
               </div>
@@ -2086,7 +2086,7 @@ function RoutineCheckView({
                 <div style={{
                   background: 'rgba(255,107,107,0.08)',
                   border: '1px solid rgba(255,107,107,0.25)',
-                  borderRadius: 12,
+                  borderRadius: 4,
                   padding: '12px 14px',
                   marginBottom: 16,
                   display: 'flex',
@@ -2104,7 +2104,7 @@ function RoutineCheckView({
               <div style={{
                 width: '100%',
                 aspectRatio: '1.45',
-                borderRadius: 16,
+                borderRadius: 4,
                 overflow: 'hidden',
                 background: '#080808',
                 border: '1px solid rgba(255,255,255,0.05)',

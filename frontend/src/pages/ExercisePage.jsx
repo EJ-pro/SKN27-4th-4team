@@ -51,7 +51,7 @@ function ExerciseCard({ ex, onClick }) {
       style={{
         background: '#111',
         border: hovered ? `1px solid ${accentColor}40` : '1px solid rgba(255,255,255,0.05)',
-        borderRadius: 12,
+        borderRadius: 4,
         overflow: 'hidden',
         cursor: 'pointer',
         transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
@@ -96,7 +96,7 @@ function ExerciseCard({ ex, onClick }) {
           position: 'absolute', top: 10, left: 10,
           background: accentColor,
           color: '#000', fontSize: 10, fontWeight: 800,
-          padding: '3px 10px', borderRadius: 50,
+          padding: '3px 10px', borderRadius: 2,
           letterSpacing: 0.5,
         }}>{ex.category}</div>
 
@@ -131,7 +131,7 @@ function ExerciseCard({ ex, onClick }) {
           </div>
           {ex.tag && (
             <span style={{
-              fontSize: 10, padding: '2px 8px', borderRadius: 50,
+              fontSize: 10, padding: '2px 8px', borderRadius: 2,
               background: `${accentColor}15`,
               border: `1px solid ${accentColor}25`,
               color: `${accentColor}CC`,
@@ -201,7 +201,7 @@ function DetailModal({ ex, onClose, onNavigate }) {
         style={{
           background: '#111',
           border: `1px solid ${accentColor}25`,
-          borderRadius: 18,
+          borderRadius: 4,
           width: '100%', maxWidth: 860,
           maxHeight: '90vh',
           overflow: 'hidden',
@@ -221,7 +221,7 @@ function DetailModal({ ex, onClose, onNavigate }) {
             position: 'absolute', top: 16, left: 16,
             background: accentColor,
             color: '#000', fontSize: 11, fontWeight: 800,
-            padding: '4px 14px', borderRadius: 50,
+            padding: '4px 14px', borderRadius: 2,
           }}>{ex.category}</div>
         </div>
 
@@ -240,12 +240,12 @@ function DetailModal({ ex, onClose, onNavigate }) {
               <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>{ex.name_eng}</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{
-                  fontSize: 11, padding: '3px 12px', borderRadius: 50,
+                  fontSize: 11, padding: '3px 12px', borderRadius: 2,
                   background: `${accentColor}15`, border: `1px solid ${accentColor}30`,
                   color: accentColor,
                 }}>{EQUIPMENT_ICON[ex.equipment]} {EQUIPMENT_LABEL[ex.equipment]}</span>
                 <span style={{
-                  fontSize: 11, padding: '3px 12px', borderRadius: 50,
+                  fontSize: 11, padding: '3px 12px', borderRadius: 2,
                   background: `${DIFF_COLOR[ex.difficulty]}15`,
                   border: `1px solid ${DIFF_COLOR[ex.difficulty]}30`,
                   color: DIFF_COLOR[ex.difficulty],
@@ -254,7 +254,7 @@ function DetailModal({ ex, onClose, onNavigate }) {
                 </span>
                 {ex.tag && (
                   <span style={{
-                    fontSize: 11, padding: '3px 12px', borderRadius: 50,
+                    fontSize: 11, padding: '3px 12px', borderRadius: 2,
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.1)',
                     color: 'rgba(255,255,255,0.5)',
@@ -330,7 +330,7 @@ function DetailModal({ ex, onClose, onNavigate }) {
                         disabled={!target}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 6,
-                          padding: '6px 14px', borderRadius: 50,
+                          padding: '6px 14px', borderRadius: 2,
                           background: target ? `${color}12` : 'rgba(255,255,255,0.04)',
                           border: `1px solid ${target ? `${color}35` : 'rgba(255,255,255,0.08)'}`,
                           color: target ? color : 'rgba(255,255,255,0.25)',
@@ -455,7 +455,7 @@ export default function ExercisePage() {
                 width: '100%', padding: '14px 48px 14px 50px',
                 background: '#161616',
                 border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 50,
+                borderRadius: 4,
                 color: '#FFF', fontSize: 14,
                 outline: 'none',
                 transition: 'border-color 0.2s',
@@ -466,7 +466,7 @@ export default function ExercisePage() {
             {search && (
               <button onClick={() => { setSearch(''); setPage(1) }} style={{
                 position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
-                background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 2,
                 width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer',
               }}>
@@ -483,7 +483,7 @@ export default function ExercisePage() {
               return (
                 <button key={cat} onClick={() => handleCategoryChange(cat)} style={{
                   padding: '8px 20px',
-                  borderRadius: 50,
+                  borderRadius: 2,
                   background: active ? color : 'rgba(255,255,255,0.04)',
                   border: active ? `1px solid ${color}` : '1px solid rgba(255,255,255,0.08)',
                   color: active ? '#000' : 'rgba(255,255,255,0.5)',
@@ -500,7 +500,7 @@ export default function ExercisePage() {
 
             {/* Filter toggle */}
             <button onClick={() => setShowFilters(v => !v)} style={{
-              padding: '8px 18px', borderRadius: 50,
+              padding: '8px 18px', borderRadius: 2,
               background: showFilters ? 'rgba(255,215,0,0.1)' : 'rgba(255,255,255,0.04)',
               border: showFilters ? '1px solid rgba(255,215,0,0.35)' : '1px solid rgba(255,255,255,0.08)',
               color: showFilters ? '#FFD700' : 'rgba(255,255,255,0.4)',
@@ -511,7 +511,7 @@ export default function ExercisePage() {
               <Filter size={13} /> 필터
               {(equipment !== '전체' || difficulty > 0) && (
                 <span style={{
-                  width: 18, height: 18, borderRadius: '50%',
+                  width: 18, height: 18, borderRadius: 2,
                   background: '#FFD700', color: '#000',
                   fontSize: 10, fontWeight: 800,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -525,7 +525,7 @@ export default function ExercisePage() {
             <div style={{
               background: 'rgba(255,255,255,0.025)',
               border: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 12,
+              borderRadius: 2,
               padding: '20px 24px',
               marginBottom: 16,
               animation: 'float-up 0.25s ease',
@@ -537,7 +537,7 @@ export default function ExercisePage() {
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                     {equipmentOptions.map(eq => (
                       <button key={eq} onClick={() => { setEquipment(eq); setPage(1) }} style={{
-                        padding: '5px 14px', borderRadius: 50, fontSize: 12, cursor: 'pointer',
+                        padding: '5px 14px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
                         background: equipment === eq ? '#FFD700' : 'rgba(255,255,255,0.04)',
                         border: equipment === eq ? '1px solid #FFD700' : '1px solid rgba(255,255,255,0.08)',
                         color: equipment === eq ? '#000' : 'rgba(255,255,255,0.45)',
@@ -554,14 +554,14 @@ export default function ExercisePage() {
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, marginBottom: 10 }}>난이도</div>
                   <div style={{ display: 'flex', gap: 7 }}>
                     <button onClick={() => { setDifficulty(0); setPage(1) }} style={{
-                      padding: '5px 14px', borderRadius: 50, fontSize: 12, cursor: 'pointer',
+                      padding: '5px 14px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
                       background: difficulty === 0 ? '#FFD700' : 'rgba(255,255,255,0.04)',
                       border: difficulty === 0 ? '1px solid #FFD700' : '1px solid rgba(255,255,255,0.08)',
                       color: difficulty === 0 ? '#000' : 'rgba(255,255,255,0.45)',
                     }}>전체</button>
                     {[1, 2, 3].map(d => (
                       <button key={d} onClick={() => { setDifficulty(d); setPage(1) }} style={{
-                        padding: '5px 14px', borderRadius: 50, fontSize: 12, cursor: 'pointer',
+                        padding: '5px 14px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
                         background: difficulty === d ? DIFF_COLOR[d] : 'rgba(255,255,255,0.04)',
                         border: `1px solid ${difficulty === d ? DIFF_COLOR[d] : 'rgba(255,255,255,0.08)'}`,
                         color: difficulty === d ? '#fff' : 'rgba(255,255,255,0.45)',
@@ -611,7 +611,7 @@ export default function ExercisePage() {
                 marginTop: 20, background: 'rgba(255,215,0,0.1)',
                 border: '1px solid rgba(255,215,0,0.2)',
                 color: '#FFD700', fontSize: 13, padding: '10px 24px',
-                borderRadius: 50, cursor: 'pointer',
+                borderRadius: 2, cursor: 'pointer',
               }}>필터 초기화</button>
             </div>
           ) : (
@@ -635,7 +635,7 @@ export default function ExercisePage() {
                       background: 'rgba(255,215,0,0.08)',
                       border: '1px solid rgba(255,215,0,0.25)',
                       color: '#FFD700', fontSize: 14, fontWeight: 700,
-                      padding: '14px 40px', borderRadius: 50,
+                      padding: '14px 40px', borderRadius: 3,
                       cursor: 'pointer',
                       transition: 'all 0.25s',
                     }}
