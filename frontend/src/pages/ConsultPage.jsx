@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Dumbbell, ChevronRight, Clock, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { useNavigate } from 'react-router-dom'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -259,7 +260,8 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
 
 // ─── ConsultPage ──────────────────────────────────────────────────────────────
 
-export default function ConsultPage({ onNavigate }) {
+export default function ConsultPage() {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState([])
   const [activeId, setActiveId] = useState(null)
   const [messages, setMessages] = useState([])
@@ -409,7 +411,7 @@ export default function ConsultPage({ onNavigate }) {
         {/* FITAI 로고 */}
         <div style={{ padding: '24px 8px 16px' }}>
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => navigate('/')}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               background: 'none', border: 'none', cursor: 'pointer',
@@ -476,7 +478,7 @@ export default function ConsultPage({ onNavigate }) {
         {/* 유저 프로필 */}
         <div style={{ padding: '12px 8px 20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <button
-            onClick={() => onNavigate('login')}
+            onClick={() => navigate('/login')}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 10,
               padding: '10px 12px', borderRadius: 2,

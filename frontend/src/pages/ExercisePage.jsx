@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { memo, useDeferredValue, useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Search, X, RotateCcw, Filter } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -23,7 +23,7 @@ const CAT_COLOR = {
   유산소: '#E63946', 스트레칭: '#06D6A0',
 }
 
-const PAGE_SIZE = 16
+const PAGE_SIZE = 40
 
 function gifUrl(ex) {
   return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
@@ -33,42 +33,67 @@ function videoUrl(ex) {
   return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
 }
 
-function ExerciseCard({ ex, onClick }) {
+const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
   const [hovered, setHovered] = useState(false)
+  const [isNearViewport, setIsNearViewport] = useState(false)
   const [videoOk, setVideoOk] = useState(true)
   const [loaded, setLoaded] = useState(false)
+  const [reduceMotion, setReduceMotion] = useState(false)
+  const cardRef = useRef(null)
   const videoRef = useRef(null)
 
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
+  const showPreview = videoOk && !reduceMotion && isNearViewport
 
   useEffect(() => {
-    if (!videoRef.current) return
+    if (typeof window === 'undefined') return
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const handleChange = () => setReduceMotion(mediaQuery.matches)
+    handleChange()
+    mediaQuery.addEventListener?.('change', handleChange)
+    return () => mediaQuery.removeEventListener?.('change', handleChange)
+  }, [])
+
+  useEffect(() => {
+    if (!cardRef.current) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsNearViewport(true)
+      return
+    }
 
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          videoRef.current.play().catch(() => {
-            // Autoplay blocking fallback (since video is muted, it should play fine)
-          })
-        } else {
-          videoRef.current.pause()
-        }
-      },
-      { rootMargin: '100px' }
+      ([entry]) => setIsNearViewport(entry.isIntersecting),
+      { rootMargin: '360px 0px' }
     )
 
-    observer.observe(videoRef.current)
+    observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [])
 
-    return () => {
-      observer.disconnect()
+  useEffect(() => {
+    if (!showPreview) {
+      setLoaded(false)
+      return
     }
-  }, [videoOk])
+
+    videoRef.current?.play().catch(() => {
+      // Muted previews should autoplay, but blocked playback can be ignored.
+    })
+  }, [showPreview])
 
   return (
     <div
+      ref={cardRef}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => onClick(ex)}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick(ex)
+        }
+      }}
+      tabIndex={0}
       style={{
         background: '#111',
         border: hovered ? `1px solid ${accentColor}40` : '1px solid rgba(255,255,255,0.05)',
@@ -78,6 +103,8 @@ function ExerciseCard({ ex, onClick }) {
         transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
         boxShadow: hovered ? `0 16px 48px ${accentColor}14, 0 4px 20px rgba(0,0,0,0.4)` : '0 2px 8px rgba(0,0,0,0.3)',
         transition: 'all 0.28s cubic-bezier(.22,.68,0,1.2)',
+        contentVisibility: 'auto',
+        containIntrinsicSize: '285px 286px',
       }}
     >
       {/* Video */}
@@ -94,12 +121,15 @@ function ExerciseCard({ ex, onClick }) {
           background: `linear-gradient(135deg, ${accentColor}10, transparent)`,
           zIndex: 1,
         }}>
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
+          <span style={{ display: 'none', fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
             {!videoOk ? '영상 없음' : '영상 불러오는 중'}
+          </span>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
+            {!videoOk ? '영상 없음' : showPreview ? '영상 불러오는 중...' : '미리보기'}
           </span>
         </div>
 
-        {videoOk && (
+        {showPreview && (
           <video
             ref={videoRef}
             src={videoUrl(ex)}
@@ -178,7 +208,7 @@ function ExerciseCard({ ex, onClick }) {
       </div>
     </div>
   )
-}
+})
 
 // ─── DetailModal ──────────────────────────────────────────────────────────────
 
@@ -397,6 +427,104 @@ function DetailModal({ ex, onClose, onNavigate, exercises }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+function PaginationControls({ page, totalPages, onChange }) {
+  if (totalPages <= 1) return null
+
+  const pages = []
+  const start = Math.max(1, page - 2)
+  const end = Math.min(totalPages, page + 2)
+
+  if (start > 1) {
+    pages.push(1)
+    if (start > 2) pages.push('start-ellipsis')
+  }
+
+  for (let current = start; current <= end; current += 1) {
+    pages.push(current)
+  }
+
+  if (end < totalPages) {
+    if (end < totalPages - 1) pages.push('end-ellipsis')
+    pages.push(totalPages)
+  }
+
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+      padding: '8px 0 52px',
+    }}>
+      <button
+        type="button"
+        disabled={page === 1}
+        onClick={() => onChange(page - 1)}
+        style={{
+          minWidth: 72,
+          height: 36,
+          padding: '0 14px',
+          borderRadius: 2,
+          border: '1px solid rgba(255,255,255,0.08)',
+          background: page === 1 ? 'rgba(255,255,255,0.03)' : '#161616',
+          color: page === 1 ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.65)',
+          cursor: page === 1 ? 'default' : 'pointer',
+          fontSize: 12,
+          fontWeight: 700,
+        }}
+      >
+        이전
+      </button>
+
+      {pages.map(item => (
+        item === 'start-ellipsis' || item === 'end-ellipsis' ? (
+          <span key={item} style={{ color: 'rgba(255,255,255,0.25)', padding: '0 4px' }}>...</span>
+        ) : (
+          <button
+            key={item}
+            type="button"
+            onClick={() => onChange(item)}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 2,
+              border: 'none',
+              background: item === page ? 'linear-gradient(135deg, #FFD700, #C8A200)' : '#161616',
+              color: item === page ? '#000' : 'rgba(255,255,255,0.65)',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            {item}
+          </button>
+        )
+      ))}
+
+      <button
+        type="button"
+        disabled={page === totalPages}
+        onClick={() => onChange(page + 1)}
+        style={{
+          minWidth: 72,
+          height: 36,
+          padding: '0 14px',
+          borderRadius: 2,
+          border: '1px solid rgba(255,255,255,0.08)',
+          background: page === totalPages ? 'rgba(255,255,255,0.03)' : '#161616',
+          color: page === totalPages ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.65)',
+          cursor: page === totalPages ? 'default' : 'pointer',
+          fontSize: 12,
+          fontWeight: 700,
+        }}
+      >
+        다음
+      </button>
+    </div>
+  )
+}
+
 export default function ExercisePage() {
   const [exercises, setExercises] = useState([])
   const [loading, setLoading] = useState(true)
@@ -408,7 +536,7 @@ export default function ExercisePage() {
   const [selected, setSelected] = useState(null)
   const [showFilters, setShowFilters] = useState(false)
   const listRef = useRef(null)
-  const loaderRef = useRef(null)
+  const deferredSearch = useDeferredValue(search)
 
   useEffect(() => {
     fetch(`${API_URL}/api/exercises/`)
@@ -424,8 +552,8 @@ export default function ExercisePage() {
     }
     if (equipment !== '전체') list = list.filter(e => e.equipment === equipment)
     if (difficulty > 0) list = list.filter(e => e.difficulty === difficulty)
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.trim().toLowerCase()
       list = list.filter(e =>
         e.name_kor.toLowerCase().includes(q) ||
         (e.name_eng && e.name_eng.toLowerCase().includes(q))
@@ -442,31 +570,25 @@ export default function ExercisePage() {
       }
       return a.difficulty - b.difficulty
     })
-  }, [exercises, search, selectedCategories, equipment, difficulty])
+  }, [exercises, deferredSearch, selectedCategories, equipment, difficulty])
 
-  const displayed = filtered.slice(0, page * PAGE_SIZE)
-  const hasMore = displayed.length < filtered.length
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageStart = (page - 1) * PAGE_SIZE
+  const pageEnd = Math.min(pageStart + PAGE_SIZE, filtered.length)
+  const displayed = filtered.slice(pageStart, pageEnd)
+  const hasMore = false
 
   useEffect(() => {
-    if (!hasMore) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setPage(p => p + 1)
-        }
-      },
-      { rootMargin: '200px' }
-    )
-    const currentLoader = loaderRef.current
-    if (currentLoader) {
-      observer.observe(currentLoader)
-    }
-    return () => {
-      if (currentLoader) {
-        observer.unobserve(currentLoader)
-      }
-    }
-  }, [hasMore])
+    setPage(current => Math.min(Math.max(current, 1), totalPages))
+  }, [totalPages])
+
+  const goToPage = useCallback((nextPage) => {
+    const target = Math.min(Math.max(nextPage, 1), totalPages)
+    setPage(target)
+    requestAnimationFrame(() => {
+      listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [totalPages])
 
   const handleCategoryChange = useCallback((cat) => {
     setSelectedCategories(prev => {
@@ -762,6 +884,25 @@ export default function ExercisePage() {
             </div>
           )}
 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            fontSize: 13,
+            color: 'rgba(255,255,255,0.35)',
+            marginBottom: 10,
+          }}>
+            <span>전체 {filtered.length.toLocaleString()}개</span>
+            <span style={{ color: 'rgba(255,255,255,0.18)' }}>/</span>
+            <span><strong style={{ color: '#FFD700' }}>{page}</strong> / {totalPages} 페이지</span>
+            {filtered.length > 0 && (
+              <span style={{ color: 'rgba(255,255,255,0.25)' }}>
+                {pageStart + 1}-{pageEnd}번째 운동
+              </span>
+            )}
+          </div>
+
           {/* Result count + reset */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
@@ -814,6 +955,12 @@ export default function ExercisePage() {
                   <ExerciseCard key={ex.id} ex={ex} onClick={setSelected} />
                 ))}
               </div>
+
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                onChange={goToPage}
+              />
 
               {hasMore && (
                 <div ref={loaderRef} style={{ textAlign: 'center', padding: '24px 0 48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
