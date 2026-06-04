@@ -55,45 +55,32 @@ export default function Hero() {
           borderRadius: '0 2px 2px 0',
         }} />
 
-        {/* Badge */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          background: 'rgba(255,215,0,0.07)',
-          border: '1px solid rgba(255,215,0,0.22)',
-          padding: '7px 20px', borderRadius: 50,
-          marginBottom: 32, width: 'fit-content',
-          opacity: visible ? 1 : 0,
-          transform: visible ? 'translateY(0)' : 'translateY(-16px)',
-          transition: 'all 0.7s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        }}>
-          <Zap size={11} color="#FFD700" fill="#FFD700" />
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 3.5, color: '#FFD700', lineHeight: 1 }}>
-            PERSONALIZED WORKOUT PLANNER
-          </span>
-        </div>
-
         {/* Headline line 1 */}
         <h1 style={{
           fontFamily: 'Bebas Neue',
-          fontSize: 'clamp(56px, 6.4vw, 94px)',
+          fontSize: 'clamp(56px, 6.4vw, 80px)',
           color: 'rgba(255,255,255,0.92)',
-          lineHeight: 0.93,
+          lineHeight: 1.15,
           marginBottom: 10,
           letterSpacing: 3,
+          whiteSpace: 'nowrap',
           opacity: visible ? 1 : 0,
           transform: visible ? 'translateX(0)' : 'translateX(-32px)',
           transition: 'all 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.12s',
         }}>
-          무지성 헬스는 끝.
+          같은 부위, 다른 자극
         </h1>
 
         {/* Headline line 2 — gold gradient */}
         <h1 style={{
           fontFamily: 'Bebas Neue',
-          fontSize: 'clamp(56px, 6.4vw, 94px)',
-          lineHeight: 0.93,
-          marginBottom: 38,
+          fontSize: 'clamp(56px, 6.4vw, 80px)',
+          lineHeight: 1.15,
+          paddingTop: '6px',
+          paddingBottom: '6px',
+          marginBottom: 10,
           letterSpacing: 3,
+          whiteSpace: 'nowrap',
           background: 'linear-gradient(135deg, #FFE566 10%, #FFD700 42%, #B59000 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
@@ -103,7 +90,7 @@ export default function Hero() {
           transform: visible ? 'translateX(0)' : 'translateX(-32px)',
           transition: 'all 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.22s',
         }}>
-          나만을 위한<br />5분할 주간 루틴
+          뻔한 루틴을 깨다.
         </h1>
 
         {/* Description */}
@@ -114,9 +101,8 @@ export default function Hero() {
           opacity: visible ? 1 : 0,
           transition: 'all 0.7s ease 0.36s',
         }}>
-          내 숙련도와 요일별 가용 시간만 알려주세요.<br />
-          월요일부터 금요일까지의 운동 스택과 영상을<br />
-          AI가 한눈에 완성해 드립니다.
+          몸이 익숙해진 운동은 성장을 멈춥니다.<br />
+          매주 신선한 자극을 줄 수 있는 루틴을 만들어 보세요.
         </p>
 
         {/* CTA Buttons + Trust row */}
@@ -130,7 +116,7 @@ export default function Hero() {
               style={{
                 background: 'linear-gradient(135deg, #FFD700, #C8A200)',
                 color: '#000', fontWeight: 800, fontSize: 13,
-                padding: '16px 40px', borderRadius: 5,
+                padding: '16px 40px', borderRadius: 2,
                 letterSpacing: 0.8,
                 boxShadow: '0 4px 32px rgba(255,215,0,0.28), 0 2px 8px rgba(0,0,0,0.4)',
                 transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -154,7 +140,7 @@ export default function Hero() {
               style={{
                 background: 'rgba(255,255,255,0.03)',
                 color: 'rgba(255,255,255,0.58)', fontWeight: 600, fontSize: 13,
-                padding: '16px 32px', borderRadius: 5,
+                padding: '16px 32px', borderRadius: 2,
                 border: '1px solid rgba(255,255,255,0.1)',
                 transition: 'all 0.25s ease',
                 letterSpacing: 0.4,
@@ -170,26 +156,6 @@ export default function Hero() {
                 e.currentTarget.style.color = 'rgba(255,255,255,0.58)'
               }}
             >운동 목록 보기</button>
-          </div>
-
-          {/* Trust row — 원형 체크 아이콘 */}
-          <div style={{ display: 'flex', gap: 22 }}>
-            {['무료 시작', '5분 완성', '주간 맞춤 루틴'].map((t, i) => (
-              <span key={i} style={{
-                fontSize: 12, color: 'rgba(255,255,255,0.28)',
-                display: 'flex', alignItems: 'center', gap: 7,
-              }}>
-                <span style={{
-                  width: 16, height: 16, borderRadius: '50%',
-                  background: 'rgba(255,215,0,0.1)',
-                  border: '1px solid rgba(255,215,0,0.28)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, fontSize: 8, color: '#FFD700',
-                  lineHeight: 1,
-                }}>✓</span>
-                {t}
-              </span>
-            ))}
           </div>
         </div>
       </div>
@@ -256,7 +222,7 @@ export default function Hero() {
             <div key={s.label} style={{
               background: 'rgba(5,5,5,0.6)',
               border: '1px solid rgba(255,215,0,0.16)',
-              borderRadius: 13,
+              borderRadius: 3,
               padding: '15px 22px',
               backdropFilter: 'blur(28px)',
               WebkitBackdropFilter: 'blur(28px)',
@@ -277,16 +243,16 @@ export default function Hero() {
 
       {/* Scroll indicator */}
       <div style={{
-        position: 'absolute', bottom: 28, left: '25%',
+        position: 'absolute', bottom: 28, left: '50%',
         transform: 'translateX(-50%)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-        opacity: visible ? 0.42 : 0,
+        opacity: visible ? 0.85 : 0,
         transition: 'opacity 1.2s ease 1.3s',
         zIndex: 3,
         animation: visible ? 'scroll-bounce 2.4s ease-in-out 1.5s infinite' : 'none',
       }}>
-        <span style={{ fontSize: 9, letterSpacing: 5, color: 'rgba(255,255,255,0.38)' }}>SCROLL</span>
-        <ChevronDown size={14} color="rgba(255,215,0,0.55)" />
+        <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: 5, color: 'rgba(255,255,255,0.7)' }}>SCROLL</span>
+        <ChevronDown size={16} color="#FFD700" />
       </div>
     </section>
   )
