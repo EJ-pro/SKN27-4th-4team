@@ -51,29 +51,37 @@ CAL_BASE = {
     "ARM":      4.1,
 }
 
+# 척추 부담 수치 매핑 (정규화 추가 필드)
+SPINE_LOADING_LEVEL = {"하": 1, "중": 2, "상": 3}
+
 # ── 정적 노드 정의 ───────────────────────────────────────────────────────────
-# 상체 ,하체 ,코어
+# 상체, 하체, 코어
+# 하체는 구체 노드(bp_quad/bp_hamstring/bp_glute/bp_calf)를 bp_lower 앞에 배치
+# → get_bp_id가 순서대로 탐색하므로 구체 노드가 먼저 매칭되고 bp_lower는 폴백 역할
 BODY_PARTS = [
-    {"id": "bp_chest",     "name_ko": "가슴",    "name_en": "Chest",       "category": "UPPER",
+    {"id": "bp_chest",     "name_ko": "가슴",      "name_en": "Chest",       "category": "UPPER",
      "primary_muscles": ["대흉근", "대흉근(상부)", "대흉근(하부)", "소흉근"]},
-    {"id": "bp_back",      "name_ko": "등",      "name_en": "Back",        "category": "UPPER",
+    {"id": "bp_back",      "name_ko": "등",        "name_en": "Back",        "category": "UPPER",
      "primary_muscles": ["광배근", "척추기립근", "능형근", "승모근"]},
-    {"id": "bp_lower",     "name_ko": "하체",    "name_en": "Lower Body",  "category": "LOWER",
-     "primary_muscles": ["대퇴사두근", "햄스트링", "둔근", "비복근"]},
-    {"id": "bp_shoulder",  "name_ko": "어깨",    "name_en": "Shoulder",    "category": "UPPER",
-     "primary_muscles": ["삼각근", "삼각근(전면)", "삼각근(측면)", "삼각근(후면)", "승모근"]},
-    {"id": "bp_biceps",    "name_ko": "이두",    "name_en": "Biceps",      "category": "UPPER",
+    {"id": "bp_shoulder",  "name_ko": "어깨",      "name_en": "Shoulder",    "category": "UPPER",
+     "primary_muscles": ["삼각근", "삼각근(전면)", "삼각근(측면)", "삼각근(후면)"]},
+    {"id": "bp_biceps",    "name_ko": "이두",      "name_en": "Biceps",      "category": "UPPER",
      "primary_muscles": ["상완이두근", "이두근"]},
-    {"id": "bp_triceps",   "name_ko": "삼두",    "name_en": "Triceps",     "category": "UPPER",
+    {"id": "bp_triceps",   "name_ko": "삼두",      "name_en": "Triceps",     "category": "UPPER",
      "primary_muscles": ["삼두근", "상완삼두근"]},
-    {"id": "bp_forearm",   "name_ko": "전완근",  "name_en": "Forearm",     "category": "UPPER",
-     "primary_muscles": ["전완굴근", "전완신근"]},
-    {"id": "bp_core",      "name_ko": "코어",    "name_en": "Core",        "category": "CORE",
-     "primary_muscles": ["복직근", "외복사근", "내복사근", "횡복근", "코어"]},
-    {"id": "bp_glute",     "name_ko": "둔근",    "name_en": "Glute",       "category": "LOWER",
-     "primary_muscles": ["대둔근", "중둔근", "소둔근", "둔근"]},
-    {"id": "bp_hamstring", "name_ko": "햄스트링","name_en": "Hamstring",   "category": "LOWER",
+    {"id": "bp_forearm",   "name_ko": "전완근",    "name_en": "Forearm",     "category": "UPPER",
+     "primary_muscles": ["전완굴근", "전완신근", "전완근"]},
+    {"id": "bp_core",      "name_ko": "코어",      "name_en": "Core",        "category": "CORE",
+     "primary_muscles": ["복직근", "외복사근", "내복사근", "횡복근", "코어", "하복부"]},
+    # 하체 분할
+    {"id": "bp_quad",      "name_ko": "대퇴사두근","name_en": "Quadriceps",  "category": "LOWER",
+     "primary_muscles": ["대퇴사두근", "전퇴부"]},
+    {"id": "bp_hamstring", "name_ko": "햄스트링",  "name_en": "Hamstring",   "category": "LOWER",
      "primary_muscles": ["대퇴이두근", "반건양근", "반막양근", "햄스트링"]},
+    {"id": "bp_glute",     "name_ko": "둔근",      "name_en": "Glute",       "category": "LOWER",
+     "primary_muscles": ["대둔근", "중둔근", "소둔근", "둔근"]},
+    {"id": "bp_calf",      "name_ko": "종아리",    "name_en": "Calf",        "category": "LOWER",
+     "primary_muscles": ["비복근", "가자미근"]},
 ]
 
 EQUIPMENT = [
@@ -174,7 +182,9 @@ class GraphBuilder:
             # IntensityLevel 노드 - 운동 강도 레벨별 조회 (beginner, intermediate 등)
             "CREATE INDEX il_level   IF NOT EXISTS FOR (i:IntensityLevel)ON (i.level)",
             # SplitDay 노드 - 요일 분할 루틴별 조회 (CHEST, BACK 등)
-            "CREATE INDEX sd_split   IF NOT EXISTS FOR (s:SplitDay)      ON (s.split_day)",
+            "CREATE INDEX sd_split        IF NOT EXISTS FOR (s:SplitDay)  ON (s.split_day)",
+            # Exercise 노드 - 척추 부담 수치별 필터링 (1=낮음, 2=중간, 3=높음)
+            "CREATE INDEX ex_spine_level  IF NOT EXISTS FOR (e:Exercise)  ON (e.spine_loading_level)",
         ]:
             self.run(cypher)
 
@@ -228,13 +238,17 @@ class GraphBuilder:
                 "target_secondary": d.get("target_secondary") or [],
                 "cal_per_min":      d.get("estimated_cal_per_min") or CAL_BASE.get(split_day, 5.0),
                 "duration_min":     d.get("default_duration_min", 15),
-                "spine_loading":    d.get("spine_loading", "중"),
-                "place_type":       d.get("place_type", "gym"),
-                "home_friendly":    d.get("home_friendly", "N"),
-                "tag":              d.get("tag", ""),
-                "description":      d.get("description", ""),
-                "video_url":        d.get("video_url", ""),
-                "image_url":        d.get("image_url", ""),
+                "spine_loading":       d.get("spine_loading", "중"),
+                "place_type":          d.get("place_type", "gym"),
+                "home_friendly":       d.get("home_friendly", "N"),
+                "tag":                 d.get("tag", ""),
+                "description":         d.get("description", ""),
+                "video_url":           d.get("video_url", ""),
+                "image_url":           d.get("image_url", ""),
+                # ── 정규화 추가 필드 (기존 필드 변경 없이 추가) ──
+                "spine_loading_level": SPINE_LOADING_LEVEL.get(d.get("spine_loading", "중"), 2),
+                "is_machine_based":    d.get("equipment", "") == "machine",
+                "primary_target":      split_day,
             })
 
         self.run_many("""
@@ -256,8 +270,11 @@ class GraphBuilder:
                 e.home_friendly    = $home_friendly,
                 e.tag              = $tag,
                 e.description      = $description,
-                e.video_url        = $video_url,
-                e.image_url        = $image_url
+                e.video_url            = $video_url,
+                e.image_url            = $image_url,
+                e.spine_loading_level  = $spine_loading_level,
+                e.is_machine_based     = $is_machine_based,
+                e.primary_target       = $primary_target
         """, rows)
 
     # ── 4. TARGETS 엣지 ───────────────────────────────────────────────────
@@ -341,7 +358,6 @@ class GraphBuilder:
     def create_similar_edges(self, data: list[dict]):
         print("  [11] SIMILAR_TO 엣지 생성 (related_exercises)...")
         all_ids = {d["id"] for d in data}
-        five_ids = {d["id"] for d in data if d["category"] in SPLIT_MAP}
         count = 0
         for d in data:
             if d["category"] not in SPLIT_MAP:
@@ -477,7 +493,6 @@ def _print_summary(builder: GraphBuilder):
         "SIMILAR_TO":          "MATCH ()-[r:SIMILAR_TO]->()        RETURN count(r) AS c",
         "SUBSTITUTE_FOR":      "MATCH ()-[r:SUBSTITUTE_FOR]->()    RETURN count(r) AS c",
         "PROGRESSION_OF":      "MATCH ()-[r:PROGRESSION_OF]->()    RETURN count(r) AS c",
-        "ARM_SUPERSET":        "MATCH ()-[r:ARM_SUPERSET]->()      RETURN count(r) AS c",
     }
     print("\n[요약]")
     with builder.driver.session() as s:
