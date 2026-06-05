@@ -33,15 +33,18 @@ export default function Footer() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
               <div style={{
-                width: 36, height: 36,
+                width: 36,
+                height: 36,
                 background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                borderRadius: 8,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 boxShadow: '0 0 16px rgba(255,215,0,0.2)',
               }}>
-                <Dumbbell size={20} color="#000" strokeWidth={2.8} />
+                <Dumbbell size={19} color="#000" strokeWidth={2.8} />
               </div>
-              <span style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 4, color: '#FFD700' }}>FitAI</span>
+              <span style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
             </div>
             <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.3)', lineHeight: 1.9, marginBottom: 22, maxWidth: 220 }}>
               AI 기술로 모든 사람의 건강하고 강한 삶을 실현하는 피트니스 플랫폼.
@@ -128,7 +131,7 @@ export default function Footer() {
           flexWrap: 'wrap', gap: 16,
         }}>
           <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.2)' }}>
-            © 2025 FitAI. All rights reserved.
+            © 2025 HELBOTIN. All rights reserved.
           </span>
           <div style={{ display: 'flex', gap: 28 }}>
             {['개인정보처리방침', '이용약관', '쿠키 정책'].map(t => (

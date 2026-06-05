@@ -16,8 +16,11 @@ class ExerciseListView(View):
     def get(self, request):
         qs = Exercise.objects.values(
             'exercise_id', 'name_kor', 'name_eng', 'category',
-            'target_primary', 'target_secondary', 'equipment',
-            'difficulty', 'guide', 'caution',
+            'slug', 'tag', 'description', 'target_primary', 'target_secondary',
+            'equipment', 'difficulty', 'difficulty_label', 'default_duration_min',
+            'estimated_cal_per_min', 'place_type', 'home_friendly', 'spine_loading',
+            'video_url', 'image_url', 'guide', 'starting_position', 'movement',
+            'breathing', 'caution', 'related_exercises',
         )
         results = [
             {
@@ -25,12 +28,27 @@ class ExerciseListView(View):
                 'name_kor': ex['name_kor'],
                 'name_eng': ex['name_eng'] or '',
                 'category': ex['category'],
+                'slug': ex['slug'] or '',
+                'tag': ex['tag'] or '',
+                'description': ex['description'] or '',
                 'target_primary': ex['target_primary'],
-                'target_secondary': ex['target_secondary'],
+                'target_secondary': ex['target_secondary'] or [],
                 'equipment': ex['equipment'] or '',
                 'difficulty': DIFF_NUM.get(ex['difficulty'], 1),
+                'difficulty_label': ex['difficulty_label'] or '',
+                'default_duration_min': ex['default_duration_min'],
+                'estimated_cal_per_min': ex['estimated_cal_per_min'],
+                'place_type': ex['place_type'] or '',
+                'home_friendly': ex['home_friendly'] or '',
+                'spine_loading': ex['spine_loading'] or '',
+                'video_url': ex['video_url'] or '',
+                'image_url': ex['image_url'] or '',
                 'guide': ex['guide'],
+                'starting_position': ex['starting_position'] or '',
+                'movement': ex['movement'] or '',
+                'breathing': ex['breathing'] or '',
                 'caution': ex['caution'],
+                'related_exercises': ex['related_exercises'] or '',
             }
             for ex in qs
         ]

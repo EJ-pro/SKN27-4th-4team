@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Dumbbell, ChevronRight, Clock, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { useNavigate } from 'react-router-dom'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -36,12 +37,12 @@ const QUICK_QUESTIONS = [
 function BotAvatar() {
   return (
     <div style={{
-      width: 36, height: 36, borderRadius: 2, flexShrink: 0,
+      width: 36, height: 36,
       background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: '0 0 14px rgba(255,215,0,0.25)',
+      borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0, boxShadow: '0 0 14px rgba(255,215,0,0.25)',
     }}>
-      <Dumbbell size={18} color="#000" strokeWidth={2.8} />
+      <Dumbbell size={19} color="#000" strokeWidth={2.8} />
     </div>
   )
 }
@@ -259,7 +260,8 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
 
 // ─── ConsultPage ──────────────────────────────────────────────────────────────
 
-export default function ConsultPage({ onNavigate }) {
+export default function ConsultPage() {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState([])
   const [activeId, setActiveId] = useState(null)
   const [messages, setMessages] = useState([])
@@ -409,7 +411,7 @@ export default function ConsultPage({ onNavigate }) {
         {/* FITAI 로고 */}
         <div style={{ padding: '24px 8px 16px' }}>
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => navigate('/')}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               background: 'none', border: 'none', cursor: 'pointer',
@@ -422,13 +424,12 @@ export default function ConsultPage({ onNavigate }) {
             <div style={{
               width: 32, height: 32,
               background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-              borderRadius: 2,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0,
             }}>
               <Dumbbell size={17} color="#000" strokeWidth={2.8} />
             </div>
-            <span style={{ fontFamily: 'Bebas Neue', fontSize: 22, letterSpacing: 5, color: '#FFD700' }}>FitAI</span>
+            <span style={{ fontFamily: 'Bebas Neue', fontSize: 22, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
           </button>
         </div>
 
@@ -477,7 +478,7 @@ export default function ConsultPage({ onNavigate }) {
         {/* 유저 프로필 */}
         <div style={{ padding: '12px 8px 20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <button
-            onClick={() => onNavigate('login')}
+            onClick={() => navigate('/login')}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 10,
               padding: '10px 12px', borderRadius: 2,
