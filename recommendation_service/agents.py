@@ -50,7 +50,7 @@ def supervisor_agent(state: RecommendationState) -> dict[str, Any]:
         if action == "END" and not state.get("final_response"):
             result["final_response"] = (
                 "추천 루프가 최대 단계 수에 도달해 안전하게 중단했습니다. "
-                "입력값, GraphDB 후보, 검증 결과를 확인한 뒤 다시 시도해주세요."
+                "입력값, 운동 후보, 검증 결과를 확인한 뒤 다시 시도해주세요."
             )
         return result
 
@@ -609,27 +609,54 @@ def _is_repetitive_movement_name(name: str, existing_names: list[str]) -> bool:
 
 
 def _prescription_for_params(params: dict[str, Any]) -> dict[str, Any]:
+    goal = str(params.get("goal") or "hypertrophy").strip().lower()
+    if goal == "strength":
+        base = {
+            "sets": 4,
+            "reps": "3-6",
+            "rest_seconds": 150,
+            "note": "스트렝스 목표를 반영해 낮은 반복과 긴 휴식으로 구성했습니다.",
+        }
+    elif goal == "fat_loss":
+        base = {
+            "sets": 3,
+            "reps": "12-20",
+            "rest_seconds": 45,
+            "note": "다이어트 목표를 반영해 고반복과 짧은 휴식으로 구성했습니다.",
+        }
+    elif goal == "health":
+        base = {
+            "sets": 2,
+            "reps": "10-15",
+            "rest_seconds": 75,
+            "note": "체력 유지 목표를 반영해 안정적인 볼륨으로 구성했습니다.",
+        }
+    else:
+        base = {
+            "sets": 3,
+            "reps": "8-12",
+            "rest_seconds": 75,
+            "note": "근비대 목표를 반영해 표준 볼륨과 반복 범위로 구성했습니다.",
+        }
+
     intensity = _normalize_intensity_bias(params.get("intensity_bias"))
     if intensity == "higher":
         return {
-            "sets": 4,
-            "reps": "6-10",
-            "rest_seconds": 90,
-            "note": "고강도 요청을 반영해 세트 수를 늘리고 반복 범위를 낮췄습니다.",
+            **base,
+            "sets": int(base["sets"]) + 1,
+            "reps": "6-10" if goal not in {"strength", "fat_loss"} else base["reps"],
+            "rest_seconds": max(int(base["rest_seconds"]), 90),
+            "note": f"{base['note']} 추가 고강도 요청을 반영해 세트 수를 늘렸습니다.",
         }
     if intensity == "lower" or intensity == "slightly_conservative":
         return {
-            "sets": 2,
+            **base,
+            "sets": max(1, int(base["sets"]) - 1),
             "reps": "10-15",
-            "rest_seconds": 90,
-            "note": "보수적인 강도 요청을 반영해 세트 수를 줄였습니다.",
+            "rest_seconds": max(int(base["rest_seconds"]), 90),
+            "note": f"{base['note']} 보수적인 강도 요청을 반영해 세트 수를 줄였습니다.",
         }
-    return {
-        "sets": 3,
-        "reps": "8-12",
-        "rest_seconds": 75,
-        "note": "표준 강도 처방입니다.",
-    }
+    return base
 
 
 def _prescription_for_target(
@@ -715,11 +742,11 @@ def _insufficient_candidates_message(
         for target in params.get("split_targets", candidates.keys())
     )
     return (
-        "현재 GraphDB 후보가 부족해 안전한 추천 루틴을 생성하지 않았습니다.\n"
+        "현재 운동 후보가 부족해 안전한 추천 루틴을 생성하지 않았습니다.\n"
         f"부족한 분할: {', '.join(insufficient)}\n"
         f"조회된 후보 수: {counts}\n"
-        "프론트 설문 조건이 너무 엄격하거나 GraphDB 데이터 커버리지가 부족합니다. "
-        "장비/운동 장소/통증 조건을 완화하거나 GraphDB에 해당 조건의 운동 데이터를 보강한 뒤 다시 시도해주세요."
+        "현재 조건에 맞는 운동 후보가 부족합니다. "
+        "장비/운동 장소/통증 조건을 완화하거나 운동 데이터를 보강한 뒤 다시 시도해주세요."
     )
 
 
@@ -729,7 +756,7 @@ def _condition_summary(state: RecommendationState) -> list[str]:
     summary: list[str] = []
 
     if constraints.get("spine") == "low":
-        summary.append("사람 피드백을 반영해 척추 부하가 낮은 운동 후보만 GraphDB에서 다시 검색했습니다.")
+        summary.append("사람 피드백을 반영해 척추 부하가 낮은 운동 후보 위주로 다시 구성했습니다.")
     if _normalize_intensity_bias(constraints.get("intensity_bias")) == "higher":
         summary.append("사람 피드백을 반영해 세트 수와 운동 강도를 높였습니다.")
     if _normalize_intensity_bias(constraints.get("intensity_bias")) in {"lower", "slightly_conservative"}:
@@ -1044,7 +1071,7 @@ def _validation_reason(validation: dict[str, Any]) -> str:
         return "루틴 구성 또는 안전 조건에 해결이 필요한 문제가 있습니다."
     if validation.get("safety_warnings"):
         return "루틴은 현재 추천 제약을 만족하지만, 부상 또는 통증 이력으로 인해 주의가 필요합니다."
-    return "루틴이 현재 추천 조건과 GraphDB 후보 제약을 만족합니다."
+    return "루틴이 현재 추천 조건과 안전 기준을 만족합니다."
 
 
 def _max_risk(current: Any, new: str) -> str:

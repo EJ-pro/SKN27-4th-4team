@@ -40,7 +40,7 @@ def start_recommendation(survey: dict, user_id: str | None = None) -> dict:
             "ok": False,
             "thread_id": thread_id,
             "status": "failed",
-            "message": "요일별 운동 부위를 GraphDB 검색 타겟으로 변환하지 못했습니다.",
+            "message": "요일별 운동 부위를 추천 대상 부위로 변환하지 못했습니다.",
         }
     return _invoke_graph(
         initial_state(user_id=user_id, user_profile=user_profile),

@@ -201,6 +201,8 @@ const EQUIPMENT_OPTIONS = [
   { key: 'pull_up_bar', label: '풀업바' },
   { key: 'kettlebell', label: '케틀벨' },
 ]
+const ALL_EQUIPMENT_KEYS = EQUIPMENT_OPTIONS.map(option => option.key)
+const SURVEY_STEP_COUNT = 5
 
 function ChoiceButton({ active, children, onClick, style = {} }) {
   return (
@@ -230,7 +232,7 @@ function StepPreset({ value, onSelect }) {
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 1 / 8
+        비활성화된 이전 추천 방향 단계
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
         추천 방향 선택
@@ -256,7 +258,7 @@ function StepProfile({ age, gender, level, onAgeChange, onGenderChange, onLevelC
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 2 / 8
+        STEP 1 / 5
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
         기본 정보
@@ -311,13 +313,13 @@ function StepPlaceEquipment({ place, equipment, onPlaceChange, onEquipmentChange
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 3 / 8
+        비활성화된 이전 장소/장비 단계
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
         운동 장소 및 장비
       </h2>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 28, lineHeight: 1.7 }}>
-        GraphDB 검색 후보를 장비 조건으로 좁힙니다.
+        추천 후보를 장소와 장비 조건에 맞춰 좁힙니다.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
         {PLACE_OPTIONS.map(opt => (
@@ -360,7 +362,7 @@ function Step1({ value, onChange }) {
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 4 / 8
+        STEP 2 / 5
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
         만성 통증 · 부상 부위
@@ -410,7 +412,7 @@ function StepSplitStyle({ value, onChange }) {
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 5 / 8
+        비활성화된 이전 분할 단계
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
         분할 스타일 선택
@@ -556,7 +558,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 6 / 8
+        STEP 3 / 5
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
         운동 요일 & 부위 설정
@@ -786,7 +788,7 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
           {isDetailMode ? (
             <span><strong>상세 설정 가이드</strong>: 요일 버튼을 클릭한 뒤, 아래 패널에서 원하는 부위를 토글하고 [선택 완료]를 누르면 저장됩니다.</span>
           ) : (
-            <span><strong>자동 배정 가이드</strong>: 요일을 누르면 활성화되며, 5단계에서 고른 <strong>{splitStyle === 'bodybuilding' ? '보디빌딩 5분할' : splitStyle === 'lower_core' ? '하체/코어 강화' : '스트렝스 중심'}</strong> 규칙에 따라 타겟 부위가 자동 매핑됩니다.</span>
+            <span><strong>자동 배정 가이드</strong>: 요일을 누르면 활성화되며, 기본 5분할 규칙에 따라 타겟 부위가 자동 매핑됩니다.</span>
           )}
         </div>
       )}
@@ -800,7 +802,7 @@ function Step4({ value, onChange }) {
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 7 / 8
+        STEP 4 / 5
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
         운동 목표
@@ -851,7 +853,7 @@ function Step5({ value, onChange }) {
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 8 / 8
+        STEP 5 / 5
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
         세션당 운동 시간
@@ -1242,11 +1244,11 @@ export default function RoutinePage() {
   const [age, setAge] = useState('')
   const [gender, setGender] = useState('')
   const [level, setLevel] = useState('')
-  const [place, setPlace] = useState('')
-  const [availableEquipment, setAvailableEquipment] = useState([])
+  const [place, setPlace] = useState('gym')
+  const [availableEquipment, setAvailableEquipment] = useState(ALL_EQUIPMENT_KEYS)
   const [painParts, setPainParts] = useState([])
   const [workDays, setWorkDays] = useState([])
-  const [splitStyle, setSplitStyle] = useState('')
+  const [splitStyle, setSplitStyle] = useState('bodybuilding')
   const [goal, setGoal] = useState('')
   const [sessionMin, setSessionMin] = useState(null)
   const [showAutoWarning, setShowAutoWarning] = useState(false)
@@ -1312,7 +1314,7 @@ export default function RoutinePage() {
           setPreloadedDailyNotes(data.daily_notes)
           setIsApproved(true)
           setShowApprovedNotice(false)
-          setStep(8)
+          setStep(SURVEY_STEP_COUNT)
         } else if (data.preferences) {
           // No current routine, but historical preferences exist! Pre-fill onboarding steps.
           const prefs = data.preferences;
@@ -1366,10 +1368,10 @@ export default function RoutinePage() {
     age: Number(age),
     gender,
     level,
-    place,
-    available_equipment: availableEquipment,
+    place: 'gym',
+    available_equipment: ALL_EQUIPMENT_KEYS,
     pain_parts: painParts,
-    split_style: splitStyle,
+    split_style: 'bodybuilding',
     work_days: workDays,
     day_parts: workDays.reduce((acc, day) => {
       acc[day] = dayParts[day]
@@ -1493,11 +1495,8 @@ export default function RoutinePage() {
   }
 
   const canNext = [
-    selectedPreset !== '',
     Number(age) > 0 && gender !== '' && level !== '',
-    place !== '' && availableEquipment.length > 0,
     painParts.length > 0,
-    splitStyle !== '',
     workDays.length > 0,
     goal !== '',
     sessionMin !== null,
@@ -1506,7 +1505,7 @@ export default function RoutinePage() {
   const loadingOverlay = isGeneratingRoutine
     ? {
         title: '추천 루틴 설계 중...',
-        message: 'GraphDB 후보 검색과 AI 루틴 구성을 진행하고 있습니다. 잠시만 기다려주세요.',
+        message: '운동 후보를 검토하고 AI 루틴 구성을 진행하고 있습니다. 잠시만 기다려주세요.',
       }
     : isReviewing
       ? reviewAction === 'approve'
@@ -1521,7 +1520,6 @@ export default function RoutinePage() {
       : null
 
   const steps = [
-    <StepPreset value={selectedPreset} onSelect={applyPreset} />,
     <StepProfile
       age={age}
       gender={gender}
@@ -1530,20 +1528,13 @@ export default function RoutinePage() {
       onGenderChange={setGender}
       onLevelChange={setLevel}
     />,
-    <StepPlaceEquipment
-      place={place}
-      equipment={availableEquipment}
-      onPlaceChange={setPlace}
-      onEquipmentChange={setAvailableEquipment}
-    />,
     <Step1 value={painParts} onChange={setPainParts} />,
-    <StepSplitStyle value={splitStyle} onChange={setSplitStyle} />,
     <StepDaysAndParts
       workDays={workDays}
       onChangeDays={setWorkDays}
       dayParts={dayParts}
       onChangeDayParts={setDayParts}
-      splitStyle={splitStyle}
+      splitStyle="bodybuilding"
     />,
     <Step4 value={goal} onChange={setGoal} />,
     <Step5 value={sessionMin} onChange={setSessionMin} />,
@@ -1557,11 +1548,11 @@ export default function RoutinePage() {
     setAge('')
     setGender('')
     setLevel('')
-    setPlace('')
-    setAvailableEquipment([])
+    setPlace('gym')
+    setAvailableEquipment(ALL_EQUIPMENT_KEYS)
     setPainParts([])
     setWorkDays([])
-    setSplitStyle('')
+    setSplitStyle('bodybuilding')
     setGoal('')
     setSessionMin(null)
     setDayParts({
@@ -1623,14 +1614,12 @@ export default function RoutinePage() {
       <div style={{
         minHeight: '100vh',
         background: '#080808',
-        paddingTop: 100,
+        padding: '100px 20px 60px',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         justifyContent: 'center',
-        paddingBottom: 60,
-        paddingLeft: 20,
-        paddingRight: 20,
+        boxSizing: 'border-box',
       }}>
         {!isApproved && reviewPayload?.status === 'needs_review' && (
           <HumanReviewPanel
@@ -1896,12 +1885,13 @@ export default function RoutinePage() {
     <div style={{
       minHeight: '100vh',
       background: '#080808',
-      paddingTop: 70,
+      padding: '90px 20px 60px',
       display: 'flex',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       justifyContent: 'center',
+      boxSizing: 'border-box',
     }}>
-      <div style={{ width: '100%', maxWidth: 640, padding: 'clamp(32px, 5vw, 56px) 20px 60px' }}>
+      <div style={{ width: '100%', maxWidth: 640 }}>
 
         {/* 카드 */}
         <div style={{
@@ -2044,7 +2034,7 @@ export default function RoutinePage() {
                 setGender(gender || 'male')
                 setLevel('intermediate')
                 setPlace('gym')
-                setAvailableEquipment(['barbell', 'dumbbell', 'machine', 'body'])
+                setAvailableEquipment(ALL_EQUIPMENT_KEYS)
                 setWorkDays(AUTO_DEFAULTS.workDays)
                 setSplitStyle(AUTO_DEFAULTS.splitStyle)
                 setGoal(AUTO_DEFAULTS.goal)

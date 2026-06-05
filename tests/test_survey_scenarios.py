@@ -258,7 +258,7 @@ class SurveyScenarioTests(unittest.TestCase):
             result = graph_search_tool(state)
 
         self.assertEqual(result["next_action"], "END")
-        self.assertIn("GraphDB 후보가 부족", result["final_response"])
+        self.assertIn("운동 후보가 부족", result["final_response"])
         self.assertEqual(result["insufficient_targets"], ["LEG", "SHOULDER", "ARM"])
 
     def test_cli_accept_alias_is_treated_as_approval(self):
@@ -374,7 +374,7 @@ class SurveyScenarioTests(unittest.TestCase):
 
         summary = _condition_summary(state)
 
-        self.assertTrue(any("GraphDB" in item for item in summary))
+        self.assertTrue(any("운동 후보" in item for item in summary))
         self.assertTrue(any("강도" in item for item in summary))
         self.assertTrue(any("통증, 부상" in item for item in summary))
         self.assertTrue(any("주의가 필요" in item for item in summary))

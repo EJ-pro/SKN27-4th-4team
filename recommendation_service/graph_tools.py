@@ -115,6 +115,7 @@ def search_exercises(params: dict[str, Any]) -> tuple[dict[str, list[dict[str, A
     equipment = normalize_equipment(params.get("available_equipment"))
     home_only = bool(params.get("home_only", False))
     limit = min(int(params.get("candidate_limit_per_target", 8)), 8)
+    goal = str(params.get("goal") or "").strip().lower()
 
     candidates: dict[str, list[dict[str, Any]]] = {}
     insufficient: list[str] = []
@@ -129,9 +130,63 @@ def search_exercises(params: dict[str, Any]) -> tuple[dict[str, list[dict[str, A
                 home_only=home_only,
                 limit=limit,
             )
-            candidates[split_day] = rows
+            candidates[split_day] = _sort_rows_for_goal(rows, goal)
             if len(rows) < 3:
                 insufficient.append(split_day)
     finally:
         graph.close()
     return candidates, insufficient
+
+
+def _sort_rows_for_goal(rows: list[dict[str, Any]], goal: str) -> list[dict[str, Any]]:
+    if goal == "fat_loss":
+        return sorted(rows, key=lambda row: _float_value(row.get("cal_per_min")), reverse=True)
+
+    if goal == "strength":
+        equipment_rank = {"barbell": 0, "dumbbell": 1, "machine": 2, "body": 3}
+        return sorted(
+            rows,
+            key=lambda row: (
+                equipment_rank.get(str(row.get("equipment") or ""), 9),
+                -_difficulty_value(row),
+            ),
+        )
+
+    if goal == "health":
+        equipment_rank = {"machine": 0, "body": 1, "band": 2, "dumbbell": 3, "barbell": 4}
+        spine_rank = {"하": 0, "low": 0, "저": 0, "중": 1, "mid": 1, "상": 2, "high": 2}
+        return sorted(
+            rows,
+            key=lambda row: (
+                spine_rank.get(str(row.get("spine_loading") or ""), 1),
+                equipment_rank.get(str(row.get("equipment") or ""), 9),
+                _difficulty_value(row),
+            ),
+        )
+
+    if goal == "hypertrophy":
+        equipment_rank = {"machine": 0, "dumbbell": 1, "barbell": 2, "body": 3}
+        return sorted(
+            rows,
+            key=lambda row: (
+                equipment_rank.get(str(row.get("equipment") or ""), 9),
+                abs(_difficulty_value(row) - 2),
+            ),
+        )
+
+    return rows
+
+
+def _float_value(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _difficulty_value(row: dict[str, Any]) -> int:
+    try:
+        return int(row.get("difficulty") or 2)
+    except (TypeError, ValueError):
+        label = str(row.get("difficulty_label") or "").lower()
+        return {"beginner": 1, "intermediate": 2, "advanced": 3}.get(label, 2)
