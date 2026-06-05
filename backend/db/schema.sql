@@ -187,3 +187,17 @@ CREATE INDEX IF NOT EXISTS idx_exercises_difficulty ON exercises(difficulty);
 
 CREATE INDEX IF NOT EXISTS idx_exercises_embedding
     ON exercises USING hnsw (embedding vector_cosine_ops);
+
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS slug VARCHAR(120);
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS tag VARCHAR(100);
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS starting_position TEXT;
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS movement TEXT;
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS breathing TEXT;
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS related_exercises TEXT;
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS estimated_cal_per_min REAL;
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS place_type VARCHAR(30);
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS home_friendly VARCHAR(5);
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS spine_loading VARCHAR(10);
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS difficulty_label VARCHAR(30);
+ALTER TABLE exercises ADD COLUMN IF NOT EXISTS image_url VARCHAR(500);

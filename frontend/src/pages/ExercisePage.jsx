@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Search, X, Play, Dumbbell, RotateCcw, Filter } from 'lucide-react'
+import { memo, useDeferredValue, useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Flame, Home, MapPin, Search, Target, X, RotateCcw, Filter } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -12,12 +12,6 @@ const EQUIPMENT_LABEL = {
   machine: '머신', band: '밴드', kettlebell: '케틀벨',
   pull_up_bar: '철봉', dips_bar: '딥스바', normal: '일반',
   foamroller: '폼롤러', massageball: '마사지볼',
-}
-
-const EQUIPMENT_ICON = {
-  barbell: '🏋️', dumbbell: '💪', machine: '⚙️', body: '🤸',
-  band: '🔴', kettlebell: '🔔', pull_up_bar: '🔺', dips_bar: '⬆️',
-  foamroller: '🔵', massageball: '⚫', normal: '📋', '': '❔',
 }
 
 const DIFF_LABEL = { 1: '초급', 2: '중급', 3: '고급' }
@@ -35,60 +29,137 @@ function gifUrl(ex) {
   return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
 }
 
-// ─── ExerciseCard ─────────────────────────────────────────────────────────────
+function videoUrl(ex) {
+  return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
+}
 
-function ExerciseCard({ ex, onClick }) {
+const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
   const [hovered, setHovered] = useState(false)
+  const [isNearViewport, setIsNearViewport] = useState(false)
   const [videoOk, setVideoOk] = useState(true)
+  const [loaded, setLoaded] = useState(false)
+  const [reduceMotion, setReduceMotion] = useState(false)
+  const cardRef = useRef(null)
+  const videoRef = useRef(null)
 
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
+  const showPreview = videoOk && !reduceMotion && isNearViewport
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const handleChange = () => setReduceMotion(mediaQuery.matches)
+    handleChange()
+    mediaQuery.addEventListener?.('change', handleChange)
+    return () => mediaQuery.removeEventListener?.('change', handleChange)
+  }, [])
+
+  useEffect(() => {
+    if (!cardRef.current) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsNearViewport(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsNearViewport(entry.isIntersecting),
+      { rootMargin: '360px 0px' }
+    )
+
+    observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!showPreview) {
+      setLoaded(false)
+      return
+    }
+
+    videoRef.current?.play().catch(() => {
+      // Muted previews should autoplay, but blocked playback can be ignored.
+    })
+  }, [showPreview])
 
   return (
     <div
+      ref={cardRef}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => onClick(ex)}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick(ex)
+        }
+      }}
+      tabIndex={0}
       style={{
         background: '#111',
         border: hovered ? `1px solid ${accentColor}40` : '1px solid rgba(255,255,255,0.05)',
-        borderRadius: 12,
+        borderRadius: 4,
         overflow: 'hidden',
         cursor: 'pointer',
         transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
         boxShadow: hovered ? `0 16px 48px ${accentColor}14, 0 4px 20px rgba(0,0,0,0.4)` : '0 2px 8px rgba(0,0,0,0.3)',
         transition: 'all 0.28s cubic-bezier(.22,.68,0,1.2)',
+        contentVisibility: 'auto',
+        containIntrinsicSize: '285px 286px',
       }}
     >
       {/* Video */}
-      <div style={{ position: 'relative', height: 180, background: '#0A0A0A', overflow: 'hidden' }}>
-        {videoOk ? (
-          <img
-            src={gifUrl(ex)}
-            alt={ex.name_kor}
+      <div style={{ position: 'relative', height: 220, background: '#0A0A0A', overflow: 'hidden' }}>
+        {/* Placeholder / Background */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          background: `linear-gradient(135deg, ${accentColor}10, transparent)`,
+          zIndex: 1,
+        }}>
+          <span style={{ display: 'none', fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
+            {!videoOk ? '영상 없음' : '영상 불러오는 중'}
+          </span>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
+            {!videoOk ? '영상 없음' : showPreview ? '영상 불러오는 중...' : '미리보기'}
+          </span>
+        </div>
+
+        {showPreview && (
+          <video
+            ref={videoRef}
+            src={videoUrl(ex)}
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            onLoadedData={() => setLoaded(true)}
             onError={() => setVideoOk(false)}
             style={{
-              width: '100%', height: '100%', objectFit: 'cover',
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
               transform: hovered ? 'scale(1.04)' : 'scale(1)',
-              transition: 'transform 0.5s ease',
+              opacity: loaded ? 1 : 0,
+              transition: 'transform 0.5s ease, opacity 0.3s ease',
+              zIndex: 2,
             }}
           />
-        ) : (
-          <div style={{
-            width: '100%', height: '100%',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: 10,
-            background: `linear-gradient(135deg, ${accentColor}10, transparent)`,
-          }}>
-            <Dumbbell size={40} color={`${accentColor}50`} />
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>영상 없음</span>
-          </div>
         )}
 
         {/* Overlay */}
         <div style={{
-          position: 'absolute', inset: 0,
+          position: 'absolute',
+          inset: 0,
           background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)',
+          pointerEvents: 'none',
+          zIndex: 3,
         }} />
 
         {/* Category badge */}
@@ -96,8 +167,9 @@ function ExerciseCard({ ex, onClick }) {
           position: 'absolute', top: 10, left: 10,
           background: accentColor,
           color: '#000', fontSize: 10, fontWeight: 800,
-          padding: '3px 10px', borderRadius: 50,
+          padding: '3px 10px', borderRadius: 2,
           letterSpacing: 0.5,
+          zIndex: 4,
         }}>{ex.category}</div>
 
         {/* Difficulty */}
@@ -107,6 +179,7 @@ function ExerciseCard({ ex, onClick }) {
           borderRadius: 50, padding: '3px 10px',
           display: 'flex', gap: 2, backdropFilter: 'blur(6px)',
           border: '1px solid rgba(255,255,255,0.1)',
+          zIndex: 4,
         }}>
           {[1, 2, 3].map(n => (
             <span key={n} style={{
@@ -118,36 +191,29 @@ function ExerciseCard({ ex, onClick }) {
       </div>
 
       {/* Info */}
-      <div style={{ padding: '14px 16px 16px' }}>
-        <div style={{ fontFamily: 'Bebas Neue', fontSize: 17, color: '#FFF', letterSpacing: 0.5, marginBottom: 4, lineHeight: 1.2 }}>
-          {ex.name_kor}
-        </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 10 }}>{ex.name_eng}</div>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-            <span>{EQUIPMENT_ICON[ex.equipment] || '❔'}</span>
+      <div style={{ padding: '12px 14px 14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontFamily: 'Bebas Neue', fontSize: 16, color: '#FFF', letterSpacing: 0.5, lineHeight: 1.25, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              {ex.name_kor}
+            </div>
+            <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.3)', marginTop: 2, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              {ex.name_eng}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.03)', padding: '3px 8px', borderRadius: 2, border: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
             <span>{EQUIPMENT_LABEL[ex.equipment] || '기타'}</span>
           </div>
-          {ex.tag && (
-            <span style={{
-              fontSize: 10, padding: '2px 8px', borderRadius: 50,
-              background: `${accentColor}15`,
-              border: `1px solid ${accentColor}25`,
-              color: `${accentColor}CC`,
-              maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>{ex.tag}</span>
-          )}
         </div>
       </div>
     </div>
   )
-}
+})
 
 // ─── DetailModal ──────────────────────────────────────────────────────────────
 
-function DetailModal({ ex, onClose, onNavigate }) {
-  const videoRef = useRef(null) // img ref (gif)
+function DetailModal({ ex, onClose, onNavigate, exercises }) {
+  const videoRef = useRef(null)
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
   const [tab, setTab] = useState('guide')
 
@@ -166,7 +232,6 @@ function DetailModal({ ex, onClose, onNavigate }) {
       document.body.style.overflow = ''
     }
   }, [onClose])
-
 
   const tabs = [
     { id: 'guide', label: '가이드' },
@@ -201,7 +266,7 @@ function DetailModal({ ex, onClose, onNavigate }) {
         style={{
           background: '#111',
           border: `1px solid ${accentColor}25`,
-          borderRadius: 18,
+          borderRadius: 4,
           width: '100%', maxWidth: 860,
           maxHeight: '90vh',
           overflow: 'hidden',
@@ -209,19 +274,22 @@ function DetailModal({ ex, onClose, onNavigate }) {
           boxShadow: `0 40px 100px rgba(0,0,0,0.7), 0 0 60px ${accentColor}10`,
         }}
       >
-        {/* Left: gif */}
+        {/* Left: video */}
         <div style={{ width: 340, flexShrink: 0, background: '#0A0A0A', position: 'relative' }}>
-          <img
+          <video
             ref={videoRef}
-            src={gifUrl(ex)}
-            alt={ex.name_kor}
+            src={videoUrl(ex)}
+            loop
+            muted
+            autoPlay
+            playsInline
             style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 520, display: 'block' }}
           />
           <div style={{
             position: 'absolute', top: 16, left: 16,
             background: accentColor,
             color: '#000', fontSize: 11, fontWeight: 800,
-            padding: '4px 14px', borderRadius: 50,
+            padding: '4px 14px', borderRadius: 2,
           }}>{ex.category}</div>
         </div>
 
@@ -239,13 +307,15 @@ function DetailModal({ ex, onClose, onNavigate }) {
               </h2>
               <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>{ex.name_eng}</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{
-                  fontSize: 11, padding: '3px 12px', borderRadius: 50,
+                 <span style={{
+                  fontSize: 11, padding: '3px 12px', borderRadius: 2,
                   background: `${accentColor}15`, border: `1px solid ${accentColor}30`,
                   color: accentColor,
-                }}>{EQUIPMENT_ICON[ex.equipment]} {EQUIPMENT_LABEL[ex.equipment]}</span>
+                }}>
+                  {EQUIPMENT_LABEL[ex.equipment] || '기타'}
+                </span>
                 <span style={{
-                  fontSize: 11, padding: '3px 12px', borderRadius: 50,
+                  fontSize: 11, padding: '3px 12px', borderRadius: 2,
                   background: `${DIFF_COLOR[ex.difficulty]}15`,
                   border: `1px solid ${DIFF_COLOR[ex.difficulty]}30`,
                   color: DIFF_COLOR[ex.difficulty],
@@ -254,7 +324,7 @@ function DetailModal({ ex, onClose, onNavigate }) {
                 </span>
                 {ex.tag && (
                   <span style={{
-                    fontSize: 11, padding: '3px 12px', borderRadius: 50,
+                    fontSize: 11, padding: '3px 12px', borderRadius: 2,
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.1)',
                     color: 'rgba(255,255,255,0.5)',
@@ -321,7 +391,7 @@ function DetailModal({ ex, onClose, onNavigate }) {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {relatedList.map(({ id, name }) => {
-                    const target = exercises.find(e => e.id === id)
+                    const target = exercises?.find(e => e.id === id)
                     const color = target ? (CAT_COLOR[target.category] || '#FFD700') : '#FFD700'
                     return (
                       <button
@@ -330,7 +400,7 @@ function DetailModal({ ex, onClose, onNavigate }) {
                         disabled={!target}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 6,
-                          padding: '6px 14px', borderRadius: 50,
+                          padding: '6px 14px', borderRadius: 2,
                           background: target ? `${color}12` : 'rgba(255,255,255,0.04)',
                           border: `1px solid ${target ? `${color}35` : 'rgba(255,255,255,0.08)'}`,
                           color: target ? color : 'rgba(255,255,255,0.25)',
@@ -341,7 +411,6 @@ function DetailModal({ ex, onClose, onNavigate }) {
                         onMouseEnter={e => { if (target) { e.currentTarget.style.background = `${color}22`; e.currentTarget.style.transform = 'translateY(-1px)' } }}
                         onMouseLeave={e => { if (target) { e.currentTarget.style.background = `${color}12`; e.currentTarget.style.transform = 'none' } }}
                       >
-                        <Play size={11} fill={target ? color : 'transparent'} color={target ? color : 'rgba(255,255,255,0.25)'} />
                         {name}
                       </button>
                     )
@@ -356,19 +425,370 @@ function DetailModal({ ex, onClose, onNavigate }) {
   )
 }
 
-// ─── ExercisePage (main) ──────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+function formatLines(text) {
+  if (!text) return []
+  return String(text)
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+}
+
+function DetailBlock({ title, children, accentColor }) {
+  if (!children) return null
+
+  return (
+    <section style={{
+      background: '#111',
+      border: '1px solid rgba(255,255,255,0.06)',
+      borderRadius: 4,
+      padding: 24,
+      boxShadow: '0 18px 48px rgba(0,0,0,0.25)',
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: 2, color: accentColor, marginBottom: 14 }}>
+        {title}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function InfoTile({ icon: Icon, label, value, accentColor }) {
+  if (value === undefined || value === null || value === '') return null
+
+  return (
+    <div style={{
+      minHeight: 74,
+      background: 'rgba(255,255,255,0.035)',
+      border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: 4,
+      padding: '14px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+    }}>
+      <div style={{
+        width: 34,
+        height: 34,
+        borderRadius: 3,
+        background: `${accentColor}18`,
+        border: `1px solid ${accentColor}30`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}>
+        <Icon size={17} color={accentColor} />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', marginBottom: 4, letterSpacing: 1 }}>
+          {label}
+        </div>
+        <div style={{ fontSize: 13, color: '#E2E2E2', fontWeight: 700, lineHeight: 1.35 }}>
+          {value}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ExerciseDetailModal({ ex, onClose, onNavigate, exercises }) {
+  const accentColor = CAT_COLOR[ex.category] || '#FFD700'
+  const currentIndex = exercises.findIndex(item => item.id === ex.id)
+  const prevEx = currentIndex > 0 ? exercises[currentIndex - 1] : null
+  const nextEx = currentIndex >= 0 && currentIndex < exercises.length - 1 ? exercises[currentIndex + 1] : null
+  const targetSecondary = Array.isArray(ex.target_secondary) ? ex.target_secondary : []
+  const guideLines = formatLines(ex.guide)
+  const startLines = formatLines(ex.starting_position)
+  const cautionLines = formatLines(ex.caution)
+  const relatedList = useMemo(() => {
+    if (!ex.related_exercises) return []
+    const matches = [...String(ex.related_exercises).matchAll(/(\d+)\(([^)]+)\)/g)]
+    return matches.map(match => {
+      const id = Number(match[1])
+      return { id, name: match[2], target: exercises.find(item => item.id === id) }
+    })
+  }, [ex.related_exercises, exercises])
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+      if (event.key === 'ArrowLeft' && prevEx) onNavigate(prevEx)
+      if (event.key === 'ArrowRight' && nextEx) onNavigate(nextEx)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = ''
+    }
+  }, [nextEx, onClose, onNavigate, prevEx])
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(14px)', overflowY: 'auto', animation: 'float-up 0.25s ease' }}>
+      <div onClick={event => event.stopPropagation()} style={{ minHeight: '100vh', background: '#080808', color: '#E2E2E2' }}>
+        <header style={{ position: 'sticky', top: 0, zIndex: 5, background: 'rgba(8,8,8,0.94)', backdropFilter: 'blur(18px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ maxWidth: 1440, margin: '0 auto', padding: '16px 32px', display: 'grid', gridTemplateColumns: '180px 1fr 180px', alignItems: 'center', gap: 16 }}>
+            <button type="button" disabled={!prevEx} onClick={() => prevEx && onNavigate(prevEx)} title={prevEx ? prevEx.name_kor : '이전 운동 없음'} style={{ height: 40, borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', background: prevEx ? '#141414' : 'rgba(255,255,255,0.03)', color: prevEx ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.18)', cursor: prevEx ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
+              <ChevronLeft size={16} /> 이전
+            </button>
+
+            <div style={{ minWidth: 0, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: accentColor, letterSpacing: 3, fontWeight: 900, marginBottom: 4 }}>
+                EXERCISE DETAIL
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.32)' }}>
+                {currentIndex >= 0 ? `${currentIndex + 1} / ${exercises.length}` : '운동 상세'}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" disabled={!nextEx} onClick={() => nextEx && onNavigate(nextEx)} title={nextEx ? nextEx.name_kor : '다음 운동 없음'} style={{ height: 40, minWidth: 94, borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', background: nextEx ? '#141414' : 'rgba(255,255,255,0.03)', color: nextEx ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.18)', cursor: nextEx ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
+                다음 <ChevronRight size={16} />
+              </button>
+              <button type="button" onClick={onClose} title="닫기" style={{ width: 40, height: 40, borderRadius: 3, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <X size={18} color="rgba(255,255,255,0.68)" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main style={{ maxWidth: 1440, margin: '0 auto', padding: '34px 32px 56px' }}>
+          <section style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 0.92fr) minmax(420px, 1.08fr)', gap: 32, alignItems: 'start', marginBottom: 28 }}>
+            <div style={{ position: 'sticky', top: 96, background: '#101010', border: `1px solid ${accentColor}22`, borderRadius: 4, overflow: 'hidden', boxShadow: `0 30px 90px rgba(0,0,0,0.5), 0 0 70px ${accentColor}08` }}>
+              <div style={{ width: '100%', aspectRatio: '4 / 3', background: '#050505', position: 'relative' }}>
+                <video src={videoUrl(ex)} loop muted autoPlay playsInline controls style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <div style={{ position: 'absolute', left: 18, top: 18, background: accentColor, color: '#000', fontSize: 12, fontWeight: 900, padding: '6px 14px', borderRadius: 2 }}>
+                  {ex.category}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {ex.tag && <span style={{ background: `${accentColor}16`, border: `1px solid ${accentColor}35`, color: accentColor, borderRadius: 2, padding: '5px 12px', fontSize: 12, fontWeight: 900 }}>{ex.tag}</span>}
+                  <span style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.62)', borderRadius: 2, padding: '5px 12px', fontSize: 12, fontWeight: 800 }}>
+                    {EQUIPMENT_LABEL[ex.equipment] || '기구 없음'}
+                  </span>
+                </div>
+
+                <h1 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(46px, 6vw, 86px)', color: '#FFF', letterSpacing: 1, lineHeight: 0.9, margin: '0 0 10px' }}>
+                  {ex.name_kor}
+                </h1>
+                <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.38)', marginBottom: 20 }}>{ex.name_eng}</div>
+                {ex.description && <p style={{ fontSize: 16, lineHeight: 1.85, color: 'rgba(255,255,255,0.68)', margin: 0 }}>{ex.description}</p>}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 24 }}>
+                <InfoTile icon={Target} label="주 타깃" value={ex.target_primary} accentColor={accentColor} />
+                <InfoTile icon={Clock} label="권장 시간" value={ex.default_duration_min ? `${ex.default_duration_min}분` : ''} accentColor={accentColor} />
+                <InfoTile icon={Flame} label="예상 소모" value={ex.estimated_cal_per_min ? `${ex.estimated_cal_per_min} kcal/min` : ''} accentColor={accentColor} />
+                <InfoTile icon={MapPin} label="장소" value={ex.place_type === 'gym' ? '헬스장' : ex.place_type} accentColor={accentColor} />
+                <InfoTile icon={Home} label="홈트 가능" value={ex.home_friendly === 'Y' ? '가능' : ex.home_friendly === 'N' ? '비추천' : ''} accentColor={accentColor} />
+                <InfoTile icon={AlertTriangle} label="척추 부하" value={ex.spine_loading} accentColor={accentColor} />
+              </div>
+            </div>
+          </section>
+
+          <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.12fr) minmax(360px, 0.88fr)', gap: 22, alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <DetailBlock title="운동 방법" accentColor={accentColor}>
+                <ol style={{ margin: 0, paddingLeft: 22, color: 'rgba(255,255,255,0.7)', fontSize: 15, lineHeight: 1.9 }}>
+                  {(guideLines.length ? guideLines : ['운동 가이드 정보가 없습니다.']).map((line, index) => (
+                    <li key={index} style={{ marginBottom: 8 }}>{line.replace(/^\d+\.\s*/, '')}</li>
+                  ))}
+                </ol>
+              </DetailBlock>
+
+              {startLines.length > 0 && (
+                <DetailBlock title="준비 자세" accentColor={accentColor}>
+                  <ol style={{ margin: 0, paddingLeft: 22, color: 'rgba(255,255,255,0.62)', fontSize: 14, lineHeight: 1.85 }}>
+                    {startLines.map((line, index) => (
+                      <li key={index} style={{ marginBottom: 7 }}>{line.replace(/^\d+\.\s*/, '')}</li>
+                    ))}
+                  </ol>
+                </DetailBlock>
+              )}
+
+              {ex.breathing && (
+                <DetailBlock title="호흡" accentColor={accentColor}>
+                  <p style={{ margin: 0, color: 'rgba(255,255,255,0.66)', fontSize: 15, lineHeight: 1.8 }}>{ex.breathing}</p>
+                </DetailBlock>
+              )}
+
+              <DetailBlock title="주의 사항" accentColor={accentColor}>
+                <ul style={{ margin: 0, paddingLeft: 20, color: 'rgba(255,255,255,0.62)', fontSize: 14, lineHeight: 1.85 }}>
+                  {(cautionLines.length ? cautionLines : ['주의사항 정보가 없습니다.']).map((line, index) => (
+                    <li key={index} style={{ marginBottom: 7 }}>{line.replace(/^\d+\.\s*/, '')}</li>
+                  ))}
+                </ul>
+              </DetailBlock>
+            </div>
+
+            <aside style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <DetailBlock title="자극 부위" accentColor={accentColor}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {ex.target_primary && (
+                    <div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', marginBottom: 8 }}>PRIMARY</div>
+                      <span style={{ display: 'inline-flex', padding: '8px 14px', background: `${accentColor}18`, border: `1px solid ${accentColor}35`, color: accentColor, borderRadius: 2, fontSize: 14, fontWeight: 900 }}>{ex.target_primary}</span>
+                    </div>
+                  )}
+                  {targetSecondary.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', marginBottom: 8 }}>SECONDARY</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {targetSecondary.map(muscle => (
+                          <span key={muscle} style={{ padding: '7px 11px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.62)', borderRadius: 2, fontSize: 13, fontWeight: 700 }}>
+                            {muscle}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </DetailBlock>
+
+              <DetailBlock title="관련 운동" accentColor={accentColor}>
+                {relatedList.length > 0 ? (
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    {relatedList.map(({ id, name, target }) => {
+                      const color = target ? (CAT_COLOR[target.category] || '#FFD700') : accentColor
+                      return (
+                        <button key={id} type="button" disabled={!target} onClick={() => target && onNavigate(target)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '14px 16px', borderRadius: 4, background: target ? `${color}0f` : 'rgba(255,255,255,0.03)', border: `1px solid ${target ? `${color}30` : 'rgba(255,255,255,0.06)'}`, color: target ? '#E2E2E2' : 'rgba(255,255,255,0.28)', cursor: target ? 'pointer' : 'default', textAlign: 'left' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 3 }}>{name}</div>
+                            <div style={{ fontSize: 11, color: target ? color : 'rgba(255,255,255,0.24)' }}>#{id}{target ? ` · ${target.category}` : ' · 목록에 없음'}</div>
+                          </div>
+                          <ChevronRight size={16} color={target ? color : 'rgba(255,255,255,0.22)'} />
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, color: 'rgba(255,255,255,0.36)', fontSize: 14 }}>관련 운동 정보가 없습니다.</p>
+                )}
+              </DetailBlock>
+            </aside>
+          </section>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+function PaginationControls({ page, totalPages, onChange }) {
+  if (totalPages <= 1) return null
+
+  const pages = []
+  const start = Math.max(1, page - 2)
+  const end = Math.min(totalPages, page + 2)
+
+  if (start > 1) {
+    pages.push(1)
+    if (start > 2) pages.push('start-ellipsis')
+  }
+
+  for (let current = start; current <= end; current += 1) {
+    pages.push(current)
+  }
+
+  if (end < totalPages) {
+    if (end < totalPages - 1) pages.push('end-ellipsis')
+    pages.push(totalPages)
+  }
+
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+      padding: '8px 0 52px',
+    }}>
+      <button
+        type="button"
+        disabled={page === 1}
+        onClick={() => onChange(page - 1)}
+        style={{
+          minWidth: 72,
+          height: 36,
+          padding: '0 14px',
+          borderRadius: 2,
+          border: '1px solid rgba(255,255,255,0.08)',
+          background: page === 1 ? 'rgba(255,255,255,0.03)' : '#161616',
+          color: page === 1 ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.65)',
+          cursor: page === 1 ? 'default' : 'pointer',
+          fontSize: 12,
+          fontWeight: 700,
+        }}
+      >
+        이전
+      </button>
+
+      {pages.map(item => (
+        item === 'start-ellipsis' || item === 'end-ellipsis' ? (
+          <span key={item} style={{ color: 'rgba(255,255,255,0.25)', padding: '0 4px' }}>...</span>
+        ) : (
+          <button
+            key={item}
+            type="button"
+            onClick={() => onChange(item)}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 2,
+              border: 'none',
+              background: item === page ? 'linear-gradient(135deg, #FFD700, #C8A200)' : '#161616',
+              color: item === page ? '#000' : 'rgba(255,255,255,0.65)',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            {item}
+          </button>
+        )
+      ))}
+
+      <button
+        type="button"
+        disabled={page === totalPages}
+        onClick={() => onChange(page + 1)}
+        style={{
+          minWidth: 72,
+          height: 36,
+          padding: '0 14px',
+          borderRadius: 2,
+          border: '1px solid rgba(255,255,255,0.08)',
+          background: page === totalPages ? 'rgba(255,255,255,0.03)' : '#161616',
+          color: page === totalPages ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.65)',
+          cursor: page === totalPages ? 'default' : 'pointer',
+          fontSize: 12,
+          fontWeight: 700,
+        }}
+      >
+        다음
+      </button>
+    </div>
+  )
+}
 
 export default function ExercisePage() {
   const [exercises, setExercises] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('전체')
+  const [selectedCategories, setSelectedCategories] = useState([])
   const [equipment, setEquipment] = useState('전체')
   const [difficulty, setDifficulty] = useState(0)
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState(null)
   const [showFilters, setShowFilters] = useState(false)
   const listRef = useRef(null)
+  const deferredSearch = useDeferredValue(search)
 
   useEffect(() => {
     fetch(`${API_URL}/api/exercises/`)
@@ -378,46 +798,107 @@ export default function ExercisePage() {
   }, [])
 
   const filtered = useMemo(() => {
-    let list = exercises
-    if (category !== '전체') list = list.filter(e => e.category === category)
+    let list = exercises.filter(e => CATEGORIES.includes(e.category))
+    if (selectedCategories.length > 0) {
+      list = list.filter(e => selectedCategories.includes(e.category))
+    }
     if (equipment !== '전체') list = list.filter(e => e.equipment === equipment)
     if (difficulty > 0) list = list.filter(e => e.difficulty === difficulty)
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.trim().toLowerCase()
       list = list.filter(e =>
         e.name_kor.toLowerCase().includes(q) ||
         (e.name_eng && e.name_eng.toLowerCase().includes(q))
       )
     }
-    return list
-  }, [exercises, search, category, equipment, difficulty])
 
-  const displayed = filtered.slice(0, page * PAGE_SIZE)
-  const hasMore = displayed.length < filtered.length
+    const categoryOrder = CATEGORIES.slice(1)
+
+    return [...list].sort((a, b) => {
+      const indexA = categoryOrder.indexOf(a.category)
+      const indexB = categoryOrder.indexOf(b.category)
+      if (indexA !== indexB) {
+        return indexA - indexB
+      }
+      return a.difficulty - b.difficulty
+    })
+  }, [exercises, deferredSearch, selectedCategories, equipment, difficulty])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageStart = (page - 1) * PAGE_SIZE
+  const pageEnd = Math.min(pageStart + PAGE_SIZE, filtered.length)
+  const displayed = filtered.slice(pageStart, pageEnd)
+  const hasMore = false
+
+  useEffect(() => {
+    setPage(current => Math.min(Math.max(current, 1), totalPages))
+  }, [totalPages])
+
+  const goToPage = useCallback((nextPage) => {
+    const target = Math.min(Math.max(nextPage, 1), totalPages)
+    setPage(target)
+    requestAnimationFrame(() => {
+      listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [totalPages])
 
   const handleCategoryChange = useCallback((cat) => {
-    setCategory(cat)
+    setSelectedCategories(prev => {
+      if (cat === '전체') {
+        return []
+      }
+      const next = prev.includes(cat)
+        ? prev.filter(c => c !== cat)
+        : [...prev, cat]
+      return next
+    })
     setPage(1)
     listRef.current?.scrollTo({ top: 0 })
   }, [])
 
   const resetFilters = useCallback(() => {
     setSearch('')
-    setCategory('전체')
+    setSelectedCategories([])
     setEquipment('전체')
     setDifficulty(0)
     setPage(1)
   }, [])
 
   const equipmentOptions = useMemo(() => {
-    const set = new Set(exercises.map(e => e.equipment))
-    return ['전체', ...Array.from(set).sort()]
-  }, [exercises])
+    let list = exercises
+    if (selectedCategories.length > 0) {
+      list = list.filter(e => selectedCategories.includes(e.category))
+    }
+    const set = new Set(list.map(e => e.equipment))
+    const customOrder = [
+      'body', 'barbell', 'dumbbell', 'machine', 'band', 'kettlebell',
+      'pull_up_bar', 'dips_bar', 'normal', 'foamroller', 'massageball', ''
+    ]
+    const array = Array.from(set).sort((a, b) => {
+      let idxA = customOrder.indexOf(a)
+      let idxB = customOrder.indexOf(b)
+      if (idxA === -1) idxA = 999
+      if (idxB === -1) idxB = 999
+      return idxA - idxB
+    })
+    return ['전체', ...array]
+  }, [exercises, selectedCategories])
+
+  useEffect(() => {
+    if (equipment === '전체') return
+    let list = exercises
+    if (selectedCategories.length > 0) {
+      list = list.filter(e => selectedCategories.includes(e.category))
+    }
+    const available = new Set(list.map(e => e.equipment))
+    if (!available.has(equipment)) {
+      setEquipment('전체')
+    }
+  }, [selectedCategories, exercises, equipment])
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#080808', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>
-        <Dumbbell size={40} color="rgba(255,215,0,0.4)" style={{ margin: '0 auto 16px' }} />
         <p style={{ fontSize: 14 }}>운동 데이터 불러오는 중...</p>
       </div>
     </div>
@@ -435,7 +916,7 @@ export default function ExercisePage() {
           {/* Title */}
           <div style={{ marginBottom: 28 }}>
             <span className="section-label">EXERCISE LIBRARY</span>
-            <h1 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(48px, 7vw, 88px)', color: '#FFF', lineHeight: 0.9 }}>
+            <h1 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(36px, 4.5vw, 48px)', color: '#FFF', lineHeight: 0.9, letterSpacing: '-0.05em' }}>
               운동 <span className="gold-text">라이브러리</span>
             </h1>
             <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginTop: 10 }}>
@@ -454,19 +935,19 @@ export default function ExercisePage() {
               style={{
                 width: '100%', padding: '14px 48px 14px 50px',
                 background: '#161616',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 50,
+                border: 'none',
+                borderRadius: 4,
                 color: '#FFF', fontSize: 14,
                 outline: 'none',
-                transition: 'border-color 0.2s',
+                transition: 'box-shadow 0.2s',
               }}
-              onFocus={e => e.target.style.borderColor = 'rgba(255,215,0,0.4)'}
-              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'}
+              onFocus={e => e.target.style.boxShadow = '0 0 0 2px rgba(255,215,0,0.4)'}
+              onBlur={e => e.target.style.boxShadow = 'none'}
             />
             {search && (
               <button onClick={() => { setSearch(''); setPage(1) }} style={{
                 position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
-                background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 2,
                 width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer',
               }}>
@@ -478,40 +959,73 @@ export default function ExercisePage() {
           {/* Category tabs */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
             {CATEGORIES.map(cat => {
-              const active = category === cat
+              const active = cat === '전체'
+                ? selectedCategories.length === 0
+                : selectedCategories.includes(cat)
               const color = CAT_COLOR[cat] || '#FFD700'
               return (
-                <button key={cat} onClick={() => handleCategoryChange(cat)} style={{
-                  padding: '8px 20px',
-                  borderRadius: 50,
-                  background: active ? color : 'rgba(255,255,255,0.04)',
-                  border: active ? `1px solid ${color}` : '1px solid rgba(255,255,255,0.08)',
-                  color: active ? '#000' : 'rgba(255,255,255,0.5)',
-                  fontSize: 13, fontWeight: active ? 800 : 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.22s',
-                  letterSpacing: 0.3,
-                }}
-                  onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = `${color}60`; e.currentTarget.style.color = color } }}
-                  onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)' } }}
+                <button
+                  key={cat}
+                  onClick={() => handleCategoryChange(cat)}
+                  style={{
+                    padding: '8px 20px',
+                    borderRadius: 2,
+                    background: active ? color : '#161616',
+                    border: 'none',
+                    color: active ? '#000' : 'rgba(255,255,255,0.6)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.22s',
+                    letterSpacing: 0.3,
+                  }}
+                  onMouseEnter={e => {
+                    if (!active) {
+                      e.currentTarget.style.background = '#1F1F1F'
+                      e.currentTarget.style.color = '#FFF'
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!active) {
+                      e.currentTarget.style.background = '#161616'
+                      e.currentTarget.style.color = 'rgba(255,255,255,0.6)'
+                    }
+                  }}
                 >{cat}</button>
               )
             })}
 
             {/* Filter toggle */}
-            <button onClick={() => setShowFilters(v => !v)} style={{
-              padding: '8px 18px', borderRadius: 50,
-              background: showFilters ? 'rgba(255,215,0,0.1)' : 'rgba(255,255,255,0.04)',
-              border: showFilters ? '1px solid rgba(255,215,0,0.35)' : '1px solid rgba(255,255,255,0.08)',
-              color: showFilters ? '#FFD700' : 'rgba(255,255,255,0.4)',
-              fontSize: 13, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              transition: 'all 0.22s',
-            }}>
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              style={{
+                padding: '8px 18px', borderRadius: 2,
+                background: showFilters ? 'rgba(255,215,0,0.15)' : '#161616',
+                border: 'none',
+                color: showFilters ? '#FFD700' : 'rgba(255,255,255,0.6)',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+                transition: 'all 0.22s',
+              }}
+              onMouseEnter={e => {
+                if (!showFilters) {
+                  e.currentTarget.style.background = '#1F1F1F'
+                  e.currentTarget.style.color = '#FFF'
+                }
+              }}
+              onMouseLeave={e => {
+                if (!showFilters) {
+                  e.currentTarget.style.background = '#161616'
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.6)'
+                }
+              }}
+            >
               <Filter size={13} /> 필터
               {(equipment !== '전체' || difficulty > 0) && (
                 <span style={{
-                  width: 18, height: 18, borderRadius: '50%',
+                  width: 18, height: 18, borderRadius: 2,
                   background: '#FFD700', color: '#000',
                   fontSize: 10, fontWeight: 800,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -523,9 +1037,9 @@ export default function ExercisePage() {
           {/* Extended filters */}
           {showFilters && (
             <div style={{
-              background: 'rgba(255,255,255,0.025)',
-              border: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 12,
+              background: '#121212',
+              border: '1px solid rgba(255,255,255,0.05)',
+              borderRadius: 4,
               padding: '20px 24px',
               marginBottom: 16,
               animation: 'float-up 0.25s ease',
@@ -533,46 +1047,113 @@ export default function ExercisePage() {
               <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
                 {/* Equipment */}
                 <div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, marginBottom: 10 }}>기구</div>
+                  <h4 style={{ fontSize: 12, fontWeight: 'bold', color: 'rgba(255,255,255,0.4)', letterSpacing: 2, marginBottom: 10, textTransform: 'uppercase' }}>
+                    기구
+                  </h4>
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                    {equipmentOptions.map(eq => (
-                      <button key={eq} onClick={() => { setEquipment(eq); setPage(1) }} style={{
-                        padding: '5px 14px', borderRadius: 50, fontSize: 12, cursor: 'pointer',
-                        background: equipment === eq ? '#FFD700' : 'rgba(255,255,255,0.04)',
-                        border: equipment === eq ? '1px solid #FFD700' : '1px solid rgba(255,255,255,0.08)',
-                        color: equipment === eq ? '#000' : 'rgba(255,255,255,0.45)',
-                        transition: 'all 0.18s',
-                      }}>
-                        {eq === '전체' ? '전체' : `${EQUIPMENT_ICON[eq] || ''} ${EQUIPMENT_LABEL[eq] || eq}`}
-                      </button>
-                    ))}
+                    {equipmentOptions.map(eq => {
+                      const active = equipment === eq
+                      return (
+                        <button
+                          key={eq}
+                          onClick={() => { setEquipment(eq); setPage(1) }}
+                          style={{
+                            padding: '5px 14px',
+                            borderRadius: 2,
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            background: active ? '#FFD700' : '#1A1A1A',
+                            border: 'none',
+                            color: active ? '#000' : 'rgba(255,255,255,0.6)',
+                            transition: 'all 0.18s',
+                          }}
+                          onMouseEnter={e => {
+                            if (!active) {
+                              e.currentTarget.style.background = '#222'
+                              e.currentTarget.style.color = '#FFF'
+                            }
+                          }}
+                          onMouseLeave={e => {
+                            if (!active) {
+                              e.currentTarget.style.background = '#1A1A1A'
+                              e.currentTarget.style.color = 'rgba(255,255,255,0.6)'
+                            }
+                          }}
+                        >
+                          {eq === '전체' ? '전체' : EQUIPMENT_LABEL[eq] || eq}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 
                 {/* Difficulty */}
                 <div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, marginBottom: 10 }}>난이도</div>
+                  <h4 style={{ fontSize: 12, fontWeight: 'bold', color: 'rgba(255,255,255,0.4)', letterSpacing: 2, marginBottom: 10, textTransform: 'uppercase' }}>
+                    난이도
+                  </h4>
                   <div style={{ display: 'flex', gap: 7 }}>
-                    <button onClick={() => { setDifficulty(0); setPage(1) }} style={{
-                      padding: '5px 14px', borderRadius: 50, fontSize: 12, cursor: 'pointer',
-                      background: difficulty === 0 ? '#FFD700' : 'rgba(255,255,255,0.04)',
-                      border: difficulty === 0 ? '1px solid #FFD700' : '1px solid rgba(255,255,255,0.08)',
-                      color: difficulty === 0 ? '#000' : 'rgba(255,255,255,0.45)',
-                    }}>전체</button>
-                    {[1, 2, 3].map(d => (
-                      <button key={d} onClick={() => { setDifficulty(d); setPage(1) }} style={{
-                        padding: '5px 14px', borderRadius: 50, fontSize: 12, cursor: 'pointer',
-                        background: difficulty === d ? DIFF_COLOR[d] : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${difficulty === d ? DIFF_COLOR[d] : 'rgba(255,255,255,0.08)'}`,
-                        color: difficulty === d ? '#fff' : 'rgba(255,255,255,0.45)',
-                        transition: 'all 0.18s',
-                      }}>{DIFF_LABEL[d]}</button>
-                    ))}
+                    {[0, 1, 2, 3].map(d => {
+                      const active = difficulty === d
+                      const label = d === 0 ? '전체' : DIFF_LABEL[d]
+                      const color = d === 0 ? '#FFD700' : DIFF_COLOR[d]
+                      return (
+                        <button
+                          key={d}
+                          onClick={() => { setDifficulty(d); setPage(1) }}
+                          style={{
+                            padding: '5px 14px',
+                            borderRadius: 2,
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            background: active ? color : '#1A1A1A',
+                            border: 'none',
+                            color: active ? (d === 0 ? '#000' : '#FFF') : 'rgba(255,255,255,0.6)',
+                            transition: 'all 0.18s',
+                          }}
+                          onMouseEnter={e => {
+                            if (!active) {
+                              e.currentTarget.style.background = '#222'
+                              e.currentTarget.style.color = '#FFF'
+                            }
+                          }}
+                          onMouseLeave={e => {
+                            if (!active) {
+                              e.currentTarget.style.background = '#1A1A1A'
+                              e.currentTarget.style.color = 'rgba(255,255,255,0.6)'
+                            }
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
             </div>
           )}
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            fontSize: 13,
+            color: 'rgba(255,255,255,0.35)',
+            marginBottom: 10,
+          }}>
+            <span>전체 {filtered.length.toLocaleString()}개</span>
+            <span style={{ color: 'rgba(255,255,255,0.18)' }}>/</span>
+            <span><strong style={{ color: '#FFD700' }}>{page}</strong> / {totalPages} 페이지</span>
+            {filtered.length > 0 && (
+              <span style={{ color: 'rgba(255,255,255,0.25)' }}>
+                {pageStart + 1}-{pageEnd}번째 운동
+              </span>
+            )}
+          </div>
 
           {/* Result count + reset */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -580,7 +1161,7 @@ export default function ExercisePage() {
               <span style={{ color: '#FFD700', fontWeight: 700 }}>{filtered.length.toLocaleString()}</span>개 운동
               {search && <span> · "{search}" 검색 결과</span>}
             </span>
-            {(category !== '전체' || equipment !== '전체' || difficulty > 0 || search) && (
+            {(selectedCategories.length > 0 || equipment !== '전체' || difficulty > 0 || search) && (
               <button onClick={resetFilters} style={{
                 display: 'flex', alignItems: 'center', gap: 5,
                 fontSize: 12, color: 'rgba(255,255,255,0.35)',
@@ -611,14 +1192,14 @@ export default function ExercisePage() {
                 marginTop: 20, background: 'rgba(255,215,0,0.1)',
                 border: '1px solid rgba(255,215,0,0.2)',
                 color: '#FFD700', fontSize: 13, padding: '10px 24px',
-                borderRadius: 50, cursor: 'pointer',
+                borderRadius: 2, cursor: 'pointer',
               }}>필터 초기화</button>
             </div>
           ) : (
             <>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(285px, 1fr))',
                 gap: 18,
                 marginBottom: 36,
               }}>
@@ -627,23 +1208,17 @@ export default function ExercisePage() {
                 ))}
               </div>
 
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                onChange={goToPage}
+              />
+
               {hasMore && (
-                <div style={{ textAlign: 'center', paddingBottom: 48 }}>
-                  <button
-                    onClick={() => setPage(p => p + 1)}
-                    style={{
-                      background: 'rgba(255,215,0,0.08)',
-                      border: '1px solid rgba(255,215,0,0.25)',
-                      color: '#FFD700', fontSize: 14, fontWeight: 700,
-                      padding: '14px 40px', borderRadius: 50,
-                      cursor: 'pointer',
-                      transition: 'all 0.25s',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,215,0,0.15)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,215,0,0.08)' }}
-                  >
-                    더 보기 ({filtered.length - displayed.length}개 남음)
-                  </button>
+                <div ref={loaderRef} style={{ textAlign: 'center', padding: '24px 0 48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.5 }}>
+                    더 많은 운동 불러오는 중... ({(filtered.length - displayed.length).toLocaleString()}개 남음)
+                  </span>
                 </div>
               )}
             </>
@@ -653,9 +1228,10 @@ export default function ExercisePage() {
 
       {/* ── Modal ── */}
       {selected && (
-        <DetailModal
+        <ExerciseDetailModal
           key={selected.id}
           ex={selected}
+          exercises={exercises}
           onClose={() => setSelected(null)}
           onNavigate={setSelected}
         />

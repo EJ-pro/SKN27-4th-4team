@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Dumbbell, ChevronRight, Clock, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { useNavigate } from 'react-router-dom'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -36,12 +37,12 @@ const QUICK_QUESTIONS = [
 function BotAvatar() {
   return (
     <div style={{
-      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+      width: 36, height: 36,
       background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: '0 0 14px rgba(255,215,0,0.25)',
+      borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0, boxShadow: '0 0 14px rgba(255,215,0,0.25)',
     }}>
-      <Dumbbell size={18} color="#000" strokeWidth={2.8} />
+      <Dumbbell size={19} color="#000" strokeWidth={2.8} />
     </div>
   )
 }
@@ -74,7 +75,7 @@ function Message({ msg }) {
       <div style={{ maxWidth: '68%' }}>
         <div style={{
           padding: '12px 18px',
-          borderRadius: '16px 4px 16px 16px',
+          borderRadius: '4px 1px 4px 4px',
           background: 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(200,162,0,0.1))',
           border: '1px solid rgba(255,215,0,0.2)',
           fontSize: 14, color: '#E2E2E2', lineHeight: 1.75,
@@ -108,7 +109,7 @@ function RenameModal({ title, onConfirm, onCancel }) {
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         background: '#1F1F1F', border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 16, padding: '28px 28px 24px', width: 380,
+        borderRadius: 4, padding: '28px 28px 24px', width: 380,
         boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
         animation: 'float-up 0.2s ease',
       }}>
@@ -123,14 +124,14 @@ function RenameModal({ title, onConfirm, onCancel }) {
           style={{
             width: '100%', padding: '12px 14px',
             background: '#111', border: '1px solid rgba(255,215,0,0.35)',
-            borderRadius: 9, color: '#E2E2E2', fontSize: 14,
+            borderRadius: 3, color: '#E2E2E2', fontSize: 14,
             outline: 'none', fontFamily: 'Noto Sans KR, sans-serif',
             boxSizing: 'border-box',
           }}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
           <button onClick={onCancel} style={{
-            padding: '9px 20px', borderRadius: 8,
+            padding: '9px 20px', borderRadius: 2,
             background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
             color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer',
             transition: 'all 0.2s',
@@ -139,7 +140,7 @@ function RenameModal({ title, onConfirm, onCancel }) {
             onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'}
           >취소</button>
           <button onClick={confirm} disabled={!draft.trim()} style={{
-            padding: '9px 20px', borderRadius: 8,
+            padding: '9px 20px', borderRadius: 2,
             background: draft.trim() ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.06)',
             border: 'none', color: draft.trim() ? '#000' : 'rgba(255,255,255,0.3)',
             fontSize: 13, fontWeight: 700, cursor: draft.trim() ? 'pointer' : 'default',
@@ -162,7 +163,7 @@ function DeleteModal({ title, onConfirm, onCancel }) {
     }}>
       <div onClick={e => e.stopPropagation()} style={{
         background: '#1F1F1F', border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 16, padding: '28px 28px 24px', width: 360,
+        borderRadius: 2, padding: '28px 28px 24px', width: 360,
         boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
         animation: 'float-up 0.2s ease',
       }}>
@@ -174,7 +175,7 @@ function DeleteModal({ title, onConfirm, onCancel }) {
         </p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <button onClick={onCancel} style={{
-            padding: '9px 20px', borderRadius: 8,
+            padding: '9px 20px', borderRadius: 2,
             background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
             color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer',
             transition: 'all 0.2s',
@@ -183,7 +184,7 @@ function DeleteModal({ title, onConfirm, onCancel }) {
             onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'}
           >취소</button>
           <button onClick={onConfirm} style={{
-            padding: '9px 20px', borderRadius: 8,
+            padding: '9px 20px', borderRadius: 2,
             background: 'rgba(244,67,54,0.15)', border: '1px solid rgba(244,67,54,0.4)',
             color: '#F44336', fontSize: 13, fontWeight: 700, cursor: 'pointer',
             transition: 'all 0.2s',
@@ -208,7 +209,7 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
       onMouseLeave={() => setHovered(false)}
       onClick={() => onSelect(session.id)}
       style={{
-        width: '100%', padding: '10px 12px', borderRadius: 8,
+        width: '100%', padding: '10px 12px', borderRadius: 2,
         background: isActive ? 'rgba(255,215,0,0.08)' : hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
         border: isActive ? '1px solid rgba(255,215,0,0.15)' : '1px solid transparent',
         cursor: 'pointer', textAlign: 'left', marginBottom: 3, transition: 'all 0.18s',
@@ -231,7 +232,7 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
         <button
           onClick={e => { e.stopPropagation(); onRenameClick(session) }}
           style={{
-            width: 24, height: 24, borderRadius: 5, cursor: 'pointer',
+            width: 24, height: 24, borderRadius: 2, cursor: 'pointer',
             background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
           }}
@@ -243,7 +244,7 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
         <button
           onClick={e => { e.stopPropagation(); onDeleteClick(session) }}
           style={{
-            width: 24, height: 24, borderRadius: 5, cursor: 'pointer',
+            width: 24, height: 24, borderRadius: 2, cursor: 'pointer',
             background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
           }}
@@ -259,7 +260,8 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
 
 // ─── ConsultPage ──────────────────────────────────────────────────────────────
 
-export default function ConsultPage({ onNavigate }) {
+export default function ConsultPage() {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState([])
   const [activeId, setActiveId] = useState(null)
   const [messages, setMessages] = useState([])
@@ -409,11 +411,11 @@ export default function ConsultPage({ onNavigate }) {
         {/* FITAI 로고 */}
         <div style={{ padding: '24px 8px 16px' }}>
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => navigate('/')}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '8px 10px', borderRadius: 10, width: '100%',
+              padding: '8px 10px', borderRadius: 2, width: '100%',
               transition: 'background 0.2s',
             }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,215,0,0.06)'}
@@ -422,13 +424,12 @@ export default function ConsultPage({ onNavigate }) {
             <div style={{
               width: 32, height: 32,
               background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-              borderRadius: 8,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0,
             }}>
               <Dumbbell size={17} color="#000" strokeWidth={2.8} />
             </div>
-            <span style={{ fontFamily: 'Bebas Neue', fontSize: 22, letterSpacing: 5, color: '#FFD700' }}>FitAI</span>
+            <span style={{ fontFamily: 'Bebas Neue', fontSize: 22, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
           </button>
         </div>
 
@@ -437,7 +438,7 @@ export default function ConsultPage({ onNavigate }) {
           <button
             onClick={createSession}
             style={{
-              width: '100%', padding: '11px 0', borderRadius: 10,
+              width: '100%', padding: '11px 0', borderRadius: 2,
               background: 'linear-gradient(135deg, #FFD700, #C8A200)',
               border: 'none', color: '#000', fontWeight: 800, fontSize: 13,
               letterSpacing: 0.5, cursor: 'pointer',
@@ -477,10 +478,10 @@ export default function ConsultPage({ onNavigate }) {
         {/* 유저 프로필 */}
         <div style={{ padding: '12px 8px 20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <button
-            onClick={() => onNavigate('login')}
+            onClick={() => navigate('/login')}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-              padding: '10px 12px', borderRadius: 10,
+              padding: '10px 12px', borderRadius: 2,
               background: 'rgba(255,255,255,0.03)',
               border: '1px solid rgba(255,255,255,0.06)',
               cursor: 'pointer', transition: 'background 0.2s',
@@ -489,7 +490,7 @@ export default function ConsultPage({ onNavigate }) {
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
           >
             <div style={{
-              width: 34, height: 34, borderRadius: '50%',
+              width: 34, height: 34, borderRadius: 2,
               background: 'linear-gradient(135deg, #333, #1a1a1a)',
               border: '1px solid rgba(255,215,0,0.25)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -518,14 +519,14 @@ export default function ConsultPage({ onNavigate }) {
                   <BotAvatar />
                   <div style={{
                     padding: '12px 18px',
-                    borderRadius: '4px 16px 16px 16px',
+                    borderRadius: '2px',
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.07)',
                     display: 'flex', gap: 5, alignItems: 'center',
                   }}>
                     {[0, 0.2, 0.4].map((delay, i) => (
                       <span key={i} style={{
-                        width: 7, height: 7, borderRadius: '50%',
+                        width: 7, height: 7, borderRadius: 2,
                         background: 'rgba(255,215,0,0.5)',
                         animation: `pulse-glow 1.2s ease-in-out ${delay}s infinite`,
                       }} />
@@ -568,7 +569,7 @@ export default function ConsultPage({ onNavigate }) {
                 key={q}
                 onClick={() => setInputValue(q)}
                 style={{
-                  padding: '6px 14px', borderRadius: 50,
+                  padding: '6px 14px', borderRadius: 2,
                   background: 'rgba(255,255,255,0.04)',
                   border: '1px solid rgba(255,255,255,0.08)',
                   color: 'rgba(255,255,255,0.45)',
@@ -587,7 +588,7 @@ export default function ConsultPage({ onNavigate }) {
             <div style={{
               display: 'flex', gap: 12, background: '#1A1A1A', alignItems: 'flex-end',
               border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 16, padding: '10px 10px 10px 20px',
+              borderRadius: 2, padding: '10px 10px 10px 20px',
               transition: 'border-color 0.2s',
             }}>
               <textarea
@@ -610,7 +611,7 @@ export default function ConsultPage({ onNavigate }) {
                 onClick={sendMessage}
                 disabled={!inputValue.trim()}
                 style={{
-                  width: 42, height: 42, borderRadius: 10,
+                  width: 42, height: 42, borderRadius: 2,
                   background: inputValue.trim() ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.05)',
                   border: 'none',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',

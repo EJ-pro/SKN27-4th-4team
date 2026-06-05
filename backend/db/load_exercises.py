@@ -70,7 +70,7 @@ def load_exercises(conn) -> None:
     if not ENRICHED_JSON.exists():
         raise FileNotFoundError(f"[크리티컬 에러] 적재 대상 JSON 파일이 없습니다: {ENRICHED_JSON.name}")
 
-    with open(ENRICHED_JSON, encoding="utf-8") as f:
+    with open(ENRICHED_JSON, encoding="utf-8-sig") as f:
         raw: list[dict] = json.load(f)
 
     # 원본 데이터 중복 id 제거 (첫 번째 항목 유지)
@@ -100,35 +100,63 @@ def load_exercises(conn) -> None:
             ex.get("name_kor", ""),
             ex.get("name_eng") or None,
             ex.get("category", ""),
+            ex.get("slug") or None,
+            ex.get("tag") or None,
+            clean_text(ex.get("description")),
             ex.get("target_primary") or None,
             json.dumps(ex.get("target_secondary") or [], ensure_ascii=False),
             ex.get("equipment") or None,
             difficulty,
+            ex.get("difficulty_label") or None,
             ex.get("default_duration_min", 10),
+            ex.get("estimated_cal_per_min"),
+            ex.get("place_type") or None,
+            ex.get("home_friendly") or None,
+            ex.get("spine_loading") or None,
             ex.get("video_url") or None,
+            ex.get("image_url") or None,
             clean_text(ex.get("guide")),
+            clean_text(ex.get("starting_position")),
+            clean_text(ex.get("movement")),
+            clean_text(ex.get("breathing")),
             clean_text(ex.get("caution")),
+            clean_text(ex.get("related_exercises")),
         ))
 
     with conn.cursor() as cur:
         execute_values(cur, """
             INSERT INTO exercises (
-                exercise_id, name_kor, name_eng, category,
+                exercise_id, name_kor, name_eng, category, slug, tag, description,
                 target_primary, target_secondary, equipment, difficulty,
-                default_duration_min, video_url, guide, caution
+                difficulty_label, default_duration_min, estimated_cal_per_min,
+                place_type, home_friendly, spine_loading, video_url, image_url,
+                guide, starting_position, movement, breathing, caution, related_exercises
             ) VALUES %s
             ON CONFLICT (exercise_id) DO UPDATE SET
                 name_kor             = EXCLUDED.name_kor,
                 name_eng             = EXCLUDED.name_eng,
                 category             = EXCLUDED.category,
+                slug                 = EXCLUDED.slug,
+                tag                  = EXCLUDED.tag,
+                description          = EXCLUDED.description,
                 target_primary       = EXCLUDED.target_primary,
                 target_secondary     = EXCLUDED.target_secondary,
                 equipment            = EXCLUDED.equipment,
                 difficulty           = EXCLUDED.difficulty,
+                difficulty_label     = EXCLUDED.difficulty_label,
                 default_duration_min = EXCLUDED.default_duration_min,
+                estimated_cal_per_min = EXCLUDED.estimated_cal_per_min,
+                place_type           = EXCLUDED.place_type,
+                home_friendly        = EXCLUDED.home_friendly,
+                spine_loading        = EXCLUDED.spine_loading,
                 video_url            = EXCLUDED.video_url,
+                image_url            = EXCLUDED.image_url,
                 guide                = EXCLUDED.guide,
-                caution              = EXCLUDED.caution
+                starting_position    = EXCLUDED.starting_position,
+                movement             = EXCLUDED.movement,
+                breathing            = EXCLUDED.breathing,
+                caution              = EXCLUDED.caution,
+                related_exercises    = EXCLUDED.related_exercises
         """, rows)
     conn.commit()
     print(f"[INFO] exercises 테이블 마스터 데이터 적재 완료: 총 {len(rows)}개")
