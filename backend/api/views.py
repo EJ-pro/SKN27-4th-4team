@@ -6,6 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
 from .models import Exercise, ChatSession, ChatMessage, WeeklyScheduler, DailyRoutine
+from .services.routine_recommender import review_recommendation, start_recommendation
 
 DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
 
@@ -329,9 +330,12 @@ class RoutineView(View):
                 
                 for idx, ex in enumerate(exercises_list):
                     is_completed = ex.get('is_completed', False) or ex.get('completed', False)
+                    exercise_id = ex.get('id') or ex.get('exercise_id')
+                    if not exercise_id:
+                        continue
                     
                     try:
-                        ex_obj = Exercise.objects.get(exercise_id=ex['id'])
+                        ex_obj = Exercise.objects.get(exercise_id=exercise_id)
                     except Exercise.DoesNotExist:
                         continue
                         
@@ -354,3 +358,31 @@ class RoutineView(View):
             'scheduler_id': scheduler.scheduler_id,
             'created': created
         }, status=201 if created else 200)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class RoutineRecommendView(View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'ok': False, 'status': 'failed', 'message': 'Invalid JSON'}, status=400)
+
+        result = start_recommendation(data, user_id=data.get('device_uuid'))
+        return JsonResponse(result, status=200 if result.get('ok') else 400)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class RoutineRecommendReviewView(View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'ok': False, 'status': 'failed', 'message': 'Invalid JSON'}, status=400)
+
+        result = review_recommendation(
+            thread_id=data.get('thread_id', ''),
+            decision=data.get('decision', 'revise'),
+            feedback=data.get('feedback', ''),
+        )
+        return JsonResponse(result, status=200 if result.get('ok') else 400)

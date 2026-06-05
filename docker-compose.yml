@@ -27,6 +27,8 @@ services:
              python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./backend:/app
+      - ./recommendation_service:/app/recommendation_service
+      - ./queries.py:/workspace/queries.py:ro
     ports:
       - "8000:8000"
     env_file:
@@ -65,7 +67,7 @@ services:
 
     # 환경 변수 설정 (Neo4j의 동작을 제어)
     environment:
-      # 인증 정보: 사용자명/비밀번호 (기본값: neo4j/test1234)
+      # 인증 정보: .env의 NEO4J_AUTH 값을 사용
       - NEO4J_AUTH=${NEO4J_AUTH}
       # 설치할 플러그인 (APOC: 그래프 알고리즘 및 유틸리티 함수 제공, GDS: Graph Data Science)
       - NEO4J_PLUGINS=["apoc", "graph-data-science"]
