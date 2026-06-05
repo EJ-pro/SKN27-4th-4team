@@ -6,6 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
 from .models import Exercise, ChatSession, ChatMessage, WeeklyScheduler, DailyRoutine
+from .services.chatbot.chatbot import get_answer
 
 DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
 
@@ -125,16 +126,41 @@ class MessageListView(View):
         uuid = data.get('device_uuid')
         if not ChatSession.objects.filter(session_id=session_id, device_uuid=uuid).exists():
             return JsonResponse({'error': 'not found'}, status=404)
-        msg = ChatMessage.objects.create(
+
+        content = data.get('content', '').strip()
+        if not content:
+            return JsonResponse({'error': 'content required'}, status=400)
+
+        try:
+            bot_content = get_answer(content, session_id)
+        except Exception as exc:
+            print(f'[chatbot] answer generation failed: {exc}')
+            bot_content = '답변을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+
+        user_msg = ChatMessage.objects.create(
             session_id=session_id,
-            sender=data.get('sender', 'user'),
-            content=data.get('content', ''),
+            sender='user',
+            content=content,
         )
+        bot_msg = ChatMessage.objects.create(
+            session_id=session_id,
+            sender='bot',
+            content=bot_content,
+        )
+
         return JsonResponse({
-            'message_id': msg.message_id,
-            'sender': msg.sender,
-            'content': msg.content,
-            'created_at': msg.created_at.isoformat(),
+            'user_message': {
+                'message_id': user_msg.message_id,
+                'sender': user_msg.sender,
+                'content': user_msg.content,
+                'created_at': user_msg.created_at.isoformat(),
+            },
+            'bot_message': {
+                'message_id': bot_msg.message_id,
+                'sender': bot_msg.sender,
+                'content': bot_msg.content,
+                'created_at': bot_msg.created_at.isoformat(),
+            },
         }, status=201)
 
 
