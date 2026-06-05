@@ -299,6 +299,7 @@ def _extract_human_revision_constraints(
     state: RecommendationState,
     feedback: str,
 ) -> dict[str, Any]:
+    local_updates = _local_revision_param_hints(feedback)
     system = (
         "당신은 Human Feedback Constraint Agent입니다. 사용자의 수정 요청을 추천 시스템이 실행할 수 있는 "
         "구조화된 파라미터 변경으로 변환하세요. 루틴을 작성하지 마세요. "
@@ -309,8 +310,12 @@ def _extract_human_revision_constraints(
         "새로운 통증 또는 부상으로 척추 부담 감소가 필요하면 spine을 low로 제한하고 avoid_conditions에 상태를 추가하세요. "
         "운동 강도, 장소, 장비, 목표, 운동 시간, 제외 운동처럼 GraphDB 검색 또는 추천 조건에 영향을 주는 요청도 "
         "반드시 updated_params에 반영하세요. "
+        "사용자가 더 고강도를 요청하면 intensity_bias를 higher로, 더 낮은 강도를 요청하면 lower로 설정하세요. "
+        "사용자가 특정 부위에 더 집중하거나 볼륨을 늘리고 싶다고 하면 split_targets를 바꾸지 말고 "
+        "focus_targets와 volume_bias를 사용하세요. 예: 가슴 집중 -> {\"focus_targets\":[\"CHEST\"],\"volume_bias\":\"higher\"}. "
         "updated_params에는 split_targets, goal, level, available_equipment, exclude_exercises, "
-        "avoid_conditions, home_only, session_min, spine, intensity_bias, candidate_limit_per_target 중 필요한 키만 넣으세요. "
+        "avoid_conditions, home_only, session_min, spine, intensity_bias, candidate_limit_per_target, "
+        "focus_targets, volume_bias 중 필요한 키만 넣으세요. "
         "updated_params가 하나라도 있으면 requires_research=true입니다. 기존 후보 안에서 순서나 세트만 바꾸면 false입니다. "
         "응답은 JSON만 반환하세요: "
         "{\"requires_research\":true,\"revision_reason\":\"...\",\"updated_params\":{}}"
@@ -323,6 +328,10 @@ def _extract_human_revision_constraints(
     }))
     if not isinstance(parsed.get("updated_params"), dict):
         parsed["updated_params"] = {}
+    parsed["updated_params"] = {
+        **parsed["updated_params"],
+        **local_updates,
+    }
     parsed["updated_params"] = _changed_recommendation_params(
         state.get("recommendation_params", {}),
         parsed["updated_params"],
@@ -472,11 +481,15 @@ def _ensure_split_routine(
 ) -> dict[str, Any]:
     targets = params.get("split_targets") or SPLIT_TARGETS
     target_count = _exercise_count_for_session(routine.get("profile", {}), params)
+    base_prescription = _prescription_for_params(params)
+    focus_targets = set(_normalize_focus_targets(params.get("focus_targets")))
+    volume_bias = _normalize_volume_bias(params.get("volume_bias"))
     days = routine.get("days") if isinstance(routine, dict) else []
     days = days if isinstance(days, list) else []
     normalized_days = []
 
     for index, target in enumerate(targets[:5]):
+        prescription = _prescription_for_target(base_prescription, target, focus_targets, volume_bias)
         source_day = days[index] if index < len(days) and isinstance(days[index], dict) else {}
         valid_names = {
             str(row.get("name_kor") or row.get("name_eng") or row.get("id"))
@@ -489,9 +502,10 @@ def _ensure_split_routine(
                 existing.append({
                     **exercise,
                     "name": name,
-                    "sets": exercise.get("sets", 3),
-                    "reps": exercise.get("reps", "8-12"),
-                    "rest_seconds": exercise.get("rest_seconds", 75),
+                    "sets": prescription["sets"],
+                    "reps": prescription["reps"],
+                    "rest_seconds": prescription["rest_seconds"],
+                    "intensity_note": prescription["note"],
                 })
 
         for row in candidates.get(target, []):
@@ -504,9 +518,10 @@ def _ensure_split_routine(
                 "name": name,
                 "exercise_id": row.get("id"),
                 "equipment": row.get("equipment"),
-                "sets": 3,
-                "reps": "8-12",
-                "rest_seconds": 75,
+                "sets": prescription["sets"],
+                "reps": prescription["reps"],
+                "rest_seconds": prescription["rest_seconds"],
+                "intensity_note": prescription["note"],
                 "reason": f"{target} candidate from graph DB",
             })
 
@@ -541,12 +556,101 @@ def _exercise_count_for_session(profile: dict[str, Any], params: dict[str, Any] 
     return SESSION_EXERCISE_COUNT_POLICY[90]
 
 
+def _prescription_for_params(params: dict[str, Any]) -> dict[str, Any]:
+    intensity = _normalize_intensity_bias(params.get("intensity_bias"))
+    if intensity == "higher":
+        return {
+            "sets": 4,
+            "reps": "6-10",
+            "rest_seconds": 90,
+            "note": "고강도 요청을 반영해 세트 수를 늘리고 반복 범위를 낮췄습니다.",
+        }
+    if intensity == "lower" or intensity == "slightly_conservative":
+        return {
+            "sets": 2,
+            "reps": "10-15",
+            "rest_seconds": 90,
+            "note": "보수적인 강도 요청을 반영해 세트 수를 줄였습니다.",
+        }
+    return {
+        "sets": 3,
+        "reps": "8-12",
+        "rest_seconds": 75,
+        "note": "표준 강도 처방입니다.",
+    }
+
+
+def _prescription_for_target(
+    base: dict[str, Any],
+    target: str,
+    focus_targets: set[str],
+    volume_bias: str,
+) -> dict[str, Any]:
+    if target not in focus_targets:
+        return base
+    if volume_bias == "higher":
+        return {
+            **base,
+            "sets": int(base["sets"]) + 1,
+            "note": f"{target} 집중 요청을 반영해 해당 부위 세트 수를 늘렸습니다.",
+        }
+    if volume_bias == "lower":
+        return {
+            **base,
+            "sets": max(1, int(base["sets"]) - 1),
+            "note": f"{target} 부담 감소 요청을 반영해 해당 부위 세트 수를 줄였습니다.",
+        }
+    return base
+
+
 def _exercise_name(exercise: dict[str, Any]) -> str:
     for key in ["name", "name_kor", "name_eng", "exercise", "exercise_name", "workout"]:
         value = exercise.get(key)
         if value:
             return str(value)
     return ""
+
+
+def _normalize_intensity_bias(value: Any) -> str:
+    text = str(value or "standard").strip().lower()
+    aliases = {
+        "standard": "standard",
+        "normal": "standard",
+        "higher": "higher",
+        "high": "higher",
+        "higher_intensity": "higher",
+        "more_intense": "higher",
+        "hard": "higher",
+        "lower": "lower",
+        "low": "lower",
+        "lower_intensity": "lower",
+        "easier": "lower",
+        "slightly_conservative": "slightly_conservative",
+    }
+    return aliases.get(text, text)
+
+
+def _normalize_volume_bias(value: Any) -> str:
+    text = str(value or "standard").strip().lower()
+    aliases = {
+        "standard": "standard",
+        "normal": "standard",
+        "higher": "higher",
+        "high": "higher",
+        "more": "higher",
+        "increase": "higher",
+        "lower": "lower",
+        "low": "lower",
+        "less": "lower",
+        "decrease": "lower",
+    }
+    return aliases.get(text, text)
+
+
+def _normalize_focus_targets(value: Any) -> list[str]:
+    if not value:
+        return []
+    return normalize_split_targets(value)
 
 
 def _insufficient_candidates_message(
@@ -574,12 +678,77 @@ def _condition_summary(state: RecommendationState) -> list[str]:
 
     if constraints.get("spine") == "low":
         summary.append("사람 피드백을 반영해 척추 부하가 낮은 운동 후보만 GraphDB에서 다시 검색했습니다.")
+    if _normalize_intensity_bias(constraints.get("intensity_bias")) == "higher":
+        summary.append("사람 피드백을 반영해 세트 수와 운동 강도를 높였습니다.")
+    if _normalize_intensity_bias(constraints.get("intensity_bias")) in {"lower", "slightly_conservative"}:
+        summary.append("사람 피드백을 반영해 운동 강도를 보수적으로 조정했습니다.")
+    focus_targets = _normalize_focus_targets(constraints.get("focus_targets"))
+    if focus_targets and _normalize_volume_bias(constraints.get("volume_bias")) == "higher":
+        summary.append(f"사람 피드백을 반영해 {', '.join(focus_targets)} 부위의 볼륨을 높였습니다.")
     avoid_conditions = constraints.get("avoid_conditions") or []
     if avoid_conditions:
         summary.append(f"주의 조건으로 {', '.join(str(item) for item in avoid_conditions)}을 반영했습니다.")
     if validation.get("risk_level") == "medium":
         summary.append("루틴은 추천 제약을 만족하지만 부상 또는 통증 이력으로 인해 주의가 필요합니다.")
     return summary
+
+
+def _local_revision_param_hints(feedback: str) -> dict[str, Any]:
+    text = str(feedback or "").lower().replace(" ", "")
+    updates: dict[str, Any] = {}
+    if any(term in text for term in ["고강도", "강하게", "빡세", "빡세게", "강도높", "강도올", "더강도"]):
+        updates["intensity_bias"] = "higher"
+    if any(term in text for term in ["저강도", "강도낮", "쉽게", "쉬운", "가볍게"]):
+        updates["intensity_bias"] = "lower"
+
+    focus_targets = _feedback_focus_targets(text)
+    if focus_targets and any(term in text for term in ["집중", "강조", "비중", "더넣", "더해", "키우", "보강", "늘려"]):
+        updates["focus_targets"] = focus_targets
+        updates["volume_bias"] = "higher"
+
+    avoid_conditions = _feedback_avoid_conditions(text)
+    if avoid_conditions:
+        updates["avoid_conditions"] = avoid_conditions
+        if any(item in avoid_conditions for item in ["lower_back", "back", "neck"]):
+            updates["spine"] = "low"
+    return updates
+
+
+def _feedback_focus_targets(text: str) -> list[str]:
+    targets: list[str] = []
+    aliases = [
+        ("CHEST", ["가슴", "흉근", "체스트"]),
+        ("BACK", ["등", "광배", "랫", "등넓", "등두께"]),
+        ("LEG", ["하체", "다리", "허벅지", "둔근", "엉덩이"]),
+        ("SHOULDER", ["어깨", "삼각근", "측면어깨", "후면어깨"]),
+        ("ARM", ["팔", "이두", "삼두", "전완"]),
+    ]
+    for target, words in aliases:
+        if any(word in text for word in words) and target not in targets:
+            targets.append(target)
+    return targets
+
+
+def _feedback_avoid_conditions(text: str) -> list[str]:
+    conditions: list[str] = []
+    aliases = [
+        ("lower_back", ["허리", "요추", "디스크"]),
+        ("knee", ["무릎"]),
+        ("wrist", ["손목"]),
+        ("shoulder", ["어깨통증", "어깨아", "어깨부상"]),
+        ("neck", ["목통증", "목이", "목을", "목부상", "경추"]),
+        ("ankle", ["발목"]),
+        ("elbow", ["팔꿈치", "엘보"]),
+    ]
+    risk_words = ["아프", "아파", "아픈", "통증", "다쳤", "부상", "불편", "부담", "무리"]
+    has_risk_context = any(word in text for word in risk_words)
+    if not has_risk_context:
+        return conditions
+    for condition, words in aliases:
+        source_text = text.replace("손목", "").replace("팔목", "") if condition == "neck" else text
+        if any(word in source_text for word in words) and condition not in conditions:
+            conditions.append(condition)
+    return conditions
 
 
 def _final_response_payload(state: RecommendationState) -> dict[str, Any]:
@@ -625,6 +794,12 @@ def _merge_recommendation_params(
             merged[key] = normalize_level(value)
         elif key == "spine":
             merged[key] = normalize_spine(value)
+        elif key == "intensity_bias":
+            merged[key] = _normalize_intensity_bias(value)
+        elif key == "focus_targets":
+            merged[key] = _normalize_focus_targets(value)
+        elif key == "volume_bias":
+            merged[key] = _normalize_volume_bias(value)
         else:
             merged[key] = value
     return merged

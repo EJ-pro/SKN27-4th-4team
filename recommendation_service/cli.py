@@ -109,7 +109,7 @@ def _print_review_payload(payload: dict) -> None:
     routine = payload.get("routine_draft", {})
     for day in routine.get("days", []):
         target = day.get("target", "")
-        names = ", ".join(ex.get("name", "") for ex in day.get("exercises", []))
+        names = ", ".join(_format_exercise(ex) for ex in day.get("exercises", []))
         print(f"- {day.get('day', '')} {target}: {names}")
     validation = payload.get("validation_result")
     if validation:
@@ -119,6 +119,16 @@ def _print_review_payload(payload: dict) -> None:
         for warning in validation.get("safety_warnings", []):
             print(f"warning: {warning}")
     print()
+
+
+def _format_exercise(exercise: dict) -> str:
+    name = exercise.get("name", "")
+    sets = exercise.get("sets")
+    reps = exercise.get("reps")
+    rest = exercise.get("rest_seconds")
+    if sets and reps and rest:
+        return f"{name}({sets}세트 {reps}회 {rest}초)"
+    return name
 
 
 def _print_debug(state: dict) -> None:
