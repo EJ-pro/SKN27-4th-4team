@@ -495,20 +495,48 @@ def _ensure_split_routine(
             str(row.get("name_kor") or row.get("name_eng") or row.get("id"))
             for row in candidates.get(target, [])
         }
+        candidate_by_name = {
+            str(row.get("name_kor") or row.get("name_eng") or row.get("id")): row
+            for row in candidates.get(target, [])
+        }
         existing = []
         for exercise in source_day.get("exercises", []) or []:
             name = _exercise_name(exercise)
             if name in valid_names and name not in {item.get("name") for item in existing}:
+                candidate_row = candidate_by_name.get(name, {})
                 existing.append({
                     **exercise,
                     "name": name,
+                    "exercise_id": exercise.get("exercise_id") or exercise.get("id") or candidate_row.get("id"),
+                    "equipment": exercise.get("equipment") or candidate_row.get("equipment"),
                     "sets": prescription["sets"],
                     "reps": prescription["reps"],
                     "rest_seconds": prescription["rest_seconds"],
                     "intensity_note": prescription["note"],
                 })
 
+        deferred_rows = []
         for row in candidates.get(target, []):
+            if len(existing) >= target_count:
+                break
+            name = str(row.get("name_kor") or row.get("name_eng") or row.get("id"))
+            if name in {item.get("name") for item in existing}:
+                continue
+            if _is_repetitive_movement_name(name, [item.get("name", "") for item in existing]):
+                deferred_rows.append(row)
+                continue
+            existing.append({
+                "name": name,
+                "exercise_id": row.get("id"),
+                "equipment": row.get("equipment"),
+                "sets": prescription["sets"],
+                "reps": prescription["reps"],
+                "rest_seconds": prescription["rest_seconds"],
+                "intensity_note": prescription["note"],
+                "reason": f"{target} candidate from graph DB",
+            })
+
+        for row in deferred_rows:
             if len(existing) >= target_count:
                 break
             name = str(row.get("name_kor") or row.get("name_eng") or row.get("id"))
@@ -554,6 +582,30 @@ def _exercise_count_for_session(profile: dict[str, Any], params: dict[str, Any] 
     if minutes <= 60:
         return SESSION_EXERCISE_COUNT_POLICY[60]
     return SESSION_EXERCISE_COUNT_POLICY[90]
+
+
+def _is_repetitive_movement_name(name: str, existing_names: list[str]) -> bool:
+    groups = [
+        ("press_push", ["프레스", "푸쉬", "푸시", "딥스", "press", "push", "dip"]),
+        ("curl", ["컬", "curl"]),
+        ("raise", ["레이즈", "raise"]),
+        ("row_pull", ["로우", "풀", "다운", "row", "pull", "down"]),
+        ("extension", ["익스텐션", "extension"]),
+    ]
+
+    lowered = name.lower()
+    existing_lowered = [item.lower() for item in existing_names]
+    for _, keywords in groups:
+        if not any(keyword in lowered for keyword in keywords):
+            continue
+        same_group_count = sum(
+            1
+            for existing in existing_lowered
+            if any(keyword in existing for keyword in keywords)
+        )
+        if same_group_count >= 1:
+            return True
+    return False
 
 
 def _prescription_for_params(params: dict[str, Any]) -> dict[str, Any]:
