@@ -12,6 +12,7 @@ const ExercisePage = lazy(() => import('./pages/ExercisePage'))
 const RoutinePage = lazy(() => import('./pages/RoutinePage'))
 const ConsultPage = lazy(() => import('./pages/ConsultPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 
 function HomePage() {
   return (
@@ -35,7 +36,7 @@ function PageLoader() {
 
 function AppRoutes() {
   const { pathname } = useLocation()
-  const isFullscreen = pathname === '/consult' || pathname === '/login'
+  const isFullscreen = pathname === '/consult' || pathname === '/login' || pathname === '/register'
 
   return (
     <div style={{ minHeight: '100vh', background: '#080808' }}>
@@ -48,6 +49,7 @@ function AppRoutes() {
           <Route path="/routine" element={<RoutinePage />} />
           <Route path="/consult" element={<ConsultPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

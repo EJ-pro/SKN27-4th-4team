@@ -126,6 +126,28 @@ export default function Navbar() {
                 >
                     로그인
                 </button>
+                <button
+                    onClick={() => navigate('/register')}
+                    style={{
+                        background: 'rgba(255,215,0,0.1)',
+                        border: '1px solid rgba(255,215,0,0.35)',
+                        color: '#FFD700', fontWeight: 700, fontSize: 15,
+                        padding: '10px 20px', borderRadius: 2,
+                        letterSpacing: 1,
+                        cursor: 'pointer',
+                        transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    }}
+                    onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(255,215,0,0.18)'
+                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'
+                    }}
+                    onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(255,215,0,0.1)'
+                        e.currentTarget.style.transform = 'none'
+                    }}
+                >
+                    회원가입
+                </button>
             </div>
         </nav>
     )
