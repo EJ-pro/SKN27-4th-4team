@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { Send, Dumbbell, ChevronRight, Clock, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useNavigate } from 'react-router-dom'
@@ -28,7 +28,7 @@ function formatDate(iso) {
 
 const QUICK_QUESTIONS = [
   '오늘 운동 추천',
-  '통증 있어도 가능한 운동',
+  '벤치프레스 1RM 증량 방법',
   '초보자 시작 방법',
 ]
 
@@ -268,18 +268,26 @@ export default function ConsultPage() {
   const [inputValue, setInputValue] = useState('')
   const [renamingSession, setRenamingSession] = useState(null)
   const [deletingSession, setDeletingSession] = useState(null)
+  const [isSending, setIsSending] = useState(false)
+  const [scrollTargetId, setScrollTargetId] = useState(null)
   const uuid = useRef(getOrCreateUUID())
   const textareaRef = useRef(null)
   const scrollRef = useRef(null)
-  const latestMsgRef = useRef(null)
 
   // 새 메시지 전송 시 스크롤 맨 아래로 (paddingBottom 덕에 최신 메시지가 상단에 위치)
-  useEffect(() => {
-    if (!scrollRef.current) return
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages.length])
-
   // 세션 목록 로드
+  useLayoutEffect(() => {
+    if (!scrollTargetId || !scrollRef.current) return
+    const target = scrollRef.current.querySelector('[data-scroll-anchor="true"]')
+    if (!target) return
+
+    const scroller = scrollRef.current
+    const scrollerTop = scroller.getBoundingClientRect().top
+    const targetTop = target.getBoundingClientRect().top - scrollerTop + scroller.scrollTop
+    scroller.scrollTop = Math.max(0, targetTop - 24)
+    setScrollTargetId(null)
+  }, [messages, scrollTargetId])
+
   useEffect(() => {
     fetch(`${API_URL}/api/sessions/?device_uuid=${uuid.current}`)
       .then(r => r.json())
@@ -295,7 +303,7 @@ export default function ConsultPage() {
 
   // 세션 전환 시 메시지 로드
   useEffect(() => {
-    if (!activeId) return
+    if (!activeId || isSending) return
     fetch(`${API_URL}/api/sessions/${activeId}/messages/?device_uuid=${uuid.current}`)
       .then(r => r.json())
       .then(data => {
@@ -307,7 +315,7 @@ export default function ConsultPage() {
         })))
       })
       .catch(() => setMessages([]))
-  }, [activeId])
+  }, [activeId, isSending])
 
   const handleInputChange = (e) => {
     setInputValue(e.target.value)
@@ -359,12 +367,12 @@ export default function ConsultPage() {
   }
 
   const sendMessage = async () => {
-    if (!inputValue.trim()) return
+    if (!inputValue.trim() || isSending) return
     const text = inputValue.trim()
     const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
     const title = text.slice(0, 22)
 
-    // 세션이 없으면 자동 생성
+    // ??? ??? ?? ??
     let sessionId = activeId
     if (!sessionId) {
       const res = await fetch(`${API_URL}/api/sessions/`, {
@@ -380,17 +388,52 @@ export default function ConsultPage() {
       renameSession(sessionId, title)
     }
 
-    // 낙관적 UI 업데이트
-    setMessages(prev => [...prev, { id: Date.now(), role: 'user', text, time }])
+    const tempId = Date.now()
+    setScrollTargetId(tempId)
+    setMessages(prev => [...prev, { id: tempId, role: 'user', text, time }])
     setInputValue('')
+    setIsSending(true)
     if (textareaRef.current) { textareaRef.current.style.height = 'auto'; textareaRef.current.style.overflowY = 'hidden' }
 
-    // DB 저장
-    fetch(`${API_URL}/api/sessions/${sessionId}/messages/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ device_uuid: uuid.current, sender: 'user', content: text }),
-    }).catch(() => {})
+    try {
+      const res = await fetch(`${API_URL}/api/sessions/${sessionId}/messages/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_uuid: uuid.current, sender: 'user', content: text }),
+      })
+      if (!res.ok) throw new Error('Failed to send message')
+      const data = await res.json()
+      const user = data.user_message
+      const bot = data.bot_message
+      setMessages(prev => {
+        const next = prev.map(m => (
+          m.id === tempId && user
+            ? {
+                id: user.message_id,
+                role: user.sender,
+                text: user.content,
+                time: new Date(user.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+              }
+            : m
+        ))
+        if (!bot) return next
+        return [...next, {
+          id: bot.message_id,
+          role: bot.sender,
+          text: bot.content,
+          time: new Date(bot.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        }]
+      })
+    } catch {
+      setMessages(prev => [...prev, {
+        id: `${tempId}-error`,
+        role: 'bot',
+        text: '답변을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+      }])
+    } finally {
+      setIsSending(false)
+    }
   }
 
   const hasMessages = messages.length > 0
@@ -510,29 +553,35 @@ export default function ConsultPage() {
           <div style={{ maxWidth: 900, margin: '0 auto', width: '100%', padding: '0 32px 60vh', boxSizing: 'border-box' }}>
             {hasMessages ? (
               <>
-                {messages.map((msg, i) => (
-                  <div key={msg.id} ref={i === messages.length - 1 ? latestMsgRef : null}>
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    data-message-role={msg.role}
+                    data-scroll-anchor={msg.id === scrollTargetId ? 'true' : undefined}
+                  >
                     <Message msg={msg} />
                   </div>
                 ))}
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-                  <BotAvatar />
-                  <div style={{
-                    padding: '12px 18px',
-                    borderRadius: '2px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                    display: 'flex', gap: 5, alignItems: 'center',
-                  }}>
-                    {[0, 0.2, 0.4].map((delay, i) => (
-                      <span key={i} style={{
-                        width: 7, height: 7, borderRadius: 2,
-                        background: 'rgba(255,215,0,0.5)',
-                        animation: `pulse-glow 1.2s ease-in-out ${delay}s infinite`,
-                      }} />
-                    ))}
+                {isSending && (
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+                    <BotAvatar />
+                    <div style={{
+                      padding: '12px 18px',
+                      borderRadius: '2px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.07)',
+                      display: 'flex', gap: 5, alignItems: 'center',
+                    }}>
+                      {[0, 0.2, 0.4].map((delay, i) => (
+                        <span key={i} style={{
+                          width: 7, height: 7, borderRadius: 2,
+                          background: 'rgba(255,215,0,0.5)',
+                          animation: `pulse-glow 1.2s ease-in-out ${delay}s infinite`,
+                        }} />
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             ) : (
               <div style={{
@@ -609,18 +658,18 @@ export default function ConsultPage() {
               />
               <button
                 onClick={sendMessage}
-                disabled={!inputValue.trim()}
+                disabled={!inputValue.trim() || isSending}
                 style={{
                   width: 42, height: 42, borderRadius: 2,
-                  background: inputValue.trim() ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.05)',
+                  background: inputValue.trim() && !isSending ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.05)',
                   border: 'none',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: inputValue.trim() ? 'pointer' : 'default',
+                  cursor: inputValue.trim() && !isSending ? 'pointer' : 'default',
                   flexShrink: 0, transition: 'all 0.25s',
-                  boxShadow: inputValue.trim() ? '0 4px 16px rgba(255,215,0,0.25)' : 'none',
+                  boxShadow: inputValue.trim() && !isSending ? '0 4px 16px rgba(255,215,0,0.25)' : 'none',
                 }}
               >
-                <Send size={17} color={inputValue.trim() ? '#000' : 'rgba(255,255,255,0.2)'} />
+                <Send size={17} color={inputValue.trim() && !isSending ? '#000' : 'rgba(255,255,255,0.2)'} />
               </button>
             </div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.18)', textAlign: 'center', marginTop: 10 }}>
