@@ -7,6 +7,7 @@ from django.utils.decorators import method_decorator
 from django.db import transaction
 from .models import Exercise, ChatSession, ChatMessage, WeeklyScheduler, DailyRoutine
 from .services.chatbot.chatbot import get_answer
+from .services.actor_service import ActorError, resolve_actor, scheduler_filter_kwargs, scheduler_owner_filter
 
 DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
 
@@ -174,24 +175,25 @@ def get_date_for_dow(year, week_number, dow_kor):
 class RoutineView(View):
     def get(self, request):
         device_uuid = request.GET.get('device_uuid')
-        if not device_uuid:
-            return JsonResponse({'error': 'device_uuid is required'}, status=400)
+
+        try:
+            actor = resolve_actor(request, device_uuid)
+        except ActorError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
         
         now = datetime.datetime.now()
         current_year, current_week, _ = now.isocalendar()
-        
+
         year_str = request.GET.get('year')
         week_str = request.GET.get('week_number')
-        
+
         target_year = int(year_str) if year_str else current_year
         target_week = int(week_str) if week_str else current_week
-        
+
         scheduler = WeeklyScheduler.objects.filter(
-            device_uuid=device_uuid,
-            year=target_year,
-            week_number=target_week
+            **scheduler_filter_kwargs(actor, target_year, target_week)
         ).order_by('-created_at').first()
-        
+
         if scheduler:
             routines_qs = DailyRoutine.objects.filter(scheduler=scheduler).order_by('scheduled_date', 'routine_order')
             
@@ -247,7 +249,7 @@ class RoutineView(View):
             
         else:
             latest_scheduler = WeeklyScheduler.objects.filter(
-                device_uuid=device_uuid
+                **scheduler_owner_filter(actor)
             ).order_by('-created_at').first()
             
             preferences = None
@@ -282,9 +284,11 @@ class RoutineView(View):
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
             
         device_uuid = data.get('device_uuid')
-        if not device_uuid:
-            return JsonResponse({'error': 'device_uuid is required'}, status=400)
-            
+        try:
+            actor = resolve_actor(request, device_uuid)
+        except ActorError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+
         year = data.get('year')
         week_number = data.get('week_number')
         
@@ -311,20 +315,15 @@ class RoutineView(View):
         
         with transaction.atomic():
             schedulers = WeeklyScheduler.objects.filter(
-                device_uuid=device_uuid,
-                year=year,
-                week_number=week_number
+                **scheduler_filter_kwargs(actor, year, week_number)
             ).order_by('-created_at')
             
             created = False
             if schedulers.exists():
                 scheduler = schedulers[0]
-                if len(schedulers) > 1:
-                    WeeklyScheduler.objects.filter(
-                        device_uuid=device_uuid,
-                        year=year,
-                        week_number=week_number
-                    ).exclude(scheduler_id=scheduler.scheduler_id).delete()
+                # unique 보장을 위해 중복 제거 
+                dup_filter = scheduler_filter_kwargs(actor, year, week_number)
+                WeeklyScheduler.objects.filter(**dup_filter).exclude(scheduler_id=scheduler.scheduler_id).delete()
                 
                 scheduler.split_style = split_style
                 scheduler.goal = goal
@@ -332,10 +331,14 @@ class RoutineView(View):
                 scheduler.pain_parts = pain_parts
                 scheduler.work_days = work_days_db
                 scheduler.weekly_review = weekly_review
+                
+                # 로그인 된 상태인 경우 user_id를 저장
+                if actor.mode == 'user':
+                    scheduler.user_id = actor.user_id
                 scheduler.save()
+                    
             else:
-                scheduler = WeeklyScheduler.objects.create(
-                    device_uuid=device_uuid,
+                create_kwargs = dict(
                     year=year,
                     week_number=week_number,
                     split_style=split_style,
@@ -345,6 +348,14 @@ class RoutineView(View):
                     work_days=work_days_db,
                     weekly_review=weekly_review
                 )
+                # 유저가 있으면 유저 id 추가 
+                if actor.mode == 'user':
+                    create_kwargs['user_id'] = actor.user_id
+                # device_uuid가 있으면 추가 
+                if actor.device_uuid:
+                    create_kwargs['device_uuid'] = actor.device_uuid
+
+                scheduler = WeeklyScheduler.objects.create(**create_kwargs)
                 created = True
             
             DailyRoutine.objects.filter(scheduler=scheduler).delete()
