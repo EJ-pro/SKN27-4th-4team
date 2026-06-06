@@ -1,14 +1,31 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { register } from '../api/auth'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
   const [userId, setUserId] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await register({
+        nickname: userId,   // 아이디 → nickname
+        email,
+        password,
+      })
+      navigate('/login')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const inputStyle = {
@@ -53,6 +70,9 @@ export default function RegisterPage() {
         </div>
 
         <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {error && (
+            <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0}}>{error}</p>
+          )}
           <div>
             <label htmlFor="user_id" style={labelStyle}>아이디</label>
             <input
@@ -89,8 +109,8 @@ export default function RegisterPage() {
             />
           </div>
 
-          <button type="submit" style={buttonStyle}>
-            가입
+          <button type="submit" style={buttonStyle} disabled={loading}>
+            {loading ? '진행 중...' : '가입'}
           </button>
 
           <button

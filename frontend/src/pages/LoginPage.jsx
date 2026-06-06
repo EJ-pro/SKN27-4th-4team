@@ -1,13 +1,29 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { login } from '../api/auth'
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const [userId, setUserId] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleLogin = (e) => {
+  const handleLogin = async(e) => {
     e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await login({
+        nickname: userId,
+        password,
+      })
+      navigate('/')
+    } catch (err) {
+      setError(err,message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const inputStyle = {
@@ -52,6 +68,9 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {error && (
+            <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0}}>{error}</p>
+          )}
           <div>
             <label htmlFor="user_id" style={labelStyle}>아이디</label>
             <input
@@ -76,8 +95,8 @@ export default function LoginPage() {
             />
           </div>
 
-          <button type="submit" style={buttonStyle}>
-            로그인
+          <button type="submit" style={buttonStyle} disabled={loading}>
+            {loading ? '진행 중...' : '로그인'}
           </button>
 
           <button
