@@ -8,6 +8,9 @@
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+/** @type {string} CSRF 엔드포인트 응답에서 받은 토큰 (크로스 오리진용) */
+let cachedCsrfToken = ''
+
 /**
  * document.cookie에서 이름으로 쿠키 값을 읽는다.
  *
@@ -26,7 +29,11 @@ function getCookie(name) {
  * @returns {Promise<void>}
  */
 async function ensureCsrfCookie() {
-  await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' })
+  const res = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' })
+  const data = await res.json().catch(() => ({}))
+  if (data.csrfToken) {
+    cachedCsrfToken = data.csrfToken
+  }
 }
 
 /**
@@ -43,7 +50,7 @@ async function ensureCsrfCookie() {
  */
 async function authFetch(path, options = {}) {
   await ensureCsrfCookie()
-  const csrfToken = getCookie('csrftoken')
+  const csrfToken = cachedCsrfToken || getCookie('csrftoken')
   const headers = {
     'Content-Type': 'application/json',
     ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),

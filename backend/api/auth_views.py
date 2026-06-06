@@ -6,6 +6,7 @@ import json
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
+from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 
 # 인증 서비스 함수 임포트 
@@ -34,7 +35,8 @@ class CsrfCookieView(View):
     """SPA가 CSRF 토큰 쿠키를 받기 위한 앤드포인트 """
 
     def get(self, request):
-        return JsonResponse({'ok': True})
+        # SPA(다른 포트)는 document.cookie로 csrftoken을 읽을 수 없어 body로도 내려준다.
+        return JsonResponse({'ok': True, 'csrfToken': get_token(request)})
 
 
 class RegisterView(View):
