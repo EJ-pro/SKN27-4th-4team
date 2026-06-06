@@ -3,22 +3,24 @@ import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw } from 'luci
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-const getDeviceUuid = () => {
-  const key = 'fitai_device_uuid';
-  if (typeof window === 'undefined') return '';
-  let local = localStorage.getItem(key);
-  if (!local) {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      local = crypto.randomUUID();
-    } else {
-      local = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    }
-    localStorage.setItem(key, local);
-  }
-  return local;
-};
-const deviceUuid = getDeviceUuid();
+import { useNavigate } from 'react-router-dom'
+import { getMe } from '../api/auth'
+import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
 
+// 기존 uuid 셋팅을 유틸 함수로 보냄 + 기타 처리 추가 
+const deviceUuid = getOrCreateDeviceUuid();
+
+// 유저 로그인 여부에 따라 네비게이션 상태 변경 
+const navigate = useNavigate()
+const [authUser, setAuthUser] = useState(null) // null = 게스트거나 혹은 로딩 전 상태 
+
+useEffect(() => {
+  getMe()
+    .then((u) => setAuthUser(u))
+    .catch(() => setAuthUser(null))
+}, [])
+
+// 주차 계산 함수 
 function getISOWeekAndYear(date) {
   const target = new Date(date.valueOf());
   const dayNr = (date.getDay() + 6) % 7;
@@ -911,27 +913,16 @@ export default function RoutinePage() {
 
   const loadingDb = loadingExercises || loadingRoutine
 
-  useEffect(() => {
-    // 1. Fetch DB Exercises
-    fetch(`${API_URL}/api/exercises/`)
-      .then(r => {
-        if (!r.ok) throw new Error('Failed to fetch exercises');
-        return r.json();
-      })
-      .then(data => {
-        setDbExercises(data)
-      })
-      .catch(err => {
-        console.error('Error fetching exercises from DB:', err)
-      })
-      .finally(() => {
-        setLoadingExercises(false)
-      });
-
-    // 2. Fetch routines for this week
-    const { year, weekNumber } = getISOWeekAndYear(new Date());
-    fetch(`${API_URL}/api/routines/?device_uuid=${deviceUuid}&year=${year}&week_number=${weekNumber}`)
-      .then(r => r.json())
+  //아래 useEffect 처리 내용 중 루틴 처리 부분을 함수로 분리 
+  //로그인 후 회원 루틴을 다시 불러오는 경우가 있어 별도 함수로 뺴서 함수만 호출하기 위해 따로 분리함 
+  const loadWeeklyRoutine = () => {
+    setLoadingRoutine(true)
+    const { year, weekNumber } = getISOWeekAndYear(new Date())
+    fetch(
+      `${API_URL}/api/routines/?device_uuid=${deviceUuid}&year=${year}&week_number=${weekNumber}`,
+      { credentials: 'include' },
+    )
+    .then(r => r.json())
       .then(data => {
         if (data.found) {
           // Existing routine found for this week! Load it and jump directly to check page.
@@ -960,7 +951,29 @@ export default function RoutinePage() {
       })
       .finally(() => {
         setLoadingRoutine(false)
+      })
+  }
+
+  useEffect(() => {
+    // 1. Fetch DB Exercises
+    fetch(`${API_URL}/api/exercises/`)
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to fetch exercises');
+        return r.json();
+      })
+      .then(data => {
+        setDbExercises(data)
+      })
+      .catch(err => {
+        console.error('Error fetching exercises from DB:', err)
+      })
+      .finally(() => {
+        setLoadingExercises(false)
       });
+
+    // 2. Fetch routines for this week
+    // 함수 하나로 묶어서 로직을 처리하는 것으로 변경 
+    loadWeeklyRoutine()
   }, [])
 
   const canNext = [
@@ -1614,6 +1627,7 @@ function RoutineCheckView({
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'include',
       body: JSON.stringify(payload)
     })
     .then(r => {
@@ -1794,28 +1808,46 @@ function RoutineCheckView({
             )}
           </div>
         </div>
-        <button
-          onClick={() => setShowResetConfirm(true)}
-          style={{
-            padding: '10px 20px',
-            borderRadius: 4,
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: 'rgba(255,255,255,0.6)',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
-        >
-          <RotateCcw size={13} />
-          루틴 다시 설계하기
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap:10 }}>
+          <button
+            onClick={() => { if (!authUser) navigate('/cogin') }}
+            style={{
+              display: 'flex', alignItems: 'center', gap:8,
+              padding: '8px 14px', borderRadius: 4,
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              cursor: authUser ? 'default' : 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 13 }}>👤</span>
+            <span style={{ fontSize: 13, color: 'rgba(226,226,226,0.75)', fontWeight: 500 }}>
+              {authUser ? authUser.nickname : '게스트'}
+            </span>
+          </button>
+        
+          <button
+            onClick={() => setShowResetConfirm(true)}
+            style={{
+              padding: '10px 20px',
+              borderRadius: 4,
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+          >
+            <RotateCcw size={13} />
+            루틴 다시 설계하기
+          </button>
+        </div>
       </div>
 
       {/* 완료 프로그레스 바 */}
