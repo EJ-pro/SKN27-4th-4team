@@ -21,7 +21,7 @@ def _validate_register(nickname:str, email:str, password:str) -> None:
         raise AuthError("닉네임은 최소 4자 이상이어야 합니다.")
     if not password:
         raise AuthError("비밀번호를 입력해주세요.")
-    if AppUser.objects.filter(nickname=nickname).exisits():
+    if AppUser.objects.filter(nickname=nickname).exists():
         raise AuthError("이미 존재하는 아이디입니다.")
     if AppUser.objects.filter(email=email).exists():
         raise AuthError("이미 존재하는 이메일입니다.")

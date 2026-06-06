@@ -30,7 +30,7 @@ urlpatterns = [
     path('api/routines/', RoutineView.as_view()),
 
     # 로그인, 인증/인가 API
-    path('api/auth/csrf-cookie/', CsrfCookieView.as_view()),
+    path('api/auth/csrf/', CsrfCookieView.as_view()),
     path('api/auth/register/', RegisterView.as_view()),
     path('api/auth/login/', LoginView.as_view()),
     path('api/auth/logout/', LogoutView.as_view()),
