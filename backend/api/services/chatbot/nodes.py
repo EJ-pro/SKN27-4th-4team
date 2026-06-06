@@ -4,7 +4,7 @@ from langchain_core.messages import AIMessage
 
 from .state import RAGChatState
 from .llm import get_llm, get_classify_llm
-from .db import vector_search, keyword_search, rows_to_documents
+from .db import vector_search, keyword_search, rows_to_documents, get_muscles_by_body_part
 from .constants import ENABLE_RERANK, RETRIEVE_LIMIT, RETRIEVE_SPECIFIC_LIMIT, MAX_HISTORY_TURNS, QUERY_TYPES, OUT_OF_SCOPE_MESSAGE, RERANK_MODEL, RERANK_MAX_LENGTH, RERANK_DEVICE, RERANK_CACHE_FOLDER, RERANK_TOP_N
 
 llm = get_llm()
@@ -107,11 +107,46 @@ def out_of_scope(state: RAGChatState) -> RAGChatState:
 # 노드 2-1: retrieve_general
 # ────────────────────────────────────────────
 def retrieve_general(state: RAGChatState) -> RAGChatState:
-    """일반 추천 질문: 벡터 유사도 검색"""
-    rows = vector_search(state["question"], limit=RETRIEVE_LIMIT)
-    docs, sources = rows_to_documents(rows)
+    """일반 추천 질문: 카테고리·장비 힌트 추출 후 벡터 유사도 검색"""
+    question = state["question"]
 
-    print(f"[retrieve_general] 검색된 운동 수: {len(docs)}")
+    # LLM으로 카테고리/장비 힌트 동적 추출
+    filter_prompt = ChatPromptTemplate.from_template(
+        "다음 질문에서 운동 카테고리와 장비 힌트를 추출하세요.\n"
+        "카테고리는 '가슴, 등, 어깨, 팔, 하체, 코어, 전신, 스트레칭' 중 하나이며 해당하는 경우만 답하세요.\n"
+        "장비가 '맨몸' 또는 '장비 없음'인 경우 equipment=body 로 답하세요.\n"
+        "해당 없으면 빈 값으로 답하세요.\n\n"
+        "질문: {question}\n\n"
+        "아래 형식으로만 답하세요 (값이 없으면 빈 칸):\n"
+        "category: (카테고리)\n"
+        "equipment: (장비)"
+    )
+    hint_text = (filter_prompt | llm | StrOutputParser()).invoke({"question": question}).strip()
+
+    # 힌트 파싱
+    where_parts, params = [], []
+    for line in hint_text.splitlines():
+        if line.startswith("category:"):
+            val = line.split(":", 1)[1].strip()
+            if val:
+                where_parts.append("category ILIKE %s")
+                params.append(f"%{val}%")
+        elif line.startswith("equipment:"):
+            val = line.split(":", 1)[1].strip()
+            if val:
+                where_parts.append("equipment ILIKE %s")
+                params.append(f"%{val}%")
+
+    where_clause = " AND ".join(where_parts) if where_parts else ""
+    rows = vector_search(question, limit=RETRIEVE_LIMIT, where_clause=where_clause, params=params if params else None)
+
+    # 필터 적용 결과가 없으면 필터 없이 재검색
+    if not rows and where_clause:
+        print(f"[retrieve_general] 필터 결과 없음 → 필터 제거 후 재검색")
+        rows = vector_search(question, limit=RETRIEVE_LIMIT)
+
+    docs, sources = rows_to_documents(rows)
+    print(f"[retrieve_general] 검색된 운동 수: {len(docs)} (힌트: {hint_text.replace(chr(10), ' | ')})")
     return {**state, "retrieved_docs": docs, "sources": sources}
 
 
@@ -156,11 +191,32 @@ def retrieve_injury(state: RAGChatState) -> RAGChatState:
     chain = extract_prompt | llm | StrOutputParser()
     injury_part = chain.invoke({"question": question}).strip()
 
+    # DB에서 부상 부위에 해당하는 근육명 목록 조회
+    muscle_names = get_muscles_by_body_part(injury_part)
+
+    if muscle_names:
+        # exercise_muscles 브릿지 테이블로 정확하게 해당 근육 사용 운동 제외
+        placeholders = ",".join(["%s"] * len(muscle_names))
+        where_clause = f"""
+            exercise_id NOT IN (
+                SELECT em.exercise_id FROM exercise_muscles em
+                JOIN muscles m ON em.muscle_id = m.muscle_id
+                WHERE m.name_kor IN ({placeholders})
+            )
+        """
+        params = muscle_names
+        print(f"[retrieve_injury] DB 근육 필터: {muscle_names}")
+    else:
+        # DB에 없는 부위(무릎 등)는 기존 텍스트 매칭으로 폴백
+        where_clause = "target_primary NOT ILIKE %s AND target_secondary::text NOT ILIKE %s"
+        params = [f"%{injury_part}%", f"%{injury_part}%"]
+        print(f"[retrieve_injury] 텍스트 폴백 필터: {injury_part}")
+
     rows = vector_search(
         question,
         limit=RETRIEVE_LIMIT,
-        where_clause="target_primary NOT ILIKE %s",
-        params=[f"%{injury_part}%"]
+        where_clause=where_clause,
+        params=params
     )
     docs, sources = rows_to_documents(rows)
 
@@ -185,8 +241,13 @@ def generate(state: RAGChatState) -> RAGChatState:
     history_block = f"[이전 대화]\n{history_text}\n\n" if history_text else ""
 
     prompt = ChatPromptTemplate.from_template(
-        "당신은 AI 운동 전문가 챗봇입니다.\n"
-        "제공된 운동 데이터를 우선 참고하여 답변하고, 데이터가 부족하면 운동 전문가 지식으로 보완하세요.\n\n"
+        "당신은 AI 운동 전문가 챗봇입니다.\n\n"
+        "[답변 규칙]\n"
+        "1. 운동 동작·자세·호흡법·주의사항은 반드시 아래 [운동 데이터]를 기반으로 답변하세요.\n"
+        "2. 훈련 방법론(세트 수, 반복 수, 주기화 등)은 전문 지식으로 보완할 수 있습니다.\n"
+        "3. 영양·수면·멘탈 등 운동과 직접 관련 없는 주제는 다루지 마세요.\n"
+        "4. 설명이 필요한 경우 항목별로 구분해서 작성하고, 불필요한 내용은 생략하세요.\n"
+        "5. [운동 데이터]의 필드(카테고리:, 주 타겟 근육: 등)를 그대로 출력하지 말고 자연스러운 문장으로 변환하세요.\n\n"
         "{history_block}"
         "[운동 데이터]\n"
         "{context}\n\n"

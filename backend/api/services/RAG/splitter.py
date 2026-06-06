@@ -22,7 +22,7 @@ def split_documents(documents: list[Document]) -> list[Document]:
         print(f"[INFO] 짧은 문서 {removed}개 제거")
 
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=400,
+        chunk_size=700,
         chunk_overlap=50,
         length_function=len,
         is_separator_regex=True,
