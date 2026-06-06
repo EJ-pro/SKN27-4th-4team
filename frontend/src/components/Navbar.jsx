@@ -119,49 +119,81 @@ export default function Navbar() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-                <button
-                    onClick={() => navigate('/login')}
-                    style={{
-                        background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                        color: '#111111', fontWeight: 800, fontSize: 15,
-                        padding: '10px 20px', borderRadius: 2,
-                        letterSpacing: 1,
-                        boxShadow: '0 2px 18px #111111',
-                        transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.boxShadow = '0 6px 30px rgba(255,215,0,0.48)'
-                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.boxShadow = '0 2px 18px #111111'
-                        e.currentTarget.style.transform = 'none'
-                    }}
-                >
-                    로그인
-                </button>
-                <button
-                    onClick={() => navigate('/register')}
-                    style={{
-                        background: 'rgba(255,215,0,0.1)',
-                        border: '1px solid rgba(255,215,0,0.35)',
-                        color: '#FFD700', fontWeight: 700, fontSize: 15,
-                        padding: '10px 20px', borderRadius: 2,
-                        letterSpacing: 1,
-                        cursor: 'pointer',
-                        transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(255,215,0,0.18)'
-                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.background = 'rgba(255,215,0,0.1)'
-                        e.currentTarget.style.transform = 'none'
-                    }}
-                >
-                    회원가입
-                </button>
+                {user ? (
+                    <>
+                        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15 }}>
+                            {user.nickname}님
+                        </span>
+                        <button
+                            onClick={handleLogout}
+                            style={{
+                                background: 'rgba(255,215,0,0.1)',
+                                border: '1px solid rgba(255,215,0,0.35)',
+                                color: '#FFD700', fontWeight: 700, fontSize: 15,
+                                padding: '10px 20px', borderRadius: 2,
+                                letterSpacing: 1,
+                                cursor: 'pointer',
+                                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.background = 'rgba(255,215,0,0.18)'
+                                e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.background = 'rgba(255,215,0,0.1)'
+                                e.currentTarget.style.transform = 'none'
+                            }}
+                        >
+                            로그아웃
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            onClick={() => navigate('/login')}
+                            style={{
+                                background: 'linear-gradient(135deg, #FFD700, #C8A200)',
+                                color: '#111111', fontWeight: 800, fontSize: 15,
+                                padding: '10px 20px', borderRadius: 2,
+                                letterSpacing: 1,
+                                boxShadow: '0 2px 18px #111111',
+                                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.boxShadow = '0 6px 30px rgba(255,215,0,0.48)'
+                                e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.boxShadow = '0 2px 18px #111111'
+                                e.currentTarget.style.transform = 'none'
+                            }}
+                        >
+                            로그인
+                        </button>
+                        <button
+                            onClick={() => navigate('/register')}
+                            style={{
+                                background: 'rgba(255,215,0,0.1)',
+                                border: '1px solid rgba(255,215,0,0.35)',
+                                color: '#FFD700', fontWeight: 700, fontSize: 15,
+                                padding: '10px 20px', borderRadius: 2,
+                                letterSpacing: 1,
+                                cursor: 'pointer',
+                                transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.background = 'rgba(255,215,0,0.18)'
+                                e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.background = 'rgba(255,215,0,0.1)'
+                                e.currentTarget.style.transform = 'none'
+                            }}
+                        >
+                            회원가입
+                        </button>
+                    </>
+                )}
             </div>
         </nav>
     )

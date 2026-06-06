@@ -20,7 +20,7 @@ export default function LoginPage() {
       })
       navigate('/')
     } catch (err) {
-      setError(err,message)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
