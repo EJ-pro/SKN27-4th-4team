@@ -95,7 +95,7 @@ export default function RegisterPage() {
 
           <button
             type="button"
-            onClick={() => navigate('/consult')}
+            onClick={() => navigate('/')}
             style={buttonStyle}
           >
             돌아가기
