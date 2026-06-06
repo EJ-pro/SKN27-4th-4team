@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Dumbbell } from 'lucide-react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { getMe, logout } from '../api/auth'
 
 const links = [
     { label: '운동 백과', to: '/exercise' },
@@ -9,6 +10,7 @@ const links = [
 ]
 
 export default function Navbar() {
+    const [user, setUser] = useState(null)
     const [scrolled, setScrolled] = useState(false)
     const [hoveredLink, setHoveredLink] = useState(null)
     const { pathname } = useLocation()
@@ -21,6 +23,18 @@ export default function Navbar() {
         fn()
         return () => window.removeEventListener('scroll', fn)
     }, [])
+
+    useEffect(() => {
+        getMe()
+            .then(setUser)
+            .catch(() => setUser(null))
+    }, [])
+
+    const handleLogout = async () => {
+        await logout()
+        setUser(null)
+        navigate('/')
+    }
 
     return (
         <nav style={{
