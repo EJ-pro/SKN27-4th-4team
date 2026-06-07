@@ -62,6 +62,37 @@ def _get_history_text(state: RAGChatState) -> str:
     return "\n".join(lines)
 
 
+def _rewrite_query(state: RAGChatState) -> str:
+    """멀티턴 대응: 대화 히스토리를 반영해 '검색용 질문'을 재작성.
+
+    예) 이전에 '벤치프레스'를 설명한 뒤 "그거 호흡법은?" → "벤치프레스 호흡법"
+    - 히스토리가 없으면 원문 그대로 반환(불필요한 LLM 호출·오버헤드 방지)
+    - 결정론적 결과를 위해 분류용(temperature=0) LLM 사용
+    """
+    question = state["question"]
+    history_text = _get_history_text(state)
+    if not history_text:
+        return question
+
+    prompt = ChatPromptTemplate.from_template(
+        "이전 대화를 참고해 현재 질문을 그 자체로 이해 가능한 '검색용 질문'으로 다시 쓰세요.\n"
+        "- '그거', '방금 그 운동', '아까 그것' 같은 지시 표현을 이전 대화가 가리키는 실제 운동/대상으로 바꾸세요.\n"
+        "- 이미 명확하거나 이전 대화와 무관하면 현재 질문을 그대로 두세요.\n"
+        "- 다시 쓴 질문 한 문장만 출력하세요. 설명·따옴표 금지.\n\n"
+        "[이전 대화]\n{history}\n\n"
+        "현재 질문: {question}\n"
+        "다시 쓴 질문:"
+    )
+    rewritten = (prompt | classify_llm | StrOutputParser()).invoke({
+        "history": history_text,
+        "question": question,
+    }).strip()
+    rewritten = rewritten or question
+    if rewritten != question:
+        print(f"[rewrite_query] '{question}' → '{rewritten}'")
+    return rewritten
+
+
 # ────────────────────────────────────────────
 # 노드 1: classify
 # 이전 대화 히스토리를 포함해서 분류 → 맥락 의존 질문도 처리
@@ -120,6 +151,7 @@ def out_of_scope(state: RAGChatState) -> RAGChatState:
 def retrieve_general(state: RAGChatState) -> RAGChatState:
     """일반 추천 질문: 카테고리·장비 힌트 추출 후 벡터 유사도 검색"""
     question = state["question"]
+    search_query = _rewrite_query(state)  # 멀티턴: 히스토리 반영한 검색어
 
     # LLM으로 카테고리/장비 힌트 동적 추출
     # 카테고리 목록은 실제 DB 값과 일치해야 함:
@@ -136,7 +168,7 @@ def retrieve_general(state: RAGChatState) -> RAGChatState:
         "category: (카테고리)\n"
         "equipment: (장비)"
     )
-    hint_text = (filter_prompt | llm | StrOutputParser()).invoke({"question": question}).strip()
+    hint_text = (filter_prompt | llm | StrOutputParser()).invoke({"question": search_query}).strip()
 
     # 힌트 파싱
     where_parts, params = [], []
@@ -156,16 +188,16 @@ def retrieve_general(state: RAGChatState) -> RAGChatState:
                 params.append(f"%{val}%")
 
     where_clause = " AND ".join(where_parts) if where_parts else ""
-    rows = vector_search(question, limit=RETRIEVE_LIMIT, where_clause=where_clause, params=params if params else None)
+    rows = vector_search(search_query, limit=RETRIEVE_LIMIT, where_clause=where_clause, params=params if params else None)
 
     # 필터 적용 결과가 없으면 필터 없이 재검색
     if not rows and where_clause:
         print(f"[retrieve_general] 필터 결과 없음 → 필터 제거 후 재검색")
-        rows = vector_search(question, limit=RETRIEVE_LIMIT)
+        rows = vector_search(search_query, limit=RETRIEVE_LIMIT)
 
     docs, sources = rows_to_documents(rows)
     print(f"[retrieve_general] 검색된 운동 수: {len(docs)} (힌트: {hint_text.replace(chr(10), ' | ')})")
-    return {**state, "retrieved_docs": docs, "sources": sources}
+    return {**state, "search_query": search_query, "retrieved_docs": docs, "sources": sources}
 
 
 # ────────────────────────────────────────────
@@ -174,6 +206,7 @@ def retrieve_general(state: RAGChatState) -> RAGChatState:
 def retrieve_specific(state: RAGChatState) -> RAGChatState:
     """특정 운동 질문: 운동명 추출 후 정확 검색"""
     question = state["question"]
+    search_query = _rewrite_query(state)  # 멀티턴: 히스토리 반영한 검색어
 
     extract_prompt = ChatPromptTemplate.from_template("""
 다음 질문에서 운동 이름만 추출하세요. 운동 이름만 답하세요.
@@ -181,17 +214,17 @@ def retrieve_specific(state: RAGChatState) -> RAGChatState:
 운동 이름:
 """)
     chain = extract_prompt | llm | StrOutputParser()
-    exercise_name = chain.invoke({"question": question}).strip()
+    exercise_name = chain.invoke({"question": search_query}).strip()
 
     rows = keyword_search(exercise_name, limit=RETRIEVE_SPECIFIC_LIMIT)
 
     if not rows:
         print(f"[retrieve_specific] '{exercise_name}' 미발견 → 벡터 검색 폴백")
-        rows = vector_search(question, limit=RETRIEVE_SPECIFIC_LIMIT)
+        rows = vector_search(search_query, limit=RETRIEVE_SPECIFIC_LIMIT)
 
     docs, sources = rows_to_documents(rows)
     print(f"[retrieve_specific] 검색된 운동 수: {len(docs)}")
-    return {**state, "retrieved_docs": docs, "sources": sources}
+    return {**state, "search_query": search_query, "retrieved_docs": docs, "sources": sources}
 
 
 # ────────────────────────────────────────────
@@ -200,6 +233,7 @@ def retrieve_specific(state: RAGChatState) -> RAGChatState:
 def retrieve_injury(state: RAGChatState) -> RAGChatState:
     """통증/부상 질문: 부상 부위 제외 후 벡터 검색"""
     question = state["question"]
+    search_query = _rewrite_query(state)  # 멀티턴: 히스토리 반영한 검색어
 
     extract_prompt = ChatPromptTemplate.from_template("""
 다음 질문에서 아픈 부위나 부상 부위만 추출하세요. 부위만 답하세요.
@@ -207,7 +241,7 @@ def retrieve_injury(state: RAGChatState) -> RAGChatState:
 부위:
 """)
     chain = extract_prompt | llm | StrOutputParser()
-    injury_part = chain.invoke({"question": question}).strip()
+    injury_part = chain.invoke({"question": search_query}).strip()
 
     # DB에서 부상 부위에 해당하는 근육명 목록 조회
     muscle_names = get_muscles_by_body_part(injury_part)
@@ -244,7 +278,7 @@ def retrieve_injury(state: RAGChatState) -> RAGChatState:
         print(f"[retrieve_injury] 텍스트 폴백 필터: {injury_part}")
 
     rows = vector_search(
-        question,
+        search_query,
         limit=RETRIEVE_LIMIT,
         where_clause=where_clause,
         params=params
@@ -252,11 +286,11 @@ def retrieve_injury(state: RAGChatState) -> RAGChatState:
     docs, sources = rows_to_documents(rows)
 
     if docs:
-        docs = _rerank_docs(question, docs)
+        docs = _rerank_docs(search_query, docs)
         sources = [doc.metadata["name_kor"] for doc in docs]
 
     print(f"[retrieve_injury] 검색된 운동 수: {len(docs)} (부상 부위: {injury_part} 제외, rerank 적용)")
-    return {**state, "retrieved_docs": docs, "sources": sources}
+    return {**state, "search_query": search_query, "retrieved_docs": docs, "sources": sources}
 
 
 # ────────────────────────────────────────────
