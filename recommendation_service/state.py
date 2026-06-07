@@ -11,7 +11,6 @@ Action = Literal[
     "CALL_VALIDATION_AGENT",
     "REQUEST_FINAL_HUMAN_REVIEW",
     "CALL_REVISION_AGENT",
-    "CALL_FINAL_RESPONSE_GENERATOR",
     "END",
 ]
 
@@ -24,7 +23,6 @@ ALLOWED_ACTIONS: set[str] = {
     "CALL_VALIDATION_AGENT",
     "REQUEST_FINAL_HUMAN_REVIEW",
     "CALL_REVISION_AGENT",
-    "CALL_FINAL_RESPONSE_GENERATOR",
     "END",
 }
 
@@ -38,10 +36,12 @@ class RecommendationState(TypedDict, total=False):
     exercise_candidates: dict[str, list[dict[str, Any]]]
     insufficient_targets: list[str]
     routine_draft: dict[str, Any] | None
+    previous_routine_draft: dict[str, Any] | None
     validation_result: dict[str, Any] | None
     human_review_result: dict[str, Any] | None
     revision_request: dict[str, Any] | None
     revision_constraints: dict[str, Any] | None
+    revision_excluded_exercises: list[str]
     final_response: str | None
     next_action: str
     action_reason: str
@@ -65,10 +65,12 @@ def initial_state(
         "exercise_candidates": {},
         "insufficient_targets": [],
         "routine_draft": None,
+        "previous_routine_draft": None,
         "validation_result": None,
         "human_review_result": None,
         "revision_request": None,
         "revision_constraints": None,
+        "revision_excluded_exercises": [],
         "final_response": None,
         "next_action": "CALL_USER_PROFILE_TOOL",
         "action_reason": "",

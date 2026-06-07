@@ -7,6 +7,7 @@ plain dictionaries so they can be reused by docs, tests, or a future API layer.
 from typing import Any
 
 from .graph_tools import normalize_equipment, normalize_level
+from .policies import ALL_GYM_EQUIPMENT
 
 
 GOAL_MAP = {
@@ -41,7 +42,7 @@ SURVEY_SCENARIOS: list[dict[str, Any]] = [
             "level": "intermediate",
             "pain_parts": ["none"],
             "place": "gym",
-            "available_equipment": ["barbell", "dumbbell", "machine", "body"],
+            "available_equipment": list(ALL_GYM_EQUIPMENT),
             "split_style": "bodybuilding",
             "work_days": ["월", "화", "수", "목", "금"],
             "day_parts": {"월": "가슴", "화": "등", "수": "하체", "목": "어깨", "금": "팔/코어"},
@@ -56,15 +57,15 @@ SURVEY_SCENARIOS: list[dict[str, Any]] = [
         },
     },
     {
-        "id": "home_beginner_female_knee_health",
-        "description": "집, 여성 초급, 무릎 통증, 체력 유지",
+        "id": "gym_beginner_female_knee_health",
+        "description": "체육관, 여성 초급, 무릎 통증, 체력 유지",
         "survey": {
             "age": 34,
             "gender": "female",
             "level": "beginner",
             "pain_parts": ["knee"],
-            "place": "home",
-            "available_equipment": ["body", "dumbbell", "band"],
+            "place": "gym",
+            "available_equipment": list(ALL_GYM_EQUIPMENT),
             "split_style": "lower_core",
             "work_days": ["월", "화", "목", "금"],
             "day_parts": {"월": "하체", "화": "등", "목": "어깨", "금": "팔/코어"},
@@ -72,7 +73,7 @@ SURVEY_SCENARIOS: list[dict[str, Any]] = [
             "session_min": 45,
         },
         "expected_params": {
-            "home_only": True,
+            "home_only": False,
             "level": "beginner",
             "goal": "health",
             "spine": "low",
@@ -87,7 +88,7 @@ SURVEY_SCENARIOS: list[dict[str, Any]] = [
             "level": "beginner",
             "pain_parts": ["lower_back"],
             "place": "gym",
-            "available_equipment": ["machine", "body", "band"],
+            "available_equipment": list(ALL_GYM_EQUIPMENT),
             "split_style": "lower_core",
             "work_days": ["월", "수", "금"],
             "day_parts": {"월": "하체", "수": "어깨", "금": "등"},
@@ -102,15 +103,15 @@ SURVEY_SCENARIOS: list[dict[str, Any]] = [
         },
     },
     {
-        "id": "home_advanced_strength_no_pain",
-        "description": "집, 상급, 통증 없음, 스트렝스",
+        "id": "gym_advanced_strength_no_pain",
+        "description": "체육관, 상급, 통증 없음, 스트렝스",
         "survey": {
             "age": 35,
             "gender": "male",
             "level": "advanced",
             "pain_parts": ["none"],
-            "place": "home",
-            "available_equipment": ["body", "pull_up_bar", "dumbbell", "kettlebell"],
+            "place": "gym",
+            "available_equipment": list(ALL_GYM_EQUIPMENT),
             "split_style": "strength",
             "work_days": ["월", "화", "목", "금", "토"],
             "day_parts": {"월": "하체", "화": "가슴", "목": "등", "금": "어깨", "토": "하체"},
@@ -118,7 +119,7 @@ SURVEY_SCENARIOS: list[dict[str, Any]] = [
             "session_min": 90,
         },
         "expected_params": {
-            "home_only": True,
+            "home_only": False,
             "level": "advanced",
             "goal": "strength",
             "spine": "all",
@@ -133,7 +134,7 @@ SURVEY_SCENARIOS: list[dict[str, Any]] = [
             "level": "intermediate",
             "pain_parts": ["wrist"],
             "place": "gym",
-            "available_equipment": ["machine", "dumbbell", "body"],
+            "available_equipment": list(ALL_GYM_EQUIPMENT),
             "split_style": "bodybuilding",
             "work_days": ["월", "화", "수", "목", "금"],
             "day_parts": {"월": "가슴", "화": "등", "수": "하체", "목": "어깨", "금": "팔/코어"},
@@ -169,8 +170,8 @@ def survey_to_user_profile(survey: dict[str, Any]) -> dict[str, Any]:
         "split_targets": split_targets,
         "split_style": survey.get("split_style"),
         "session_min": survey.get("session_min"),
-        "place": survey.get("place"),
-        "home_only": survey.get("place") == "home",
+        "place": "gym",
+        "home_only": False,
         "available_equipment": normalize_equipment(equipment) if equipment else [],
         "injuries": [],
         "pain_points": pain_parts,

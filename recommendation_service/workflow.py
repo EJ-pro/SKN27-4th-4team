@@ -4,7 +4,6 @@ from langgraph.graph import END, START, StateGraph
 
 from .agents import (
     final_human_review_node,
-    final_response_generator,
     graph_search_tool,
     recommendation_param_agent,
     routine_composition_agent,
@@ -24,7 +23,6 @@ ROUTE_MAP = {
     "CALL_VALIDATION_AGENT": "routine_validation_agent",
     "REQUEST_FINAL_HUMAN_REVIEW": "final_human_review_node",
     "CALL_REVISION_AGENT": "routine_revision_agent",
-    "CALL_FINAL_RESPONSE_GENERATOR": "final_response_generator",
     "END": END,
 }
 
@@ -37,7 +35,6 @@ def route_from_supervisor(state: RecommendationState) -> Literal[
     "routine_validation_agent",
     "final_human_review_node",
     "routine_revision_agent",
-    "final_response_generator",
     "__end__",
 ]:
     return ROUTE_MAP.get(state.get("next_action", "END"), END)
@@ -53,7 +50,6 @@ def build_recommendation_graph(checkpointer=None):
     workflow.add_node("routine_validation_agent", routine_validation_agent)
     workflow.add_node("final_human_review_node", final_human_review_node)
     workflow.add_node("routine_revision_agent", routine_revision_agent)
-    workflow.add_node("final_response_generator", final_response_generator)
 
     workflow.add_edge(START, "supervisor")
     workflow.add_conditional_edges("supervisor", route_from_supervisor)
@@ -68,5 +64,4 @@ def build_recommendation_graph(checkpointer=None):
         "routine_revision_agent",
     ]:
         workflow.add_edge(node, "supervisor")
-    workflow.add_edge("final_response_generator", END)
     return workflow.compile(checkpointer=checkpointer)

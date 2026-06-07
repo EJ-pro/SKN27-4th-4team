@@ -32,6 +32,12 @@ def start_recommendation(survey: dict, user_id: str | None = None) -> dict:
             "message": "필수 설문 항목이 비어 있어 추천을 시작하지 않았습니다.",
             "missing_fields": missing,
         }
+    if str(survey.get("place") or "").strip().lower() != "gym":
+        return {
+            "ok": False,
+            "status": "failed",
+            "message": "현재 추천 서비스는 체육관 운동만 지원합니다.",
+        }
 
     thread_id = str(uuid4())
     user_profile = survey_to_user_profile(survey)
@@ -110,7 +116,6 @@ def _invoke_graph(payload, config: dict, thread_id: str) -> dict:
         "status": "completed",
         "routine_draft": routine_draft,
         "validation_result": validation_result,
-        "final_response": result.get("final_response") or state_values.get("final_response"),
     }
 
 

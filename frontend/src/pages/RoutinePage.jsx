@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw, X, Play } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -44,12 +44,22 @@ const PAIN_OPTIONS = [
 ]
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일']
+const DEFAULT_WORK_DAYS = ['월', '화', '수', '목', '금']
+const DEFAULT_DAY_PARTS = {
+  '월': '가슴',
+  '화': '등',
+  '수': '하체',
+  '목': '어깨',
+  '금': '팔/코어',
+  '토': '유산소',
+  '일': '스트레칭'
+}
 
 const GOAL_OPTIONS = [
-  { key: 'hypertrophy', label: '근비대',   desc: '볼륨 극대화 · 8~12rep · 짧은 휴식',       color: '#FF6B35' },
-  { key: 'diet',        label: '다이어트', desc: '고반복 서킷 · 15~20rep · 유산소 병행',     color: '#00D4A0' },
+  { key: 'hypertrophy', label: '근비대',   desc: '중간 중량 · 6~8rep · 충분한 볼륨',          color: '#FF6B35' },
+  { key: 'diet',        label: '다이어트', desc: '저중량 · 12~15rep · 짧은 휴식',             color: '#00D4A0' },
   { key: 'strength',    label: '스트렝스', desc: '저반복 고중량 · 3~5rep · 긴 휴식',         color: '#6C63FF' },
-  { key: 'maintenance', label: '체력 유지', desc: '균형 유지 · 10~15rep · 부상 방지 중심',   color: '#FFD700' },
+  { key: 'maintenance', label: '체력 유지', desc: '머신 중심 · 10~15rep · 안정성 우선',       color: '#FFD700' },
 ]
 
 const TIME_OPTIONS = [
@@ -98,84 +108,6 @@ function StepDots({ current, total }) {
   )
 }
 
-const RECOMMENDATION_PRESETS = [
-  {
-    key: 'gym_hypertrophy',
-    title: '체육관 근비대 5분할',
-    desc: '머신, 바벨, 덤벨을 활용한 표준 보디빌딩 루틴',
-    defaults: {
-      level: 'intermediate',
-      place: 'gym',
-      availableEquipment: ['barbell', 'dumbbell', 'machine', 'body'],
-      splitStyle: 'bodybuilding',
-      goal: 'hypertrophy',
-      sessionMin: 60,
-      workDays: ['월', '화', '수', '목', '금'],
-      dayParts: { '월': '가슴', '화': '등', '수': '하체', '목': '어깨', '금': '팔/코어' },
-    },
-  },
-  {
-    key: 'home_health',
-    title: '집 초급 건강 루틴',
-    desc: '맨몸, 덤벨, 밴드 위주의 낮은 진입 장벽 루틴',
-    defaults: {
-      level: 'beginner',
-      place: 'home',
-      availableEquipment: ['body', 'dumbbell', 'band'],
-      splitStyle: 'lower_core',
-      goal: 'maintenance',
-      sessionMin: 45,
-      workDays: ['월', '화', '목', '금'],
-      dayParts: { '월': '하체', '화': '등', '목': '어깨', '금': '팔/코어' },
-    },
-  },
-  {
-    key: 'gym_low_load',
-    title: '체육관 저부하 건강 루틴',
-    desc: '머신과 밴드 중심의 보수적인 체력 관리 루틴',
-    defaults: {
-      level: 'beginner',
-      place: 'gym',
-      availableEquipment: ['machine', 'body', 'band'],
-      splitStyle: 'lower_core',
-      goal: 'maintenance',
-      sessionMin: 30,
-      workDays: ['월', '수', '금'],
-      dayParts: { '월': '하체', '수': '어깨', '금': '등' },
-    },
-  },
-  {
-    key: 'home_strength',
-    title: '집 상급 스트렝스 루틴',
-    desc: '풀업바, 덤벨, 케틀벨을 활용한 고강도 홈 루틴',
-    defaults: {
-      level: 'advanced',
-      place: 'home',
-      availableEquipment: ['body', 'pull_up_bar', 'dumbbell', 'kettlebell'],
-      splitStyle: 'strength',
-      goal: 'strength',
-      sessionMin: 90,
-      workDays: ['월', '화', '목', '금', '토'],
-      dayParts: { '월': '하체', '화': '가슴', '목': '등', '금': '어깨', '토': '하체' },
-    },
-  },
-  {
-    key: 'gym_diet',
-    title: '체육관 다이어트 5분할',
-    desc: '머신과 덤벨을 활용한 볼륨형 체지방 감량 루틴',
-    defaults: {
-      level: 'intermediate',
-      place: 'gym',
-      availableEquipment: ['machine', 'dumbbell', 'body'],
-      splitStyle: 'bodybuilding',
-      goal: 'diet',
-      sessionMin: 60,
-      workDays: ['월', '화', '수', '목', '금'],
-      dayParts: { '월': '가슴', '화': '등', '수': '하체', '목': '어깨', '금': '팔/코어' },
-    },
-  },
-]
-
 const GENDER_OPTIONS = [
   { key: 'male', label: '남성' },
   { key: 'female', label: '여성' },
@@ -187,21 +119,7 @@ const LEVEL_OPTIONS = [
   { key: 'advanced', label: '상급' },
 ]
 
-const PLACE_OPTIONS = [
-  { key: 'home', label: '집' },
-  { key: 'gym', label: '체육관' },
-]
-
-const EQUIPMENT_OPTIONS = [
-  { key: 'body', label: '맨몸' },
-  { key: 'dumbbell', label: '덤벨' },
-  { key: 'barbell', label: '바벨' },
-  { key: 'machine', label: '머신' },
-  { key: 'band', label: '밴드' },
-  { key: 'pull_up_bar', label: '풀업바' },
-  { key: 'kettlebell', label: '케틀벨' },
-]
-const ALL_EQUIPMENT_KEYS = EQUIPMENT_OPTIONS.map(option => option.key)
+const ALL_EQUIPMENT_KEYS = ['body', 'dumbbell', 'barbell', 'machine', 'band', 'pull_up_bar', 'kettlebell']
 const SURVEY_STEP_COUNT = 5
 
 function ChoiceButton({ active, children, onClick, style = {} }) {
@@ -225,32 +143,6 @@ function ChoiceButton({ active, children, onClick, style = {} }) {
     >
       {children}
     </button>
-  )
-}
-
-function StepPreset({ value, onSelect }) {
-  return (
-    <div>
-      <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        비활성화된 이전 추천 방향 단계
-      </span>
-      <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
-        추천 방향 선택
-      </h2>
-      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 28, lineHeight: 1.7 }}>
-        기본 설문값만 채웁니다. 통증/부상 정보는 뒤 단계에서 별도로 입력합니다.
-      </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {RECOMMENDATION_PRESETS.map(preset => (
-          <ChoiceButton key={preset.key} active={value === preset.key} onClick={() => onSelect(preset)}>
-            <div style={{ fontSize: 15, marginBottom: 5 }}>{preset.title}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', fontWeight: 500, lineHeight: 1.5 }}>
-              {preset.desc}
-            </div>
-          </ChoiceButton>
-        ))}
-      </div>
-    </div>
   )
 }
 
@@ -297,40 +189,6 @@ function StepProfile({ age, gender, level, onAgeChange, onGenderChange, onLevelC
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
         {LEVEL_OPTIONS.map(opt => (
           <ChoiceButton key={opt.key} active={level === opt.key} onClick={() => onLevelChange(opt.key)} style={{ textAlign: 'center' }}>
-            {opt.label}
-          </ChoiceButton>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function StepPlaceEquipment({ place, equipment, onPlaceChange, onEquipmentChange }) {
-  const toggleEquipment = key => {
-    onEquipmentChange(equipment.includes(key) ? equipment.filter(item => item !== key) : [...equipment, key])
-  }
-
-  return (
-    <div>
-      <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        비활성화된 이전 장소/장비 단계
-      </span>
-      <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
-        운동 장소 및 장비
-      </h2>
-      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 28, lineHeight: 1.7 }}>
-        추천 후보를 장소와 장비 조건에 맞춰 좁힙니다.
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-        {PLACE_OPTIONS.map(opt => (
-          <ChoiceButton key={opt.key} active={place === opt.key} onClick={() => onPlaceChange(opt.key)} style={{ textAlign: 'center' }}>
-            {opt.label}
-          </ChoiceButton>
-        ))}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-        {EQUIPMENT_OPTIONS.map(opt => (
-          <ChoiceButton key={opt.key} active={equipment.includes(opt.key)} onClick={() => toggleEquipment(opt.key)}>
             {opt.label}
           </ChoiceButton>
         ))}
@@ -471,88 +329,24 @@ function StepSplitStyle({ value, onChange }) {
 // ─── Step 3: 요일 및 부위 선택 (기존 Step 2 변경) ───────────────────────────────────
 
 function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, splitStyle }) {
-  const [isDetailMode, setIsDetailMode] = useState(false)
-  const [activeEditingDay, setActiveEditingDay] = useState(null)
-  const [selectedPartForEditingDay, setSelectedPartForEditingDay] = useState('')
-
   const PART_OPTIONS = ['가슴', '등', '하체', '어깨', '팔/코어', '코어', '유산소', '스트레칭']
 
-  // Sort helper
   const sortDays = (daysArray) => {
     return [...daysArray].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b))
   }
 
-  // Recalculate automatic parts for active days
-  const recalculateAutoParts = (nextDays) => {
-    const sorted = sortDays(nextDays)
-    const newDayParts = { ...dayParts }
-    
-    // Clear days not in nextDays
-    DAYS.forEach(d => {
-      if (!nextDays.includes(d)) {
-        delete newDayParts[d]
-      }
-    })
-
-    // Assign default parts chronologically for active days
-    sorted.forEach((day, index) => {
-      newDayParts[day] = GET_DEFAULT_PART(index, splitStyle)
-    })
-    
-    onChangeDayParts(newDayParts)
-  }
-
-  // Toggle day in Auto mode
-  const handleDayToggleAuto = (day) => {
-    const nextDays = workDays.includes(day)
-      ? workDays.filter(d => d !== day)
-      : [...workDays, day]
-    
-    const sortedNextDays = sortDays(nextDays)
-    onChangeDays(sortedNextDays)
-    recalculateAutoParts(sortedNextDays)
-  }
-
-  // Click day in Detail mode
-  const handleDayClickDetail = (day) => {
-    // If clicking the already editing day, close it
-    if (activeEditingDay === day) {
-      setActiveEditingDay(null)
+  const toggleDay = (day) => {
+    if (workDays.includes(day)) {
+      onChangeDays(workDays.filter(d => d !== day))
       return
     }
-    setActiveEditingDay(day)
-    const existingPart = dayParts[day] || GET_DEFAULT_PART(workDays.indexOf(day) >= 0 ? workDays.indexOf(day) : 0, splitStyle)
-    setSelectedPartForEditingDay(existingPart)
-  }
-
-  // Save detail part selection
-  const handleSaveDetail = () => {
-    if (!activeEditingDay) return
-
-    // 1. Add to workDays if not already present, and sort chronologically
-    if (!workDays.includes(activeEditingDay)) {
-      onChangeDays(sortDays([...workDays, activeEditingDay]))
-    }
-    
-    // 2. Save target part
+    const nextDays = sortDays([...workDays, day])
+    const nextIndex = nextDays.indexOf(day)
+    onChangeDays(nextDays)
     onChangeDayParts(prev => ({
       ...prev,
-      [activeEditingDay]: selectedPartForEditingDay
+      [day]: prev[day] || GET_DEFAULT_PART(nextIndex, splitStyle),
     }))
-
-    setActiveEditingDay(null)
-  }
-
-  // Set day as rest day
-  const handleSetRestDay = () => {
-    if (!activeEditingDay) return
-    onChangeDays(workDays.filter(d => d !== activeEditingDay))
-    onChangeDayParts(prev => {
-      const next = { ...prev }
-      delete next[activeEditingDay]
-      return next
-    })
-    setActiveEditingDay(null)
   }
 
   return (
@@ -564,234 +358,92 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
         운동 요일 & 부위 설정
       </h2>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 24, lineHeight: 1.7 }}>
-        자동 배정으로 요일만 선택하거나, 요일별 상세 설정을 통해 원하는 부위를 직접 구성하세요.
+        기본은 월요일부터 금요일까지의 5분할입니다. 필요한 경우 요일을 휴식일로 바꾸거나 각 요일의 운동 부위를 직접 조정하세요.
       </p>
 
-      {/* 모드 선택 탭 */}
-      <div style={{
-        display: 'flex',
-        background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 4,
-        padding: 4,
-        marginBottom: 28,
-      }}>
-        <button
-          type="button"
-          onClick={() => {
-            setIsDetailMode(false)
-            setActiveEditingDay(null)
-            recalculateAutoParts(workDays)
-          }}
-          style={{
-            flex: 1, padding: '10px 0', borderRadius: 3, border: 'none',
-            background: !isDetailMode ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'transparent',
-            color: !isDetailMode ? '#000' : 'rgba(255,255,255,0.4)',
-            fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
-          }}
-        >
-          자동
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setIsDetailMode(true)
-            setActiveEditingDay(null)
-          }}
-          style={{
-            flex: 1, padding: '10px 0', borderRadius: 3, border: 'none',
-            background: isDetailMode ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'transparent',
-            color: isDetailMode ? '#000' : 'rgba(255,255,255,0.4)',
-            fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
-          }}
-        >
-          상세
-        </button>
-      </div>
-
-      {/* 요일 그리드 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(74px, 1fr))', gap: 8, marginBottom: 20 }}>
         {DAYS.map(day => {
           const isSelected = workDays.includes(day)
-          const isEditing = activeEditingDay === day
           const isWeekend = day === '토' || day === '일'
-          
-          // 표시할 라벨
           const partLabel = isSelected ? (dayParts[day] || '가슴') : '휴식'
 
           return (
-            <button
+            <div
               key={day}
-              type="button"
-              onClick={() => {
-                if (isDetailMode) {
-                  handleDayClickDetail(day)
-                } else {
-                  handleDayToggleAuto(day)
-                }
-              }}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '14px 0', borderRadius: 4,
-                background: isEditing
-                  ? 'rgba(255,215,0,0.15)'
-                  : isSelected
-                    ? 'rgba(255,215,0,0.06)'
-                    : 'rgba(255,255,255,0.02)',
-                border: isEditing
-                  ? '1px solid #FFD700'
-                  : isSelected
-                    ? '1px solid rgba(255,215,0,0.35)'
-                    : '1px solid rgba(255,255,255,0.06)',
-                cursor: 'pointer', transition: 'all 0.2s',
-                gap: 6,
+                padding: '12px 8px', borderRadius: 4,
+                background: isSelected ? 'rgba(255,215,0,0.06)' : 'rgba(255,255,255,0.02)',
+                border: isSelected ? '1px solid rgba(255,215,0,0.35)' : '1px solid rgba(255,255,255,0.06)',
+                gap: 8,
               }}
             >
-              <span style={{
-                fontSize: 14, fontWeight: 800,
-                color: isSelected || isEditing ? '#FFD700' : isWeekend ? 'rgba(255,100,100,0.6)' : 'rgba(255,255,255,0.5)',
-              }}>{day}</span>
-              
-              <span style={{
-                fontSize: 10,
-                color: isSelected ? '#FFD700' : 'rgba(255,255,255,0.22)',
-                fontWeight: isSelected ? 700 : 400,
-              }}>
-                {partLabel}
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => toggleDay(day)}
+                style={{
+                  width: '100%',
+                  padding: '9px 0',
+                  borderRadius: 3,
+                  background: isSelected ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.03)',
+                  border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                  color: isSelected ? '#000' : isWeekend ? 'rgba(255,130,130,0.7)' : 'rgba(255,255,255,0.58)',
+                  fontSize: 14,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                {day}
+              </button>
+              {isSelected ? (
+                <select
+                  value={partLabel}
+                  onChange={event => onChangeDayParts(prev => ({ ...prev, [day]: event.target.value }))}
+                  style={{
+                    width: '100%',
+                    height: 34,
+                    borderRadius: 3,
+                    background: '#111',
+                    border: '1px solid rgba(255,215,0,0.22)',
+                    color: '#E2E2E2',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    outline: 'none',
+                    padding: '0 6px',
+                  }}
+                >
+                  {PART_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{
+                  width: '100%',
+                  height: 34,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'rgba(255,255,255,0.22)',
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}>
+                  {partLabel}
+                </div>
+              )}
+            </div>
           )
         })}
       </div>
 
-      {/* [상세 설정 모드] 활성화된 요일 토글 박스 */}
-      {isDetailMode && activeEditingDay && (
-        <div style={{ position: 'relative', marginTop: 8, marginBottom: 20 }}>
-          {/* Pointing arrow indicator */}
-          <div style={{
-            position: 'absolute',
-            top: -8,
-            left: `calc((100% / 7) * ${DAYS.indexOf(activeEditingDay)} + (100% / 7) / 2)`,
-            transform: 'translateX(-50%)',
-            width: 0,
-            height: 0,
-            borderLeft: '8px solid transparent',
-            borderRight: '8px solid transparent',
-            borderBottom: '8px solid rgba(255, 215, 0, 0.25)',
-            zIndex: 2,
-          }} />
-          <div style={{
-            position: 'absolute',
-            top: -7,
-            left: `calc((100% / 7) * ${DAYS.indexOf(activeEditingDay)} + (100% / 7) / 2)`,
-            transform: 'translateX(-50%)',
-            width: 0,
-            height: 0,
-            borderLeft: '8px solid transparent',
-            borderRight: '8px solid transparent',
-            borderBottom: '8px solid #1A1A1A',
-            zIndex: 3,
-          }} />
-
-          <div style={{
-            background: '#1A1A1A',
-            border: '1px solid rgba(255,215,0,0.25)',
-            borderRadius: 4,
-            padding: '24px 28px',
-            animation: 'float-up 0.25s ease',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: '#FFF' }}>
-                {activeEditingDay}요일 운동 부위 설정
-              </span>
-              {workDays.includes(activeEditingDay) && (
-                <button
-                  type="button"
-                  onClick={handleSetRestDay}
-                  style={{
-                    background: 'none', border: 'none', color: '#FF6B6B', fontSize: 12,
-                    cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3
-                  }}
-                >
-                  이 요일 운동 취소 (휴식일로 지정)
-                </button>
-              )}
-            </div>
-
-            {/* 운동 부위 토글 버튼 */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
-              {PART_OPTIONS.map(opt => {
-                const active = selectedPartForEditingDay === opt
-                return (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setSelectedPartForEditingDay(opt)}
-                    style={{
-                      padding: '12px 0',
-                      borderRadius: 2,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      background: active ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.03)',
-                      border: active ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                      color: active ? '#000' : 'rgba(255,255,255,0.5)',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={e => { if (!active) e.currentTarget.style.borderColor = 'rgba(255,215,0,0.3)' }}
-                    onMouseLeave={e => { if (!active) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
-                  >
-                    {opt}
-                  </button>
-                )
-              })}
-            </div>
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setActiveEditingDay(null)}
-                style={{
-                  flex: 1, padding: '11px 0', borderRadius: 3,
-                  background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
-                  color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer'
-                }}
-              >
-                닫기
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveDetail}
-                style={{
-                  flex: 2, padding: '11px 0', borderRadius: 3,
-                  background: 'linear-gradient(135deg, #FFD700, #C8A200)', border: 'none',
-                  color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(255,215,0,0.2)'
-                }}
-              >
-                선택 완료
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 안내 문구 */}
-      {!activeEditingDay && (
-        <div style={{
-          padding: '16px 20px', borderRadius: 4,
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          fontSize: 12.5, color: 'rgba(255,255,255,0.35)',
-          lineHeight: 1.6,
-        }}>
-          {isDetailMode ? (
-            <span><strong>상세 설정 가이드</strong>: 요일 버튼을 클릭한 뒤, 아래 패널에서 원하는 부위를 토글하고 [선택 완료]를 누르면 저장됩니다.</span>
-          ) : (
-            <span><strong>자동 배정 가이드</strong>: 요일을 누르면 활성화되며, 기본 5분할 규칙에 따라 타겟 부위가 자동 매핑됩니다.</span>
-          )}
-        </div>
-      )}
+      <div style={{
+        padding: '14px 16px', borderRadius: 4,
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        fontSize: 12.5, color: 'rgba(255,255,255,0.38)',
+        lineHeight: 1.6,
+      }}>
+        선택된 요일 수: <strong style={{ color: '#FFD700' }}>{workDays.length}</strong>일
+      </div>
     </div>
   )
 }
@@ -1240,27 +892,16 @@ const summarizeRoutineChanges = (beforeRoutine, afterRoutine, workDays, dayParts
 
 export default function RoutinePage() {
   const [step, setStep] = useState(0)
-  const [selectedPreset, setSelectedPreset] = useState('')
   const [age, setAge] = useState('')
   const [gender, setGender] = useState('')
   const [level, setLevel] = useState('')
-  const [place, setPlace] = useState('gym')
-  const [availableEquipment, setAvailableEquipment] = useState(ALL_EQUIPMENT_KEYS)
   const [painParts, setPainParts] = useState([])
-  const [workDays, setWorkDays] = useState([])
+  const [workDays, setWorkDays] = useState(DEFAULT_WORK_DAYS)
   const [splitStyle, setSplitStyle] = useState('bodybuilding')
   const [goal, setGoal] = useState('')
   const [sessionMin, setSessionMin] = useState(null)
   const [showAutoWarning, setShowAutoWarning] = useState(false)
-  const [dayParts, setDayParts] = useState({
-    '월': '가슴',
-    '화': '등',
-    '수': '하체',
-    '목': '어깨',
-    '금': '팔/코어',
-    '토': '유산소',
-    '일': '스트레칭'
-  })
+  const [dayParts, setDayParts] = useState(DEFAULT_DAY_PARTS)
   const [dbExercises, setDbExercises] = useState([])
   const [loadingExercises, setLoadingExercises] = useState(true)
   const [loadingRoutine, setLoadingRoutine] = useState(true)
@@ -1276,7 +917,6 @@ export default function RoutinePage() {
   const [isApproved, setIsApproved] = useState(false)
   const [showApprovedNotice, setShowApprovedNotice] = useState(false)
   const [reviewNotice, setReviewNotice] = useState(null)
-  const [finalResponse, setFinalResponse] = useState('')
 
   const loadingDb = loadingExercises || loadingRoutine
 
@@ -1340,28 +980,12 @@ export default function RoutinePage() {
     return () => clearTimeout(timer)
   }, [showApprovedNotice])
 
-  const applyPreset = (preset) => {
-    const defaults = preset.defaults
-    setSelectedPreset(preset.key)
-    setLevel(defaults.level)
-    setPlace(defaults.place)
-    setAvailableEquipment(defaults.availableEquipment)
-    setSplitStyle(defaults.splitStyle)
-    setGoal(defaults.goal)
-    setSessionMin(defaults.sessionMin)
-    setWorkDays(defaults.workDays)
-    setDayParts({
-      '월': '가슴',
-      '화': '등',
-      '수': '하체',
-      '목': '어깨',
-      '금': '팔/코어',
-      '토': '유산소',
-      '일': '스트레칭',
-      ...defaults.dayParts,
-    })
-    if (painParts.length === 0) setPainParts(['none'])
-  }
+  useEffect(() => {
+    const hasPainHistory = painParts.some(part => part && part !== 'none')
+    if (!goal && (Number(age) >= 50 || hasPainHistory)) {
+      setGoal('maintenance')
+    }
+  }, [age, painParts, goal])
 
   const buildSurveyPayload = () => ({
     device_uuid: deviceUuid,
@@ -1417,7 +1041,6 @@ export default function RoutinePage() {
     const mappedRoutine = mapRecommendedRoutineToWorkoutRoutine(data.routine_draft, workDays, dbExercises)
     setRecommendationThreadId(data.thread_id || '')
     setReviewPayload(data)
-    setFinalResponse(data.final_response || '')
     setPreloadedWorkoutRoutine(mappedRoutine)
     setPreloadedDailyNotes({})
     setStep(TOTAL)
@@ -1544,26 +1167,15 @@ export default function RoutinePage() {
 
   const handleReset = () => {
     setStep(0)
-    setSelectedPreset('')
     setAge('')
     setGender('')
     setLevel('')
-    setPlace('gym')
-    setAvailableEquipment(ALL_EQUIPMENT_KEYS)
     setPainParts([])
-    setWorkDays([])
+    setWorkDays(DEFAULT_WORK_DAYS)
     setSplitStyle('bodybuilding')
     setGoal('')
     setSessionMin(null)
-    setDayParts({
-      '월': '가슴',
-      '화': '등',
-      '수': '하체',
-      '목': '어깨',
-      '금': '팔/코어',
-      '토': '유산소',
-      '일': '스트레칭'
-    })
+    setDayParts(DEFAULT_DAY_PARTS)
     setPreloadedWorkoutRoutine(null)
     setPreloadedDailyNotes(null)
     setRecommendationThreadId('')
@@ -1574,7 +1186,6 @@ export default function RoutinePage() {
     setIsApproved(false)
     setShowApprovedNotice(false)
     setReviewNotice(null)
-    setFinalResponse('')
   }
 
   if (step === TOTAL) {
@@ -2029,12 +1640,9 @@ export default function RoutinePage() {
               }}>직접 입력할게요</button>
               <button onClick={() => {
                 setPainParts(AUTO_DEFAULTS.painParts)
-                setSelectedPreset('gym_hypertrophy')
                 setAge(age || '28')
                 setGender(gender || 'male')
                 setLevel('intermediate')
-                setPlace('gym')
-                setAvailableEquipment(ALL_EQUIPMENT_KEYS)
                 setWorkDays(AUTO_DEFAULTS.workDays)
                 setSplitStyle(AUTO_DEFAULTS.splitStyle)
                 setGoal(AUTO_DEFAULTS.goal)
@@ -2650,9 +2258,46 @@ function RoutineCheckView({
     const dayExs = workoutRoutine[initialDay] || []
     return dayExs[0] ? getSlotKey(initialDay, dayExs[0], 0) : null
   })
+  const [showExerciseMedia, setShowExerciseMedia] = useState(false)
+  const [isExerciseVideoPlaying, setIsExerciseVideoPlaying] = useState(false)
+  const exerciseVideoRef = useRef(null)
 
   // Safe reference to the active exercise object
   const activeEx = currentDayExercises.find((ex, index) => getSlotKey(currentDay, ex, index) === selectedSlotKey) || currentDayExercises[0]
+
+  useEffect(() => {
+    setShowExerciseMedia(false)
+    setIsExerciseVideoPlaying(false)
+  }, [currentDay, selectedSlotKey])
+
+  useEffect(() => {
+    if (!showExerciseMedia || !activeEx?.video_url || !exerciseVideoRef.current) return
+    const video = exerciseVideoRef.current
+    if (isExerciseVideoPlaying) {
+      video.play().catch(() => {
+        // Browser autoplay policy can block playback; controls remain available.
+      })
+    } else {
+      video.pause()
+    }
+  }, [showExerciseMedia, isExerciseVideoPlaying, activeEx?.video_url])
+
+  const handleExerciseMediaToggle = () => {
+    if (!activeEx?.video_url) {
+      setShowExerciseMedia(true)
+      return
+    }
+    if (!showExerciseMedia) {
+      setShowExerciseMedia(true)
+      setIsExerciseVideoPlaying(true)
+      return
+    }
+    setIsExerciseVideoPlaying(prev => !prev)
+  }
+
+  const handleExerciseVideoClick = () => {
+    setIsExerciseVideoPlaying(prev => !prev)
+  }
 
   // Update highlighted exercise when switching tabs
   const handleDayChange = (day) => {
@@ -3211,35 +2856,63 @@ function RoutineCheckView({
                 justifyContent: 'center',
                 position: 'relative',
               }}>
-                {activeEx.video_url ? (
-                  <video
-                    src={activeEx.video_url}
-                    muted
-                    loop
-                    playsInline
-                    controls
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                      maxHeight: '100%',
-                    }}
-                  />
+                {showExerciseMedia ? (
+                  activeEx.video_url ? (
+                    <video
+                      ref={exerciseVideoRef}
+                      src={activeEx.video_url}
+                      controls
+                      muted
+                      preload="none"
+                      onClick={handleExerciseVideoClick}
+                      onPlay={() => setIsExerciseVideoPlaying(true)}
+                      onPause={() => setIsExerciseVideoPlaying(false)}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        maxHeight: '100%',
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={activeEx.gif || activeEx.image_url || '/workout_guide.png'}
+                      alt={activeEx.name}
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = activeEx.image_url || '/workout_guide.png';
+                      }}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        maxHeight: '100%',
+                      }}
+                    />
+                  )
                 ) : (
-                  <img
-                    src={activeEx.gif || activeEx.image_url || '/workout_guide.png'}
-                    alt={activeEx.name}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = activeEx.image_url || '/workout_guide.png';
-                    }}
+                  <button
+                    type="button"
+                    onClick={handleExerciseMediaToggle}
                     style={{
                       width: '100%',
                       height: '100%',
-                      objectFit: 'contain',
-                      maxHeight: '100%',
+                      border: 'none',
+                      background: 'rgba(255,255,255,0.03)',
+                      color: '#FFD700',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 10,
+                      fontWeight: 800,
                     }}
-                  />
+                  >
+                    <Play size={28} />
+                    <span style={{ fontSize: 13 }}>운동 영상 보기</span>
+                  </button>
                 )}
               </div>
 

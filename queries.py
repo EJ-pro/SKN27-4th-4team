@@ -64,6 +64,8 @@ class GraphQuery:
               AND e.equipment        IN $equip
               AND e.difficulty_label IN $diff
               AND (NOT $home_only OR e.home_friendly = 'Y')
+            OPTIONAL MATCH (e)-[:TARGETS_PRIMARY]->(primary:BodyPart)
+            OPTIONAL MATCH (e)-[:TARGETS_SECONDARY]->(secondary:BodyPart)
             RETURN
                 e.id               AS id,
                 e.name_kor         AS name_kor,
@@ -76,7 +78,12 @@ class GraphQuery:
                 e.place_type       AS place_type,
                 e.home_friendly    AS home_friendly,
                 e.tag              AS tag,
-                e.video_url        AS video_url
+                e.video_url        AS video_url,
+                e.image_url        AS image_url,
+                e.target_primary   AS target_primary,
+                e.target_secondary AS target_secondary,
+                collect(DISTINCT primary.id)   AS primary_body_parts,
+                collect(DISTINCT secondary.id) AS secondary_body_parts
             ORDER BY e.difficulty ASC, e.cal_per_min DESC
             LIMIT $limit
         """, {
@@ -86,6 +93,99 @@ class GraphQuery:
             "diff":      DIFFICULTY_MAP.get(level, ["beginner", "intermediate"]),
             "home_only": home_only,
             "limit":     limit,
+        })
+
+    def get_exercises_by_ids(self, exercise_ids: list[int]) -> list[dict]:
+        """Fetch canonical GraphDB metadata for policy-required exercises."""
+        if not exercise_ids:
+            return []
+        return self._run("""
+            MATCH (e:Exercise)
+            WHERE e.id IN $exercise_ids
+            OPTIONAL MATCH (e)-[:TARGETS_PRIMARY]->(primary:BodyPart)
+            OPTIONAL MATCH (e)-[:TARGETS_SECONDARY]->(secondary:BodyPart)
+            RETURN
+                e.id               AS id,
+                e.name_kor         AS name_kor,
+                e.name_eng         AS name_eng,
+                e.split_day        AS split_day,
+                e.equipment        AS equipment,
+                e.difficulty       AS difficulty,
+                e.difficulty_label AS difficulty_label,
+                e.spine_loading    AS spine_loading,
+                e.cal_per_min      AS cal_per_min,
+                e.place_type       AS place_type,
+                e.home_friendly    AS home_friendly,
+                e.tag              AS tag,
+                e.video_url        AS video_url,
+                e.image_url        AS image_url,
+                e.target_primary   AS target_primary,
+                e.target_secondary AS target_secondary,
+                collect(DISTINCT primary.id)   AS primary_body_parts,
+                collect(DISTINCT secondary.id) AS secondary_body_parts
+            ORDER BY e.id
+        """, {"exercise_ids": exercise_ids})
+
+    def get_related_exercises(
+        self,
+        exercise_ids: list[int],
+        relationship_type: str,
+        split_day: str,
+        spine: str = "all",
+        equip: list[str] = None,
+        level: str = "intermediate",
+        limit: int = 20,
+    ) -> list[dict]:
+        """Fetch filtered one-hop graph neighbors with relation provenance."""
+        allowed_relationships = {
+            "SUBSTITUTE_FOR",
+            "SIMILAR_TO",
+            "PROGRESSION_OF",
+        }
+        relation = str(relationship_type or "").strip().upper()
+        if not exercise_ids or relation not in allowed_relationships:
+            return []
+
+        equip = equip or ["barbell", "dumbbell", "machine", "body", "pull_up_bar", "band", "kettlebell"]
+        return self._run(f"""
+            MATCH (source:Exercise)-[r:{relation}]->(related:Exercise {{split_day: $split_day}})
+            WHERE source.id IN $exercise_ids
+              AND related.spine_loading    IN $spine
+              AND related.equipment        IN $equip
+              AND related.difficulty_label IN $diff
+            OPTIONAL MATCH (related)-[:TARGETS_PRIMARY]->(primary:BodyPart)
+            OPTIONAL MATCH (related)-[:TARGETS_SECONDARY]->(secondary:BodyPart)
+            RETURN
+                source.id                 AS relation_source_id,
+                type(r)                   AS relation_type,
+                coalesce(r.score, 0.0)     AS relation_score,
+                related.id                AS id,
+                related.name_kor          AS name_kor,
+                related.name_eng          AS name_eng,
+                related.split_day         AS split_day,
+                related.equipment         AS equipment,
+                related.difficulty        AS difficulty,
+                related.difficulty_label  AS difficulty_label,
+                related.spine_loading     AS spine_loading,
+                related.cal_per_min       AS cal_per_min,
+                related.place_type        AS place_type,
+                related.home_friendly     AS home_friendly,
+                related.tag               AS tag,
+                related.video_url         AS video_url,
+                related.image_url         AS image_url,
+                related.target_primary    AS target_primary,
+                related.target_secondary  AS target_secondary,
+                collect(DISTINCT primary.id)   AS primary_body_parts,
+                collect(DISTINCT secondary.id) AS secondary_body_parts
+            ORDER BY relation_score DESC, related.difficulty ASC, related.cal_per_min DESC
+            LIMIT $limit
+        """, {
+            "exercise_ids": exercise_ids,
+            "split_day": split_day,
+            "spine": SPINE_MAP.get(spine, ["상", "중", "하"]),
+            "equip": equip,
+            "diff": DIFFICULTY_MAP.get(level, ["beginner", "intermediate"]),
+            "limit": limit,
         })
 
     # ── Q2. SUBSTITUTE_FOR — 대체 운동 조회 ──────────────────────────────
