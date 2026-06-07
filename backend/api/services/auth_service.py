@@ -2,6 +2,8 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework_simplejwt.tokens import AccessToken
 
 from api.models import AppUser
 
@@ -108,6 +110,31 @@ def get_session_user(request) -> AppUser:
         return AppUser.objects.get(user_id=user_id)
     except AppUser.DoesNotExist:
         return None
+
+
+# 토큰 인증 유틸함수 
+def validate_session_access_token(request) -> bool:
+    """
+    Django 세션에 저장된 access_token JWT가 유효한지 검사한다.
+
+    - 토큰 없음 / 만료 / 서명 오류 → False
+    - 유효 → True
+
+    CHATBOT_REQUIRE_AUTH=False일 때는 호출하지 않는 것이 원칙이나,
+    다른 경로에서 단독 호출해도 안전하다.
+    """
+
+    raw = request.session.get('access_token')
+    # 토큰이 없으면 False
+    if not raw:
+        return False
+    # 토큰이 있다면 정상인지 검증 
+    try:
+        AccessToken(raw)
+    except (InvalidToken, TokenError):
+        return False
+    return True
+
 
 
 
