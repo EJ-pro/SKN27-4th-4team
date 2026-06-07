@@ -2,19 +2,10 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { Send, Dumbbell, ChevronRight, Clock, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useNavigate } from 'react-router-dom'
+import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
+import { getMe } from '../api/auth'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
-// ─── UUID 쿠키 유틸 ───────────────────────────────────────────────────────────
-
-function getOrCreateUUID() {
-  const key = 'fitai_device_uuid'
-  const match = document.cookie.split('; ').find(r => r.startsWith(key + '='))
-  if (match) return match.split('=')[1]
-  const uuid = crypto.randomUUID()
-  document.cookie = `${key}=${uuid}; max-age=${60 * 60 * 24 * 365}; path=/`
-  return uuid
-}
 
 function formatDate(iso) {
   const d = new Date(iso), now = new Date()
@@ -263,6 +254,7 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
 export default function ConsultPage() {
   const navigate = useNavigate()
   const [sessions, setSessions] = useState([])
+  const [authUser, setAuthUser] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [messages, setMessages] = useState([])
   const [inputValue, setInputValue] = useState('')
@@ -270,9 +262,16 @@ export default function ConsultPage() {
   const [deletingSession, setDeletingSession] = useState(null)
   const [isSending, setIsSending] = useState(false)
   const [scrollTargetId, setScrollTargetId] = useState(null)
-  const uuid = useRef(getOrCreateUUID())
+  const uuid = useRef(getOrCreateDeviceUuid())
   const textareaRef = useRef(null)
   const scrollRef = useRef(null)
+
+  // 사용자 정보 로드
+  useEffect(() => {
+    getMe()
+      .then((u) => setAuthUser(u))
+      .catch(() => setAuthUser(null))
+  }, [])
 
   // 새 메시지 전송 시 스크롤 맨 아래로 (paddingBottom 덕에 최신 메시지가 상단에 위치)
   // 세션 목록 로드
@@ -289,7 +288,7 @@ export default function ConsultPage() {
   }, [messages, scrollTargetId])
 
   useEffect(() => {
-    fetch(`${API_URL}/api/sessions/?device_uuid=${uuid.current}`)
+    fetch(`${API_URL}/api/sessions/?device_uuid=${uuid.current}`, {credentials:'include'})
       .then(r => r.json())
       .then(data => {
         if (data.length > 0) {
@@ -304,7 +303,7 @@ export default function ConsultPage() {
   // 세션 전환 시 메시지 로드
   useEffect(() => {
     if (!activeId || isSending) return
-    fetch(`${API_URL}/api/sessions/${activeId}/messages/?device_uuid=${uuid.current}`)
+    fetch(`${API_URL}/api/sessions/${activeId}/messages/?device_uuid=${uuid.current}`, {credentials:'include'})
       .then(r => r.json())
       .then(data => {
         setMessages(data.map(m => ({
@@ -330,6 +329,7 @@ export default function ConsultPage() {
   const createSession = async () => {
     const res = await fetch(`${API_URL}/api/sessions/`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_uuid: uuid.current, title: '새 상담' }),
     })
@@ -344,6 +344,7 @@ export default function ConsultPage() {
   const renameSession = async (id, title) => {
     await fetch(`${API_URL}/api/sessions/${id}/`, {
       method: 'PATCH',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_uuid: uuid.current, title }),
     })
@@ -353,6 +354,7 @@ export default function ConsultPage() {
   const deleteSession = async (id) => {
     await fetch(`${API_URL}/api/sessions/${id}/`, {
       method: 'DELETE',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_uuid: uuid.current }),
     })
@@ -377,6 +379,7 @@ export default function ConsultPage() {
     if (!sessionId) {
       const res = await fetch(`${API_URL}/api/sessions/`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ device_uuid: uuid.current, title }),
       })
@@ -398,6 +401,7 @@ export default function ConsultPage() {
     try {
       const res = await fetch(`${API_URL}/api/sessions/${sessionId}/messages/`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ device_uuid: uuid.current, sender: 'user', content: text }),
       })
