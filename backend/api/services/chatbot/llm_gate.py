@@ -32,9 +32,11 @@ def generate_bot_content(request: HttpRequest, user_content:str, session_id:int)
     get_answer 예외는 여기서 처리 (뷰 try/except 중복 제거).
     """
     if not should_run_llm(request):
+        print('[llm_gate] LLM blocked: auth required (CHATBOT_REQUIRE_AUTH=True)')
         return AUTH_REQUIRED_MESSAGE
 
     try:
         return get_answer(user_content, session_id)
     except Exception as exc:
+        print(f'[chatbot] answer generation failed: {exc}')
         return LLM_ERROR_MESSAGE

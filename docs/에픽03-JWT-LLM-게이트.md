@@ -483,13 +483,15 @@ from .services.chatbot.llm_gate import generate_bot_content
 
 ### Step 5. `.env` 반영 + 서버 재시작
 
-`constants.py`는 **import 시점**에 env를 읽는다. `.env` 변경 후 반드시 백엔드 재시작:
+`constants.py`는 **import 시점**에 env를 읽는다. `.env` 변경 후 반드시 백엔드 **재생성** (env_file 재주입):
 
 ```bash
-docker compose restart backend
-# 또는
+docker compose up -d backend
+# 또는 로컬 runserver: 프로세스 종료 후 재실행
 cd backend && python manage.py runserver
 ```
+
+> `docker compose restart backend`만으로는 **env_file 변경이 반영되지 않을 수 있다.** `up -d`로 컨테이너를 재생성해야 `CHATBOT_REQUIRE_AUTH` 토글이 적용된다.
 
 ---
 
@@ -686,7 +688,8 @@ curl -b cookies.txt -X POST http://localhost:8000/api/sessions/1/messages/ \
 
 | 증상 | 원인 | 해결 |
 |------|------|------|
-| `True`인데 게스트도 LLM 됨 | env 미반영 | 재시작, `load_dotenv` 경로 확인 |
+| `True`인데 게스트도 LLM 됨 | env 미반영 | `docker compose up -d backend`, `load_dotenv` 경로 확인 |
+| env 미반영 (`restart` 후에도) | `restart`는 env_file 재주입 안 함 | `docker compose up -d backend`로 재생성 |
 | `True`인데 로그인도 차단 | `access_token` 세션 없음 | 재로그인, `bind_user_to_session` 확인 |
 | 항상 차단 | `SIMPLE_JWT` SECRET 변경·토큰 손상 | 재로그인 |
 | 403 발생 | 잘못된 구현 | 본 가이드는 201 유지 |
