@@ -6,6 +6,8 @@
  * 모든 요청에 credentials: 'include'가 필요하다.
  */
 
+import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 /** @type {string} CSRF 엔드포인트 응답에서 받은 토큰 (크로스 오리진용) */
@@ -88,18 +90,28 @@ export function register({ nickname, email, password }) {
 /**
  * 로그인. 성공 시 서버가 sessionid 쿠키를 발급한다.
  *
- * @param {{ nickname: string, password: string }} params
+ * @param {{ nickname: string, password: string, device_uuid?: string }} params
  * @param {string} params.nickname - 아이디
  * @param {string} params.password - 비밀번호
+ * @param {string} params.device_uuid - 기기 고유 식별자
  * @returns {Promise<{ user_id: number, nickname: string }>}
  * @throws {Error} 인증 실패 (401)
- */
-export function login({ nickname, password }) {
+*/
+export function login({ nickname, password, device_uuid }) {
+  const body = { nickname, password }
+  if (device_uuid) body.device_uuid = device_uuid
   return authFetch('/api/auth/login/', {
     method: 'POST',
-    body: JSON.stringify({ nickname, password }),
+    body: JSON.stringify(body),
   })
 }
+
+// 로그인 호출 시 UUID 전달.
+await login({
+  nickname: userId,
+  password,
+  device_uuid: getOrCreateDeviceUuid(),
+})
 
 /**
  * 로그아웃. 세션을 삭제하고 sessionid·JWT를 함께 제거한다.
