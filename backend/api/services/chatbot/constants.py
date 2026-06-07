@@ -70,3 +70,15 @@ QUERY_TYPE_ROUTES: dict[str, str] = {
     "injury":       "retrieve_injury",
     "out_of_scope": "out_of_scope",
 }
+
+# ────────────────────────────────────────────
+# LLM 인증 게이트 (에픽 03)
+# ────────────────────────────────────────────
+# False(기본): JWT 검사 없이 LLM 실행 — 개발·게스트 테스트용
+# True: 세션 access_token JWT가 유효할 때만 LLM 실행
+CHATBOT_REQUIRE_AUTH = os.getenv("CHATBOT_REQUIRE_AUTH", "False") == "True"
+
+AUTH_REQUIRED_MESSAGE = (
+    "AI 답변을 이용하려면 로그인이 필요합니다. "
+    "로그인 후 다시 질문해 주세요."
+)
