@@ -7,7 +7,7 @@ from django.utils.decorators import method_decorator
 from django.db import transaction
 from .models import Exercise, ChatSession, ChatMessage, WeeklyScheduler, DailyRoutine
 from .services.chatbot.chatbot import get_answer
-from .services.actor_service import ActorError, resolve_actor, scheduler_filter_kwargs, scheduler_owner_filter
+from .services.actor_service import ActorError, resolve_actor, scheduler_filter_kwargs, scheduler_owner_filter, session_belongs_to_actor, session_owner_filter
 
 DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
 
@@ -62,41 +62,74 @@ class ExerciseListView(View):
 @method_decorator(csrf_exempt, name='dispatch')
 class SessionListView(View):
     def get(self, request):
-        uuid = request.GET.get('device_uuid')
-        if not uuid:
-            return JsonResponse({'error': 'device_uuid required'}, status=400)
-        sessions = ChatSession.objects.filter(device_uuid=uuid).order_by('-created_at').values(
-            'session_id', 'title', 'created_at'
-        )
+        device_uuid = request.GET.get('device_uuid')
+        try:
+            actor = resolve_actor(request, device_uuid)
+        except ActorError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+        
+        sessions = ChatSession.objects.filter(
+            **session_owner_filter(actor)
+        ).order_by('-created_at').values('session_id', 'title', 'created_at')
+
         return JsonResponse(list(sessions), safe=False)
+    
 
     def post(self, request):
         data = json.loads(request.body)
-        uuid = data.get('device_uuid')
+        device_uuid = data.get('device_uuid')
         title = data.get('title', '새 상담')
-        if not uuid:
-            return JsonResponse({'error': 'device_uuid required'}, status=400)
-        session = ChatSession.objects.create(device_uuid=uuid, title=title)
-        return JsonResponse({'session_id': session.session_id, 'title': session.title}, status=201)
+
+        try:
+            actor = resolve_actor(request, device_uuid)
+        except ActorError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+        
+        create_kwargs = {'title':title}
+        if actor.mode == 'user':
+            create_kwargs['user_id'] = actor.user_id
+        if actor.device_uuid:
+            create_kwargs['device_uuid'] = actor.device_uuid
+
+        session = ChatSession.objects.create(**create_kwargs)
+
+        return JsonResponse(
+            {'session_id': session.session_id, 'title': session.title}, 
+            status=201
+        )
 
 
 @method_decorator(csrf_exempt, name='dispatch')
 class SessionDetailView(View):
-    def _get_session(self, session_id, uuid):
+    def _get_session(self, session_id, actor):
+
+        # 채팅 사용자에게 세션이 있으면 셋팅 없으면 None
         try:
-            return ChatSession.objects.get(session_id=session_id, device_uuid=uuid)
+            session = ChatSession.objects.get(session_id=session_id)
         except ChatSession.DoesNotExist:
             return None
+        
+        # 세션에 주인이 없어도 None
+        if not session_belongs_to_actor(session, actor):
+            return None
+        
+        # 세션 확인되면 확인된 세션 리턴 
+        return session
 
     def patch(self, request, session_id):
         data = json.loads(request.body)
-        uuid = data.get('device_uuid')
-        session = self._get_session(session_id, uuid)
+        try:
+            actor = resolve_actor(request, data.get('device_uuid'))
+        except ActorError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+        
+        session = self._get_session(session_id, actor)
         if not session:
             return JsonResponse({'error': 'not found'}, status=404)
+        
         if 'title' in data:
             session.title = data['title']
-            session.save(update_fields=['title'])
+            session.save()
         return JsonResponse({'session_id': session.session_id, 'title': session.title})
 
     def delete(self, request, session_id):
@@ -114,9 +147,23 @@ class SessionDetailView(View):
 @method_decorator(csrf_exempt, name='dispatch')
 class MessageListView(View):
     def get(self, request, session_id):
-        uuid = request.GET.get('device_uuid')
-        if not ChatSession.objects.filter(session_id=session_id, device_uuid=uuid).exists():
+
+        # device_uuid로 사용자 확인, 없으면 400
+        try:
+            actor = resolve_actor(request, request.GET.get('device_uuid'))
+        except ActorError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+
+        # 세션 확인, 없으면 404 
+        try:
+            session = ChatSession.objects.get(session_id=session_id)
+        except ChatSession.DoesNotExist:
             return JsonResponse({'error': 'not found'}, status=404)
+
+        # 세션에 주인이 없어도 404 (핼퍼 함수로 찾음)
+        if not session_belongs_to_actor(session, actor):
+            return JsonResponse({'error': 'not found'}, status=404)
+
         messages = ChatMessage.objects.filter(session_id=session_id).order_by('created_at').values(
             'message_id', 'sender', 'content', 'created_at'
         )
@@ -124,8 +171,21 @@ class MessageListView(View):
 
     def post(self, request, session_id):
         data = json.loads(request.body)
-        uuid = data.get('device_uuid')
-        if not ChatSession.objects.filter(session_id=session_id, device_uuid=uuid).exists():
+
+        # device_uuid로 사용자 확인, 없으면 400
+        try: 
+            actor = resolve_actor(request, data.get('device_uuid'))
+        except ActorError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+
+        # 세션 확인, 없으면 404 
+        try:
+            session = ChatSession.objects.get(session_id=session_id)
+        except ChatSession.DoesNotExist:
+            return JsonResponse({'error': 'not found'}, status=404)
+
+        # 세션에 주인이 없어도 404 (핼퍼 함수로 찾음)
+        if not session_belongs_to_actor(session, actor):
             return JsonResponse({'error': 'not found'}, status=404)
 
         content = data.get('content', '').strip()
