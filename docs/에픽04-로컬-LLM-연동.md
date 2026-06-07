@@ -1,45 +1,113 @@
-# 에픽 04 — 로컬 LLM 연동 (OpenAI 호환)
+# 에픽 04 — RunPod LLM 연동 (OpenAI 호환 base_url)
 
-챗봇의 **답변·분류 LLM**을 OpenAI API 또는 외부 서버의 **OpenAI 호환 로컬 모델** 중 환경변수로 선택한다. 개발 중 상태이므로 기본값은 기존 OpenAI 동작이다.
+챗봇의 **외부 LLM/API 호출 전부**(Chat 분류·답변 + RAG Embedding)를 OpenAI API 또는 RunPod **OpenAI 호환 서버** 중 **환경변수로 선택**한다.  
+remote 시 LangChain `ChatOpenAI` / `OpenAIEmbeddings`의 **`base_url`** 로 RunPod proxy에 연결한다. 기본값은 기존 OpenAI 동작(`openai`).
 
 **선행 조건:** [에픽00](에픽00-로그인-인증구현.md) 완료, [에픽03](에픽03-JWT-LLM-게이트.md) 권장 — 본 에픽과 **병행 구현 가능**
 
-관련 파일:
-
-- 상수: [`backend/api/services/chatbot/constants.py`](../backend/api/services/chatbot/constants.py)
-- LLM 팩토리: [`backend/api/services/chatbot/llm.py`](../backend/api/services/chatbot/llm.py)
-- 노드: [`backend/api/services/chatbot/nodes.py`](../backend/api/services/chatbot/nodes.py)
-- RAG 임베딩(범위 외): [`backend/api/services/RAG/embedding.py`](../backend/api/services/RAG/embedding.py)
-- 레거시(범위 외): [`backend/api/services/chat.py`](../backend/api/services/chat.py)
+**다음 작업:** RunPod OpenAI 호환 API는 **별도 프로젝트**에서 구축 → 완료 후 본 프로젝트 `llm.py` 분기 + **최종 E2E 1회**
 
 ---
 
-## 1. 개요 및 설계 결정 요약
+## 0. 팀 역할 · 4단계 워크플로
+
+```mermaid
+flowchart LR
+  Step1["Step1 본 문서\nAPI 계약 확정"]
+  Step2["Step2 별도 프로젝트\nRunPod OpenAI API"]
+  Step3["Step3 본 프로젝트\nllm.py base_url"]
+  Step4["Step4 최종\nE2E 테스트 1회"]
+  Step1 --> Step2 --> Step3 --> Step4
+```
+
+| Step | 담당 | 산출물 | 본 repo 범위 |
+|------|------|--------|--------------|
+| **1** | 본 팀 | 본 문서 — OpenAI API 계약 + env + 발신부 명세 | **문서** |
+| **2** | **별도 프로젝트** | RunPod: `/v1/chat/completions`, `/v1/embeddings` (OpenAI v1 호환) | **범위 외** |
+| **3** | 본 팀 | [`llm.py`](../backend/api/services/chatbot/llm.py) `base_url` 분기 + `.env` | 코드 (Step 2 완료 후) |
+| **4** | 본 팀 + RunPod | 챗봇 E2E, full remote 시 OpenAI **0회** | 통합 테스트 **1회** |
+
+> Step 1에서 **OpenAI v1 API 계약**을 고정한다. Step 2는 다른 저장소/팀에서 RunPod Pod(또는 DRF 프록시)를 구축하고, Step 3·4는 `REMOTE_LLM_BASE_URL`이 살아 있을 때 진행한다.
+
+### 관련 파일 (발신부)
+
+| 역할 | 경로 |
+|------|------|
+| LLM·Embedding 팩토리 | [`backend/api/services/chatbot/llm.py`](../backend/api/services/chatbot/llm.py) |
+| env 상수 | [`backend/api/services/chatbot/constants.py`](../backend/api/services/chatbot/constants.py) |
+| Chat 노드 (변경 없음) | [`backend/api/services/chatbot/nodes.py`](../backend/api/services/chatbot/nodes.py) |
+| RAG 런타임 embed (변경 없음) | [`backend/api/services/chatbot/db.py`](../backend/api/services/chatbot/db.py) |
+| RAG 배치 embed | [`backend/api/services/RAG/embedding.py`](../backend/api/services/RAG/embedding.py) |
+| JWT 게이트 (독립) | [`backend/api/services/chatbot/llm_gate.py`](../backend/api/services/chatbot/llm_gate.py) |
+| env 샘플 | [`.env.sample`](../.env.sample) |
+
+---
+
+## 1. 개요 및 설계 결정
 
 ### 목적
 
-- `LLM_PROVIDER=openai|local` 로 챗봇 LLM 백엔드 전환
-- 로컬 서버는 **OpenAI Chat Completions 호환** HTTP API (Ollama OpenAI 모드, vLLM, LM Studio 등)
-- 미설정·오류 시 **OpenAI 기본** 유지
+- 유료 OpenAI API 호출을 RunPod 자체 호스팅 모델로 **선택적** 대체
+- **OpenAI 호환 API** + LangChain `base_url` — 커스텀 HTTP 어댑터 **불필요**
+- Chat·Embedding provider를 env로 **독립** 제어 (hybrid 마이그레이션 가능)
+- 챗봇 graph·nodes 코드는 **건드리지 않고** [`llm.py`](../backend/api/services/chatbot/llm.py)만 분기
 
-### 고정 전제 4가지
+### RunPod proxy + base_url
+
+RunPod는 Pod를 **고정 proxy URL**로 노출한다 (Pod 재시작 시 호스트 일부 변경 가능).
+
+```
+https://8fgu9z9e1ki3un-8000.proxy.runpod.net/
+```
+
+발신부 env의 **`REMOTE_LLM_BASE_URL`** 은 proxy 호스트 + **`/v1`** 까지:
+
+```env
+REMOTE_LLM_BASE_URL=https://8fgu9z9e1ki3un-8000.proxy.runpod.net/v1
+```
+
+LangChain이 자동으로 붙이는 경로:
+
+| 용도 | 최종 HTTP URL |
+|------|----------------|
+| Chat | `{REMOTE_LLM_BASE_URL}/chat/completions` |
+| Embedding | `{REMOTE_LLM_BASE_URL}/embeddings` |
+
+Chat / Embedding **모델 구분**은 OpenAI와 동일하게 request body의 **`model`** 필드 (`REMOTE_LLM_MODEL`, `REMOTE_EMBEDDING_MODEL`).
+
+### 고정 전제 6가지
 
 | # | 결정 | 이유 |
 |---|------|------|
-| 1 | LangChain `ChatOpenAI` + `base_url` 재사용 | 코드 변경 최소, OpenAI·로컬 동일 인터페이스 |
-| 2 | **답변 LLM + 분류 LLM**만 전환 | `get_llm`, `get_classify_llm` — RAG 임베딩은 OpenAI 유지 |
-| 3 | provider는 **프로세스 시작 시** 결정 | `nodes.py` 모듈 로드 시 싱글톤 — 변경 시 재시작 |
-| 4 | `CHATBOT_REQUIRE_AUTH`와 **독립** | 에픽 03 JWT 게이트와 별도 env |
+| 1 | **OpenAI v1 API 호환** + `base_url` | LangChain `ChatOpenAI` / `OpenAIEmbeddings` 재사용, 범용성 |
+| 2 | **단일 `REMOTE_LLM_BASE_URL`** | RunPod proxy 호스트 하나; 모델은 `model` 필드로 선택 |
+| 3 | **Chat + Embedding** 모두 provider 전환 | 외부 API 호출 전수 커버 |
+| 4 | `LLM_PROVIDER` / `EMBEDDING_PROVIDER` **독립** | hybrid (chat remote + embed openai) 가능 |
+| 5 | provider는 **프로세스 시작 시** 결정 | `nodes.py` import 시 싱글톤 — env 변경 후 `docker compose up -d backend` |
+| 6 | `CHATBOT_REQUIRE_AUTH`와 **독립** | [에픽03](에픽03-JWT-LLM-게이트.md) JWT 게이트와 별도 env |
+
+### 외부 호출 인벤토리
+
+| # | 호출 시점 | 진입 함수 | provider env | remote 시 |
+|---|-----------|-----------|--------------|-----------|
+| 1 | classify | `get_classify_llm()` | `LLM_PROVIDER` | `POST .../v1/chat/completions` |
+| 2 | extract·generate | `get_llm()` | `LLM_PROVIDER` | 동일 |
+| 3 | RAG vector_search | `get_embedding_model().embed_query()` | `EMBEDDING_PROVIDER` | `POST .../v1/embeddings` |
+| 4 | pgvectordb 배치 | `embed_documents()` | `EMBEDDING_PROVIDER` | 동일 |
+| — | rerank | CrossEncoder | — | 로컬 CPU, **범위 외** |
+| — | 레거시 | [`chat.py`](../backend/api/services/chat.py) | — | **범위 외** |
+
+**선택적 호출:** graph 경로에 따라 `out_of_scope`·`keyword_search` 등은 embed **미호출** (기존 로직 유지).
 
 ### 범위 표
 
-| 구분 | OpenAI API | 로컬 LLM (본 에픽) |
-|------|------------|-------------------|
+| 구분 | `openai` | `remote` (RunPod) |
+|------|----------|-------------------|
 | `get_llm()` | O | O |
 | `get_classify_llm()` | O | O |
-| `get_embedding_model()` | O (항상 OpenAI) | X |
-| `RAG/embedding.py` 배치 | O | X |
-| `CHATBOT_ENABLE_RERANK` | 기존 | 기존 (별도) |
+| `get_embedding_model()` | O | O |
+| `RAG/embedding.py` 배치 | O | O |
+| `CHATBOT_ENABLE_RERANK` | 기존 | 기존 |
 
 ---
 
@@ -47,261 +115,343 @@
 
 | 항목 | 현재 | 목표 |
 |------|------|------|
-| `llm.py` | `ChatOpenAI(model=gpt-4o-mini)` 고정 | provider 분기 |
-| env | `OPENAI_API_KEY`만 | + `LLM_PROVIDER`, `LOCAL_LLM_*` |
-| 로컬 서버 | 미연동 | `base_url`로 외부 서버 호출 |
-| 토글 | 없음 | `.env`만으로 openai ↔ local |
+| `llm.py` | OpenAI 고정 | provider 분기 + remote `base_url` |
+| env | `OPENAI_API_KEY`만 | + `LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `REMOTE_LLM_BASE_URL`, `REMOTE_*_MODEL` |
+| RunPod | 미연동 | OpenAI 호환 `/v1` on proxy |
+| 토글 | 없음 | `.env`만으로 openai ↔ remote |
 
 ---
 
-## 3. 아키텍처
+## 3. API 계약 — RunPod 수신부 (Step 2 핸드오프)
 
-```mermaid
-flowchart LR
-  Env[".env LLM_PROVIDER"]
-  Factory["llm.py get_llm / get_classify_llm"]
-  OpenAI["OpenAI API\ngpt-4o-mini"]
-  Local["로컬 서버\nOpenAI 호환 /v1"]
-  Nodes["nodes.py\nllm classify_llm"]
-  Env --> Factory
-  Factory -->|"openai"| OpenAI
-  Factory -->|"local"| Local
-  Nodes --> Factory
+**별도 프로젝트**에서 Pod(8000) 또는 DRF 프록시가 **OpenAI API v1** 을 그대로 제공한다.  
+구현 방식은 자유 (vLLM OpenAI server, Ollama OpenAI mode, DRF → inference 래핑 등).
+
+### 3-1. base URL
+
+| env | 예 |
+|-----|-----|
+| `REMOTE_LLM_BASE_URL` | `https://8fgu9z9e1ki3un-8000.proxy.runpod.net/v1` |
+
+trailing `/v1` **포함** (LangChain `base_url` 관례).
+
+### 3-2. 필수 엔드포인트 (OpenAI v1)
+
+| Method | Path | 용도 |
+|--------|------|------|
+| `POST` | `/v1/chat/completions` | classify, extract, generate |
+| `POST` | `/v1/embeddings` | RAG 쿼리 + 배치 적재 |
+| `GET` | `/v1/models` | 헬스·모델명 확인 (권장) |
+
+### 3-3. `POST /v1/chat/completions`
+
+**Request (OpenAI 표준):**
+
+```json
+{
+  "model": "REMOTE_LLM_MODEL 값",
+  "messages": [
+    {"role": "system", "content": "..."},
+    {"role": "user", "content": "스쿼트 자세 알려줘"}
+  ],
+  "temperature": 0.7
+}
 ```
 
-### 요청 경로 (챗봇 메시지 1건)
+**Response (OpenAI 표준):**
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "choices": [{
+    "index": 0,
+    "message": {"role": "assistant", "content": "답변 텍스트"},
+    "finish_reason": "stop"
+  }],
+  "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+}
+```
+
+발신부 LangChain은 `choices[0].message.content` 를 사용 — [`nodes.py`](../backend/api/services/chatbot/nodes.py) `StrOutputParser`와 호환.
+
+### 3-4. `POST /v1/embeddings`
+
+**Request:**
+
+```json
+{
+  "model": "REMOTE_EMBEDDING_MODEL 값",
+  "input": "벡터화할 텍스트"
+}
+```
+
+배치:
+
+```json
+{
+  "model": "REMOTE_EMBEDDING_MODEL 값",
+  "input": ["청크1", "청크2"]
+}
+```
+
+**Response:**
+
+```json
+{
+  "object": "list",
+  "data": [
+    {"object": "embedding", "index": 0, "embedding": [0.01, -0.02]}
+  ],
+  "model": "...",
+  "usage": {"prompt_tokens": 0, "total_tokens": 0}
+}
+```
+
+**수신부 필수:** `data[].embedding` 길이 **1536** ([`schema.sql`](../backend/db/schema.sql) `vector(1536)`).
+
+### 3-5. 인증
+
+```env
+REMOTE_API_KEY=your-shared-secret
+```
+
+- 발신: LangChain `api_key=REMOTE_API_KEY` → `Authorization: Bearer ...`
+- RunPod 팀이 키 검사 생략 시 env 생략 가능
+
+### 3-6. RunPod 팀 완료 기준 (curl)
+
+```bash
+BASE=https://8fgu9z9e1ki3un-8000.proxy.runpod.net/v1
+
+curl "$BASE/models"
+
+curl -X POST "$BASE/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $REMOTE_API_KEY" \
+  -d '{"model":"YOUR_CHAT_MODEL","messages":[{"role":"user","content":"안녕"}],"temperature":0}'
+
+curl -X POST "$BASE/embeddings" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"YOUR_EMBED_MODEL","input":"스쿼트"}'
+```
+
+기대:
+- chat → `choices[0].message.content` 비어 있지 않음
+- embedding → `len(data[0].embedding) == 1536`
+
+### 3-7. RunPod 서버 내부 (참고 — 본 repo 범위 외)
+
+- Pod에 **Chat LLM** + **Embedding 모델** 설치
+- proxy `https://…-8000.proxy.runpod.net` → Pod `:8000`
+- `/v1/models`에 chat·embed 모델 id 노출 권장
+- Pod 재시작 시 proxy URL 변경 → env `REMOTE_LLM_BASE_URL`만 갱신
+
+---
+
+## 4. 아키텍처
+
+```mermaid
+flowchart TB
+  subgraph sender [Django_Chatbot]
+    Env["LLM_PROVIDER\nEMBEDDING_PROVIDER"]
+    Factory["llm.py ChatOpenAI\nOpenAIEmbeddings"]
+    Nodes["nodes.py"]
+    DB["db.py + RAG"]
+    Env --> Factory
+    Nodes --> Factory
+    DB --> Factory
+  end
+  subgraph runpod [RunPod_proxy]
+    Base["REMOTE_LLM_BASE_URL /v1"]
+    ChatAPI["/chat/completions"]
+    EmbAPI["/embeddings"]
+    Base --> ChatAPI
+    Base --> EmbAPI
+  end
+  OpenAI["api.openai.com/v1"]
+  Factory -->|"openai"| OpenAI
+  Factory -->|"remote base_url"| Base
+```
 
 ```mermaid
 sequenceDiagram
-  participant V as MessageListView
-  participant G as llm_gate
-  participant Bot as get_answer
-  participant N as nodes
-  participant LLM as ChatOpenAI
+  participant N as nodes_py
+  participant L as ChatOpenAI
+  participant RP as RunPod_v1
 
-  V->>G: generate_bot_content
-  G->>Bot: get_answer
-  Bot->>N: graph.invoke
-  N->>LLM: classify + generate
-  alt LLM_PROVIDER=openai
-    LLM->>LLM: api.openai.com
-  else LLM_PROVIDER=local
-    LLM->>LLM: LOCAL_LLM_BASE_URL
+  N->>L: prompt chain invoke
+  alt LLM_PROVIDER=remote
+    L->>RP: POST /v1/chat/completions
+    RP-->>L: OpenAI JSON
+  else openai
+    L->>L: api.openai.com
   end
 ```
 
 ---
 
-## 4. 백엔드 구현 — 타이핑 순서
+## 5. 벡터 DB · 재적재(re-embed) 정책
 
-### 4-1. `backend/api/services/chatbot/constants.py` 추가
-
-```python
-# backend/api/services/chatbot/constants.py — 추가
-
-# openai | local
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").strip().lower()
-
-# 로컬 OpenAI-호환 서버 (예: http://192.168.0.10:11434/v1 for Ollama)
-LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "http://127.0.0.1:11434/v1")
-LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "llama3.2")
-LOCAL_LLM_API_KEY = os.getenv("LOCAL_LLM_API_KEY", "local-dev-key")
-
-# provider=local 일 때도 OpenAI 모델명 상수는 LOCAL_LLM_MODEL로 대체됨
-```
+| 상황 | pgvectordb 재실행 |
+|------|-------------------|
+| Chat만 remote | **불필요** |
+| Embedding remote, **동일** 모델·1536d (예: `text-embedding-3-small` 동급) | **불필요** |
+| `REMOTE_EMBEDDING_MODEL` **변경** 또는 차원 변경 | **필수** — `python api/services/RAG/pgvectordb.py` |
+| OpenAI → remote 전환 후 검색 품질 검증 | 선택 (smoke 1회) |
 
 ---
 
-### 4-2. `backend/api/services/chatbot/llm.py` 리팩터
+## 6. 발신부 구현 — Step 3 (코드, Step 2 완료 후)
+
+### 6-1. 변경 범위
+
+| 파일 | 변경 |
+|------|------|
+| [`constants.py`](../backend/api/services/chatbot/constants.py) | provider + remote env |
+| [`llm.py`](../backend/api/services/chatbot/llm.py) | `_chat_model()`, `_embedding_model()` — remote 시 `base_url` |
+| [`RAG/embedding.py`](../backend/api/services/RAG/embedding.py) | `get_embedding_model()` 재사용 (import 1줄) |
+| [`.env`](../.env), [`.env.sample`](../.env.sample) | env 추가 |
+
+**변경 없음:** `nodes.py`, `db.py`, `chatbot.py`, `graphs.py`, `llm_gate.py`, `views.py`, frontend
+
+### 6-2. `constants.py` 추가 (예)
 
 ```python
-# backend/api/services/chatbot/llm.py
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+# ────────────────────────────────────────────
+# LLM provider (에픽 04)
+# ────────────────────────────────────────────
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").strip().lower()
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "").strip().lower() or LLM_PROVIDER
 
-from .constants import (
-    OPENAI_LLM_MODEL,
-    OPENAI_EMBEDDING_MODEL,
-    LLM_TEMPERATURE,
-    LLM_TEMPERATURE_CLASSIFY,
-    LLM_PROVIDER,
-    LOCAL_LLM_BASE_URL,
-    LOCAL_LLM_MODEL,
-    LOCAL_LLM_API_KEY,
-)
+REMOTE_LLM_BASE_URL = os.getenv("REMOTE_LLM_BASE_URL", "").rstrip("/")
+REMOTE_LLM_MODEL = os.getenv("REMOTE_LLM_MODEL", "")
+REMOTE_EMBEDDING_MODEL = os.getenv("REMOTE_EMBEDDING_MODEL", "")
+REMOTE_API_KEY = os.getenv("REMOTE_API_KEY", "")
 
+if LLM_PROVIDER not in ("openai", "remote"):
+    LLM_PROVIDER = "openai"
+if EMBEDDING_PROVIDER not in ("openai", "remote"):
+    EMBEDDING_PROVIDER = LLM_PROVIDER
+```
 
+### 6-3. `llm.py` (예 — 커스텀 어댑터 없음)
+
+```python
 def _chat_model(temperature: float) -> ChatOpenAI:
-    """provider에 따라 ChatOpenAI 인스턴스 생성."""
-    if LLM_PROVIDER == "local":
+    if LLM_PROVIDER == "remote":
         return ChatOpenAI(
-            model=LOCAL_LLM_MODEL,
+            model=REMOTE_LLM_MODEL,
             temperature=temperature,
-            base_url=LOCAL_LLM_BASE_URL,
-            api_key=LOCAL_LLM_API_KEY,
+            base_url=REMOTE_LLM_BASE_URL,
+            api_key=REMOTE_API_KEY,
         )
-    # default: openai
-    return ChatOpenAI(
-        model=OPENAI_LLM_MODEL,
-        temperature=temperature,
-    )
+    return ChatOpenAI(model=OPENAI_LLM_MODEL, temperature=temperature)
 
+def _embedding_model() -> OpenAIEmbeddings:
+    if _resolve_embedding_provider() == "remote":
+        return OpenAIEmbeddings(
+            model=REMOTE_EMBEDDING_MODEL,
+            base_url=REMOTE_LLM_BASE_URL,
+            api_key=REMOTE_API_KEY,
+        )
+    return OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL)
 
 def get_llm() -> ChatOpenAI:
-    """ChatOpenAI 모델 반환 (답변 생성용)"""
     return _chat_model(LLM_TEMPERATURE)
 
-
 def get_classify_llm() -> ChatOpenAI:
-    """ChatOpenAI 모델 반환 (분류 전용 - 결정론적)"""
     return _chat_model(LLM_TEMPERATURE_CLASSIFY)
 
-
 def get_embedding_model() -> OpenAIEmbeddings:
-    """OpenAI 임베딩 모델 반환 — provider와 무관, 항상 OpenAI."""
-    return OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL)
+    return _embedding_model()
 ```
 
-**주의:** `LLM_PROVIDER`에 `openai`·`local` 외 값이 오면 `openai`로 fallback 하도록 검증을 추가할 수 있다:
+### 6-4. `RAG/embedding.py` (1곳)
 
 ```python
-if LLM_PROVIDER not in ("openai", "local"):
-    LLM_PROVIDER = "openai"  # constants 로드 시 또는 _chat_model 내부
+from api.services.chatbot.llm import get_embedding_model
+
+def embed_documents(splits: list[Document]) -> tuple[list[str], list[list[float]]]:
+    embedding_model = get_embedding_model()
+    texts = [doc.page_content for doc in splits]
+    vectors = embedding_model.embed_documents(texts)
+    return texts, vectors
 ```
+
+### 6-5. env 반영
+
+`.env` 변경 후 **`docker compose up -d backend`**. [에픽03 Step 5](에픽03-JWT-LLM-게이트.md) 참고.
 
 ---
 
-### 4-3. `nodes.py` — 변경 없음 (동작 이해용)
-
-```python
-# backend/api/services/chatbot/nodes.py — import 시 1회 생성
-llm = get_llm()
-classify_llm = get_classify_llm()
-```
-
-모듈 import 시점에 LLM이 고정된다. **`.env` 변경 후 반드시 Django 프로세스 재시작.**
-
-개발 중 provider를 자주 바꿀 경우(선택): lazy singleton 패턴 — 본 에픽 **필수 아님**.
-
----
-
-### 4-4. `.env` / `docker-compose.yml`
-
-#### 로컬 개발 — OpenAI (기본)
-
-```env
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-```
-
-#### 로컬 개발 — Ollama 예시
-
-Ollama는 OpenAI 호환 API를 `http://localhost:11434/v1` 에 제공한다.
-
-```env
-LLM_PROVIDER=local
-LOCAL_LLM_BASE_URL=http://host.docker.internal:11434/v1
-LOCAL_LLM_MODEL=llama3.2
-LOCAL_LLM_API_KEY=ollama
-OPENAI_API_KEY=sk-...   # 임베딩·RAG용으로 여전히 필요
-```
-
-Docker 컨테이너에서 호스트 Ollama 접근:
-
-- Windows/Mac: `host.docker.internal`
-- Linux: `extra_hosts` 또는 호스트 IP
-
-```yaml
-# docker-compose.yml — backend 서비스 예시 (선택)
-environment:
-  LLM_PROVIDER: ${LLM_PROVIDER:-openai}
-  LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
-  LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.2}
-```
-
----
-
-## 5. 프론트엔드 구현
-
-**변경 없음.** LLM provider는 백엔드 전용 설정이다.
-
----
-
-## 6. 외부 로컬 서버 준비 (참고)
-
-### Ollama
-
-```bash
-ollama pull llama3.2
-ollama serve
-# OpenAI 호환: http://localhost:11434/v1
-```
-
-### vLLM (OpenAI 호환)
-
-```bash
-python -m vllm.entrypoints.openai.api_server \
-  --model meta-llama/Llama-3.2-3B-Instruct \
-  --port 8001
-```
-
-`.env`:
-
-```env
-LLM_PROVIDER=local
-LOCAL_LLM_BASE_URL=http://127.0.0.1:8001/v1
-LOCAL_LLM_MODEL=meta-llama/Llama-3.2-3B-Instruct
-```
-
-### LM Studio
-
-로컬 서버 탭에서 OpenAI 호환 서버 시작 → 표시된 URL을 `LOCAL_LLM_BASE_URL`에 설정.
-
----
-
-## 7. 환경변수 요약
+## 7. 환경변수
 
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
-| `LLM_PROVIDER` | `openai` | `openai` 또는 `local` |
-| `LOCAL_LLM_BASE_URL` | `http://127.0.0.1:11434/v1` | OpenAI 호환 API 루트 (`/v1` 포함) |
-| `LOCAL_LLM_MODEL` | `llama3.2` | 로컬 서버에 로드된 모델명 |
-| `LOCAL_LLM_API_KEY` | `local-dev-key` | 서버가 키 검사 안 하면 임의 문자열 |
-| `OPENAI_API_KEY` | — | `openai` 모드 필수; `local` 모드에서도 **임베딩/RAG**에 필요 |
-| `CHATBOT_REQUIRE_AUTH` | `False` | 에픽 03 — 본 에픽과 독립 |
+| `LLM_PROVIDER` | `openai` | Chat: `openai` \| `remote` |
+| `EMBEDDING_PROVIDER` | *(미설정 → `LLM_PROVIDER`)* | Embed: `openai` \| `remote` |
+| `REMOTE_LLM_BASE_URL` | — | RunPod proxy + `/v1` (예: `https://….proxy.runpod.net/v1`) |
+| `REMOTE_LLM_MODEL` | — | chat/completions `model` |
+| `REMOTE_EMBEDDING_MODEL` | — | embeddings `model` (**1536**차원) |
+| `REMOTE_API_KEY` | — | Bearer (선택) |
+| `OPENAI_API_KEY` | — | provider=openai 쪽에 필요 |
+| `CHATBOT_REQUIRE_AUTH` | `False` | [에픽03](에픽03-JWT-LLM-게이트.md) — **독립** |
+
+### 조합 예시
+
+```env
+# ── OpenAI (기본·회귀) ──
+LLM_PROVIDER=openai
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+
+# ── Full remote (OpenAI API 0회 목표) ──
+LLM_PROVIDER=remote
+EMBEDDING_PROVIDER=remote
+REMOTE_LLM_BASE_URL=https://8fgu9z9e1ki3un-8000.proxy.runpod.net/v1
+REMOTE_LLM_MODEL=your-chat-model
+REMOTE_EMBEDDING_MODEL=text-embedding-3-small
+REMOTE_API_KEY=your-shared-secret
+
+# ── Hybrid: Chat만 RunPod, Embedding은 OpenAI ──
+LLM_PROVIDER=remote
+EMBEDDING_PROVIDER=openai
+REMOTE_LLM_BASE_URL=https://8fgu9z9e1ki3un-8000.proxy.runpod.net/v1
+REMOTE_LLM_MODEL=your-chat-model
+REMOTE_API_KEY=...
+OPENAI_API_KEY=sk-...
+```
 
 ---
 
 ## 8. 수동 검증
 
-### 8-1. OpenAI 모드 (회귀)
+### 8-1. Phase 1 — API 계약 (Step 1)
 
-```env
-LLM_PROVIDER=openai
-```
+- [ ] 본 문서 §3 OpenAI v1 계약 RunPod 팀 리뷰 OK
 
-1. 백엔드 재시작
-2. ConsultPage에서 운동 질문 → 정상 답변
-3. 서버 로그에 OpenAI 호출 (또는 네트워크 egress)
+### 8-2. Phase 2 — RunPod (Step 2, 별도 프로젝트)
 
-### 8-2. Local 모드
+- [ ] §3-6 curl 전부 200
+- [ ] embedding 벡터 길이 1536
 
-```env
-LLM_PROVIDER=local
-LOCAL_LLM_BASE_URL=http://127.0.0.1:11434/v1
-LOCAL_LLM_MODEL=llama3.2
-```
+### 8-3. Phase 3 — 발신부 (Step 3)
 
-1. Ollama(또는 vLLM) 기동 확인:
+- [ ] `llm.py` import OK
+- [ ] unit test: `LLM_PROVIDER=remote` 시 `base_url=REMOTE_LLM_BASE_URL` (mock)
 
-```bash
-curl http://127.0.0.1:11434/v1/models
-```
+### 8-4. Phase 4 — 최종 E2E (Step 4, 1회)
 
-2. 백엔드 재시작
-3. 챗봇 메시지 POST → 로컬 모델 응답 (느릴 수 있음)
-4. OpenAI 대시보드에 **챗 완성 요청 없음** (임베딩 검색은 여전히 OpenAI일 수 있음)
-
-### 8-3. curl 챗봇 (에픽 2·3 적용 후)
+| 케이스 | env | 기대 |
+|--------|-----|------|
+| OpenAI 회귀 | both `openai` | 기존과 동일 |
+| Full remote | both `remote` | 챗봇 답변, OpenAI **0회** |
+| Hybrid | llm `remote`, embed `openai` | chat만 RunPod |
+| out_of_scope | `remote` | chat/completions만 |
+| general RAG | embed `remote` | completions + embeddings |
+| RunPod 다운 | `remote` | `LLM_ERROR_MESSAGE` |
+| 에픽03 | `CHATBOT_REQUIRE_AUTH=True` + `remote` | 독립 동작 |
 
 ```bash
 curl -X POST http://localhost:8000/api/sessions/1/messages/ \
@@ -309,57 +459,28 @@ curl -X POST http://localhost:8000/api/sessions/1/messages/ \
   -d '{"device_uuid":"YOUR-UUID","content":"벤치프레스 가이드"}'
 ```
 
-### 8-4. 실패 시나리오
-
-| 시나리오 | 기대 동작 |
-|----------|-----------|
-| `local`인데 서버 다운 | `llm_gate` except → 「오류가 발생했습니다」 bot 메시지 |
-| 잘못된 `LOCAL_LLM_MODEL` | 동일 |
-| `LLM_PROVIDER=local` + RAG 질문 | 벡터 검색(OpenAI embedding) 후 로컬 LLM 답변 생성 |
-
-### 8-5. 브라우저 체크리스트
-
-- [ ] `openai`: 기존과 동일 품질·속도
-- [ ] `local`: 답변 생성됨 (분류 노드 포함)
-- [ ] provider 변경 후 **재시작 없이** 바꾸면 → 동작 안 바뀜 (재시작 필요 확인)
-- [ ] `CHATBOT_REQUIRE_AUTH`와 조합 테스트 (에픽 03)
-
 ---
 
 ## 9. 구현 순서 치트시트
 
-| Step | 작업 | 완료 기준 |
-|------|------|-----------|
-| **1** | `constants.py` LLM_PROVIDER 등 | import OK |
-| **2** | `llm.py` `_chat_model` | 단위로 local/openai 인스턴스 |
-| **3** | `.env` 예시 + docker-compose | 팀 공유 |
-| **4** | Ollama/vLLM 로컬 기동 | `/v1/models` 200 |
-| **5** | `LLM_PROVIDER=local` E2E | 챗봇 답변 |
-| **6** | `openai` 회귀 | 기존 동작 |
+| Step | 담당 | 작업 | 완료 기준 |
+|------|------|------|-----------|
+| **1** | 본 팀 | OpenAI v1 API 계약 확정 | RunPod 팀 OK |
+| **2** | 별도 프로젝트 | RunPod `/v1` OpenAI API | §3-6 curl PASS |
+| **3** | 본 팀 | constants + llm.py + embedding.py | import OK |
+| **4** | 본 팀 | `openai` 회귀 | E2E PASS |
+| **5** | 본 팀 | full `remote` E2E | OpenAI 0회 |
+| **6** | (선택) | embedding 모델 변경 | pgvectordb 재적재 |
 
 ---
 
-## 10. 알려진 제약 및 향후 확장
+## 10. 알려진 제약
 
-### 제약
-
-1. **임베딩은 OpenAI 고정**  
-   로컬만 쓰는 환경에서는 `OPENAI_API_KEY` 없이 RAG 검색이 실패할 수 있다. 완전 오프라인은 별도 에픽.
-
-2. **모듈 로드 시 LLM 싱글톤**  
-   hot reload(`runserver` autoreload)는 env 변경을 반영할 수 있으나, Docker 운영에서는 restart 명시.
-
-3. **로컬 모델 품질·한국어**  
-   분류(`QUERY_TYPES`) 오분류 가능 — `LOCAL_LLM_MODEL` 튜닝 필요.
-
-4. **레거시 `chat.py`, `rag.py`**  
-   미사용. 수정 범위 밖.
-
-### 향후 확장
-
-- 로컬 임베딩 provider (`LOCAL_EMBEDDING_*`)
-- `nodes.py` lazy LLM reload
-- 헬스체크 엔드포인트 `GET /api/health/llm/`
+1. **RunPod proxy URL 변경** — Pod 재배포 시 `REMOTE_LLM_BASE_URL` 갱신.
+2. **OpenAI v1 호환 필수** — RunPod가 `/api/generate/` 등 커스텀 path만 제공하면 **본 방식 불가** (OpenAI `/v1` 구현 필요).
+3. **모듈 로드 시 싱글톤** — env 변경 후 `docker compose up -d backend`.
+4. **CrossEncoder rerank** — 로컬 CPU, 범위 외.
+5. **레거시 [`chat.py`](../backend/api/services/chat.py)** — 미사용.
 
 ---
 
@@ -367,44 +488,33 @@ curl -X POST http://localhost:8000/api/sessions/1/messages/ \
 
 | 증상 | 원인 | 해결 |
 |------|------|------|
-| `local`인데 OpenAI 호출 | env 미반영·오타 | `LLM_PROVIDER=local`, 재시작 |
-| Connection refused | URL·포트 오류 | `LOCAL_LLM_BASE_URL`, 방화벽 |
-| Docker에서 Ollama 접근 실패 | localhost = 컨테이너 자신 | `host.docker.internal` |
-| 404 model not found | `LOCAL_LLM_MODEL` 불일치 | `curl .../v1/models`로 이름 확인 |
-| 빈 답변 | 로컬 모델 컨텍스트 부족 | 더 큰 모델 또는 프롬프트 단순화 |
-| RAG만 실패 | embedding OpenAI 키 | `OPENAI_API_KEY` 설정 |
-| 분류만 이상 | temperature=0인데 모델 미지원 | 다른 로컬 모델 시도 |
+| `remote`인데 OpenAI 호출 | env 미반영 | `docker compose up -d backend` |
+| 404 on chat/completions | `/v1` path 미구현 | RunPod에 OpenAI API 추가 |
+| Connection refused | Pod 중단·URL 오류 | proxy URL·RunPod 대시보드 |
+| embedding 차원 오류 | 1536 ≠ 출력 | `REMOTE_EMBEDDING_MODEL` 확인 |
+| hybrid인데 embed도 remote | `EMBEDDING_PROVIDER` 미설정 | `EMBEDDING_PROVIDER=openai` |
+| 404 model not found | `REMOTE_*_MODEL` 불일치 | `GET /v1/models` |
 
 ---
 
-## 부록 B: `ChatOpenAI` + `base_url` 동작 원리
+## 부록 B: 에픽03과 env 조합
 
-LangChain `ChatOpenAI`는 `base_url`이 설정되면 OpenAI SDK와 동일하게 **Chat Completions** 엔드포인트를 해당 호스트로 보낸다. 로컬 서버는 다음을 지원해야 한다:
+| 환경 | `CHATBOT_REQUIRE_AUTH` | `LLM_PROVIDER` | `EMBEDDING_PROVIDER` |
+|------|------------------------|----------------|----------------------|
+| 로컬 개발 (OpenAI) | `False` | `openai` | `openai` |
+| 로컬 개발 (full remote) | `False` | `remote` | `remote` |
+| hybrid | `False` | `remote` | `openai` |
+| 운영 | `True` | `remote` | `remote` |
 
-- `POST {base_url}/chat/completions`
-- 요청/응답 JSON 형식 OpenAI v1 호환
-
-Ollama, vLLM, LM Studio는 이 계약을 따르므로 **추가 HTTP 클라이언트 코드 없이** 전환 가능하다.
+JWT LLM 게이트와 provider env는 **완전히 독립**이다.
 
 ---
 
-## 부록 C: env 조합 예시
+## 부록 C: OpenAI base_url 동작 (발신부)
 
-```env
-# 개발 — 게스트 허용 + OpenAI
-LLM_PROVIDER=openai
-CHATBOT_REQUIRE_AUTH=False
-OPENAI_API_KEY=sk-...
+LangChain `ChatOpenAI(base_url=REMOTE_LLM_BASE_URL)` 는 OpenAI SDK와 동일하게:
 
-# 개발 — 로컬 LLM 실험
-LLM_PROVIDER=local
-LOCAL_LLM_BASE_URL=http://127.0.0.1:11434/v1
-LOCAL_LLM_MODEL=llama3.2
-CHATBOT_REQUIRE_AUTH=False
-OPENAI_API_KEY=sk-...   # RAG embedding
+- Chat → `POST {base_url}/chat/completions`
+- Embed → `POST {base_url}/embeddings`
 
-# 스테이징 — 로그인 필수 + OpenAI
-LLM_PROVIDER=openai
-CHATBOT_REQUIRE_AUTH=True
-OPENAI_API_KEY=sk-...
-```
+RunPod proxy 호스트가 고정되어 있어도 **`/v1` + OpenAI path** 만 맞으면 추가 코드 없이 연동된다.

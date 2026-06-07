@@ -91,9 +91,10 @@
 | 환경변수 | 에픽 | 역할 |
 |----------|------|------|
 | `CHATBOT_REQUIRE_AUTH` | **본 에픽** | JWT 없/만료 시 LLM 차단 on/off |
-| `LLM_PROVIDER` | 에픽 04 | OpenAI vs 로컬 모델 선택 |
+| `LLM_PROVIDER` | [에픽04](에픽04-로컬-LLM-연동.md) | Chat: OpenAI vs RunPod (`openai` \| `remote`, `base_url`) |
+| `EMBEDDING_PROVIDER` | [에픽04](에픽04-로컬-LLM-연동.md) | Embedding: OpenAI vs RunPod (`openai` \| `remote`) |
 
-두 변수는 **독립**. 예: `CHATBOT_REQUIRE_AUTH=True` + `LLM_PROVIDER=local` 동시 설정 가능.
+`CHATBOT_REQUIRE_AUTH`와 provider env는 **독립**. 예: `CHATBOT_REQUIRE_AUTH=True` + `LLM_PROVIDER=remote` 동시 설정 가능.
 
 ### 관련 파일
 
@@ -680,7 +681,7 @@ curl -b cookies.txt -X POST http://localhost:8000/api/sessions/1/messages/ \
 
 ### 다음 에픽
 
-- [에픽04](에픽04-로컬-LLM-연동.md): `LLM_PROVIDER`로 OpenAI/로컬 분기 (게이트와 독립)
+- [에픽04](에픽04-로컬-LLM-연동.md): `LLM_PROVIDER` / `EMBEDDING_PROVIDER` — OpenAI vs RunPod OpenAI 호환 `base_url` (게이트와 독립)
 
 ---
 
@@ -700,12 +701,12 @@ curl -b cookies.txt -X POST http://localhost:8000/api/sessions/1/messages/ \
 
 ## 부록 B: 운영 권장 조합
 
-| 환경 | `CHATBOT_REQUIRE_AUTH` | `LLM_PROVIDER` |
-|------|------------------------|----------------|
-| 로컬 개발 (게스트 테스트) | `False` | `openai` |
-| 스테이징 | `True` | `openai` |
-| 로컬 LLM 서버 연동 중 | `False` | `local` |
-| 운영 | `True` | `openai` 또는 `local` |
+| 환경 | `CHATBOT_REQUIRE_AUTH` | `LLM_PROVIDER` | `EMBEDDING_PROVIDER` |
+|------|------------------------|----------------|----------------------|
+| 로컬 개발 (OpenAI) | `False` | `openai` | `openai` |
+| 스테이징 | `True` | `openai` | `openai` |
+| RunPod full remote | `False` | `remote` | `remote` |
+| 운영 | `True` | `openai` 또는 `remote` | 동일 또는 hybrid |
 
 ---
 
