@@ -8,9 +8,9 @@ from api.services.auth_service import get_session_user
 
 @dataclass(frozen=True)
 class Actor:
-    mode: str 
-    user_id = Optional[int] = None
-    device_uuid = Optional[str] = None
+    mode: str  # 'user' | 'guest'
+    user_id: Optional[int] = None
+    device_uuid: Optional[str] = None
 
 
 class ActorError(ValueError):
@@ -36,7 +36,7 @@ def resolve_actor(request: HttpRequest, device_uuid: Optional[str] = None) -> Ac
         )
     
     if not device_uuid:
-        raise ActorError('device_uuid가 존재하지 않습니다.')\
+        raise ActorError('device_uuid is required')
     
     # 사용자가 아님 (로그인 안함) 이면서 device_uuid가 없으면 게스트 id 생성
     return Actor(

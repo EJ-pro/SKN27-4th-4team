@@ -6,7 +6,7 @@ function readCookie() {
 }
 
 function writeCookie(uuid) {
-    document.cookie = `${KEY}=${uuid}; max-age=$${60 * 60 * 24 * 365}; path=/`
+    document.cookie = `${KEY}=${uuid}; max-age=${60 * 60 * 24 * 365}; path=/`
 }
 
 /**

@@ -10,16 +10,6 @@ import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
 // 기존 uuid 셋팅을 유틸 함수로 보냄 + 기타 처리 추가 
 const deviceUuid = getOrCreateDeviceUuid();
 
-// 유저 로그인 여부에 따라 네비게이션 상태 변경 
-const navigate = useNavigate()
-const [authUser, setAuthUser] = useState(null) // null = 게스트거나 혹은 로딩 전 상태 
-
-useEffect(() => {
-  getMe()
-    .then((u) => setAuthUser(u))
-    .catch(() => setAuthUser(null))
-}, [])
-
 // 주차 계산 함수 
 function getISOWeekAndYear(date) {
   const target = new Date(date.valueOf());
@@ -889,6 +879,15 @@ const enrichPreloadedRoutine = (preloaded, dbExercises, painParts) => {
 };
 
 export default function RoutinePage() {
+  const navigate = useNavigate()
+  const [authUser, setAuthUser] = useState(null) // null = 게스트 또는 로딩 전
+
+  useEffect(() => {
+    getMe()
+      .then((u) => setAuthUser(u))
+      .catch(() => setAuthUser(null))
+  }, [])
+
   const [step, setStep] = useState(0)
   const [painParts, setPainParts] = useState([])
   const [workDays, setWorkDays] = useState([])
@@ -975,6 +974,13 @@ export default function RoutinePage() {
     // 함수 하나로 묶어서 로직을 처리하는 것으로 변경 
     loadWeeklyRoutine()
   }, [])
+
+  // 로그인 직후 같은 탭에 머문 경우 회원 루틴 재조회
+  useEffect(() => {
+    if (authUser) {
+      loadWeeklyRoutine()
+    }
+  }, [authUser])
 
   const canNext = [
     painParts.length > 0,
@@ -1074,6 +1080,8 @@ export default function RoutinePage() {
           dbExercises={dbExercises}
           initialWorkoutRoutine={preloadedWorkoutRoutine}
           initialDailyNotes={preloadedDailyNotes}
+          authUser={authUser}
+          onLoginClick={() => navigate('/login')}
         />
       </div>
     )
@@ -1561,7 +1569,7 @@ const GOAL_LABEL = {
 
 function RoutineCheckView({
   workDays, goal, splitStyle, sessionMin, painParts, dayParts, onReset, dbExercises,
-  initialWorkoutRoutine, initialDailyNotes
+  initialWorkoutRoutine, initialDailyNotes, authUser, onLoginClick,
 }) {
   const [activeDay, setActiveDay] = useState(workDays[0] || '월')
   const [completedExercises, setCompletedExercises] = useState(() => {
@@ -1810,7 +1818,7 @@ function RoutineCheckView({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap:10 }}>
           <button
-            onClick={() => { if (!authUser) navigate('/cogin') }}
+            onClick={() => { if (!authUser) onLoginClick() }}
             style={{
               display: 'flex', alignItems: 'center', gap:8,
               padding: '8px 14px', borderRadius: 4,
