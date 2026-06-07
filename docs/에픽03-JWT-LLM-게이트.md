@@ -166,7 +166,7 @@
 | `MessageListView.post` | 무조건 `get_answer()` | `generate_bot_content()` 경유 |
 | JWT 검증 함수 | 없음 | `validate_session_access_token(request)` |
 | env 토글 | 없음 | `CHATBOT_REQUIRE_AUTH` |
-| 미인증 응답 | — | 고정 한국어 안내 bot 메시지 |
+| 미인증 응답 | — | `constants`의 `AUTH_REQUIRED_MESSAGE` |
 
 ---
 
@@ -254,9 +254,13 @@ AUTH_REQUIRED_MESSAGE = (
     "AI 답변을 이용하려면 로그인이 필요합니다. "
     "로그인 후 다시 질문해 주세요."
 )
+
+LLM_ERROR_MESSAGE = "답변을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
 ```
 
 > `import os`와 `load_dotenv()`는 파일 상단에 **이미 있음**. 추가 import 불필요.
+>
+> **안내 문구 원칙:** 사용자에게 보이는 고정 문구(`AUTH_REQUIRED_MESSAGE`, `LLM_ERROR_MESSAGE` 등)는 **이 파일에만** 정의한다. `llm_gate.py`·`views.py` 등에서는 문자열을 직접 쓰지 않고 상수를 import해 반환한다.
 
 `.env` 및 `.env.sample`에 추가:
 
@@ -267,7 +271,7 @@ AUTH_REQUIRED_MESSAGE = (
 CHATBOT_REQUIRE_AUTH=False
 ```
 
-**완료 기준:** Django shell에서 `from api.services.chatbot.constants import CHATBOT_REQUIRE_AUTH` import 성공.
+**완료 기준:** Django shell에서 `from api.services.chatbot.constants import CHATBOT_REQUIRE_AUTH, AUTH_REQUIRED_MESSAGE, LLM_ERROR_MESSAGE` import 성공.
 
 ---
 
@@ -343,7 +347,7 @@ validate_session_access_token(req)  # False
 from django.http import HttpRequest
 
 from api.services.auth_service import validate_session_access_token
-from .constants import CHATBOT_REQUIRE_AUTH, AUTH_REQUIRED_MESSAGE
+from .constants import CHATBOT_REQUIRE_AUTH, AUTH_REQUIRED_MESSAGE, LLM_ERROR_MESSAGE
 from .chatbot import get_answer
 
 
@@ -365,7 +369,7 @@ def generate_bot_content(
     session_id: int,
 ) -> str:
     """
-    게이트 통과 시 get_answer(), 차단 시 고정 안내 문구.
+    게이트 통과 시 get_answer(), 차단·오류 시 constants 안내 문구.
     get_answer 예외는 여기서 처리 (뷰 try/except 중복 제거).
     """
     if not should_run_llm(request):
@@ -376,7 +380,7 @@ def generate_bot_content(
         return get_answer(user_content, session_id)
     except Exception as exc:
         print(f'[chatbot] answer generation failed: {exc}')
-        return '답변을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+        return LLM_ERROR_MESSAGE
 ```
 
 **완료 기준:** `from api.services.chatbot.llm_gate import should_run_llm, generate_bot_content` import OK.
@@ -533,6 +537,7 @@ if not should_run_llm(request):
 | `REQUIRE_AUTH=false` | O | `get_answer()` 결과 | O |
 | `REQUIRE_AUTH=true` + 유효 JWT | O | `get_answer()` 결과 | O |
 | `REQUIRE_AUTH=true` + 무효 JWT | O | `AUTH_REQUIRED_MESSAGE` | **X (0회)** |
+| LLM 호출 중 예외 | O | `LLM_ERROR_MESSAGE` | 시도 후 실패 |
 
 HTTP 상태코드: **201** (차단 시에도 403 사용 안 함).
 

@@ -6,8 +6,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
 from .models import Exercise, ChatSession, ChatMessage, WeeklyScheduler, DailyRoutine
-from .services.chatbot.chatbot import get_answer
 from .services.actor_service import ActorError, resolve_actor, scheduler_filter_kwargs, scheduler_owner_filter, session_belongs_to_actor, session_owner_filter
+from .services.chatbot.llm_gate import generate_bot_content
 
 DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
 
@@ -196,11 +196,8 @@ class MessageListView(View):
         if not content:
             return JsonResponse({'error': 'content required'}, status=400)
 
-        try:
-            bot_content = get_answer(content, session_id)
-        except Exception as exc:
-            print(f'[chatbot] answer generation failed: {exc}')
-            bot_content = '답변을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+        # 메시지 출력 함수 래핑 (검증 부분이 여러개 있어서 별도로 분리함)
+        bot_content = generate_bot_content(request, content, session_id)
 
         user_msg = ChatMessage.objects.create(
             session_id=session_id,
