@@ -6,6 +6,7 @@ from django.http import HttpRequest
 from api.services.auth_service import get_session_user
 
 
+
 @dataclass(frozen=True)
 class Actor:
     mode: str  # 'user' | 'guest'
@@ -57,3 +58,27 @@ def scheduler_owner_filter(actor: Actor) -> dict:
     if actor.mode == 'user':
         return {'user_id':actor.user_id}
     return {'device_uuid':actor.device_uuid}
+
+
+def session_owner_filter(actor:Actor) -> dict:
+    """
+    ChatSession 목록/소유권 검증 함수 
+    유저가 있으면 유저id로 설정하고 아니면 device_uuid 사용한다. 
+    """
+    if actor.mode == 'user':
+        return {'user_id':actor.user_id}
+    return {'device_uuid':actor.device_uuid}
+
+
+def session_belongs_to_actor(session: 'ChatSession', actor: Actor) -> bool:
+    """ 
+    채팅 세션이 현재 사용자(actor)에 속하는지 검증 함수 
+    세션 모델의 경우 타입 힌트만 필요하므로 외부에서 import 하면 순환참조가 될 수 있어 내부에서만 임포트 해서 힌트만 받는다. 
+    Returns:
+        bool: 세션이 현재 사용자에 속하는지 여부
+    """
+    from api.models import ChatSession
+    if actor.mode == 'user':
+        return session.user_id == actor.user_id
+    return str(session.device_uuid) == str(actor.device_uuid)
+    
