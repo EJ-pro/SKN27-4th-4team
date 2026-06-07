@@ -83,7 +83,9 @@ def vector_search(query: str, limit: int = 5, where_clause: str = "", params: li
     sql = SELECT_COLUMNS
     if where_clause:
         sql += f" WHERE {where_clause}"
-    sql += " ORDER BY embedding <-> %s::vector LIMIT %s"
+    # HNSW 인덱스가 vector_cosine_ops로 생성되어 있으므로 cosine 연산자(<=>)를 사용해야
+    # 인덱스를 탄다. (L2 연산자 <-> 사용 시 인덱스 미적용 → full scan)
+    sql += " ORDER BY embedding <=> %s::vector LIMIT %s"
 
     with connection.cursor() as cursor:
         cursor.execute(sql, all_params)

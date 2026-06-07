@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
 from RAG.loader import load_exercises_as_documents
-from RAG.splitter import split_documents
 
 load_dotenv()
 
@@ -18,15 +17,17 @@ OpenAI text-embedding-3-small 모델 반환
 """
 
 
-def embed_documents(splits: list[Document]) -> tuple[list[str], list[list[float]]]:
+def embed_documents(docs: list[Document]) -> tuple[list[str], list[list[float]]]:
     """
-    청크 리스트를 받아 텍스트와 벡터 반환
-    - embed_documents: 다수 청크를 배치로 벡터 변환
+    운동 문서 리스트를 받아 텍스트와 벡터 반환
+    - embed_documents: 다수 문서를 배치로 벡터 변환
     - 반환값: (텍스트 리스트, 벡터 리스트)
+    - text-embedding-3-small은 최대 8191 토큰을 지원하므로 운동 문서 단위로
+      청킹 없이 임베딩한다 (스키마가 운동당 단일 벡터이기 때문).
     """
     embedding_model = OpenAIEmbeddings(model="text-embedding-3-small")
 
-    texts = [doc.page_content for doc in splits]
+    texts = [doc.page_content for doc in docs]
     vectors = embedding_model.embed_documents(texts)
 
     return texts, vectors
@@ -34,7 +35,6 @@ def embed_documents(splits: list[Document]) -> tuple[list[str], list[list[float]
 
 if __name__ == "__main__":
     docs = load_exercises_as_documents()
-    splits = split_documents(docs)
 
-    texts, vectors = embed_documents(splits)
+    texts, vectors = embed_documents(docs)
 

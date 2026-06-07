@@ -11,6 +11,17 @@ llm = get_llm()
 classify_llm = get_classify_llm()
 cross_encoder = None
 
+# muscles 테이블에 직접 없는 관절·부위 → 대표 근육 키워드 매핑
+# (get_muscles_by_body_part가 빈 결과일 때 정밀 제외(브릿지 테이블)를 쓰기 위함)
+JOINT_TO_MUSCLE_HINTS: dict[str, list[str]] = {
+    "무릎": ["대퇴사두근", "햄스트링", "종아리"],
+    "발목": ["종아리", "비복근"],
+    "손목": ["전완"],
+    "팔꿈치": ["이두근", "삼두근", "전완"],
+    "허리": ["척추기립근", "기립근"],
+    "고관절": ["둔근"],
+}
+
 # CrossEncoder 전역 1회 로드 (모델은 RERANK_CACHE_FOLDER에 캐싱됨)
 
 
@@ -111,11 +122,15 @@ def retrieve_general(state: RAGChatState) -> RAGChatState:
     question = state["question"]
 
     # LLM으로 카테고리/장비 힌트 동적 추출
+    # 카테고리 목록은 실제 DB 값과 일치해야 함:
+    #   하체 / 코어 / 등 / 어깨 / 가슴 / 스트레칭 / 유산소 / 이두 / 삼두 / 전완근
+    # ('팔'·'전신' 같은 DB에 없는 값을 쓰면 필터가 0건→무필터 폴백으로 카테고리가 섞임)
     filter_prompt = ChatPromptTemplate.from_template(
         "다음 질문에서 운동 카테고리와 장비 힌트를 추출하세요.\n"
-        "카테고리는 '가슴, 등, 어깨, 팔, 하체, 코어, 전신, 스트레칭' 중 하나이며 해당하는 경우만 답하세요.\n"
-        "장비가 '맨몸' 또는 '장비 없음'인 경우 equipment=body 로 답하세요.\n"
-        "해당 없으면 빈 값으로 답하세요.\n\n"
+        "카테고리는 다음 중에서만 고르세요: 가슴, 등, 어깨, 하체, 코어, 스트레칭, 유산소, 이두, 삼두, 전완근.\n"
+        "- '팔' 운동은 이두/삼두/전완근에 해당하니 관련 카테고리를 쉼표로 모두 적으세요 (예: 이두,삼두,전완근).\n"
+        "- 여러 부위가 해당하면 쉼표로 나열하세요. 해당 없으면 빈 값.\n"
+        "장비가 '맨몸' 또는 '장비 없음'인 경우 equipment=body 로 답하세요.\n\n"
         "질문: {question}\n\n"
         "아래 형식으로만 답하세요 (값이 없으면 빈 칸):\n"
         "category: (카테고리)\n"
@@ -128,9 +143,12 @@ def retrieve_general(state: RAGChatState) -> RAGChatState:
     for line in hint_text.splitlines():
         if line.startswith("category:"):
             val = line.split(":", 1)[1].strip()
-            if val:
-                where_parts.append("category ILIKE %s")
-                params.append(f"%{val}%")
+            # 쉼표로 여러 카테고리가 오면 OR로 묶음 (예: '팔' → 이두 OR 삼두 OR 전완근)
+            cats = [c.strip() for c in val.split(",") if c.strip()]
+            if cats:
+                ors = " OR ".join(["category ILIKE %s"] * len(cats))
+                where_parts.append(f"({ors})")
+                params.extend(f"%{c}%" for c in cats)
         elif line.startswith("equipment:"):
             val = line.split(":", 1)[1].strip()
             if val:
@@ -194,21 +212,34 @@ def retrieve_injury(state: RAGChatState) -> RAGChatState:
     # DB에서 부상 부위에 해당하는 근육명 목록 조회
     muscle_names = get_muscles_by_body_part(injury_part)
 
+    # 근육 테이블에 직접 없는 관절·부위(무릎·손목 등)는 대표 근육으로 매핑해 재조회
+    if not muscle_names:
+        for hint in JOINT_TO_MUSCLE_HINTS.get(injury_part, []):
+            muscle_names.extend(get_muscles_by_body_part(hint))
+        muscle_names = list(dict.fromkeys(muscle_names))  # 중복 제거
+
+    # 부상자에게 고급 난이도 운동은 위험 → injury 분기에서는 항상 제외
+    safety_clause = "difficulty <> '고급'"
+
     if muscle_names:
         # exercise_muscles 브릿지 테이블로 정확하게 해당 근육 사용 운동 제외
         placeholders = ",".join(["%s"] * len(muscle_names))
         where_clause = f"""
-            exercise_id NOT IN (
+            {safety_clause}
+            AND exercise_id NOT IN (
                 SELECT em.exercise_id FROM exercise_muscles em
                 JOIN muscles m ON em.muscle_id = m.muscle_id
                 WHERE m.name_kor IN ({placeholders})
             )
         """
-        params = muscle_names
+        params = list(muscle_names)
         print(f"[retrieve_injury] DB 근육 필터: {muscle_names}")
     else:
-        # DB에 없는 부위(무릎 등)는 기존 텍스트 매칭으로 폴백
-        where_clause = "target_primary NOT ILIKE %s AND target_secondary::text NOT ILIKE %s"
+        # 매핑도 실패한 부위는 텍스트 매칭으로 폴백 (고급 제외는 유지)
+        where_clause = (
+            f"{safety_clause} "
+            "AND target_primary NOT ILIKE %s AND target_secondary::text NOT ILIKE %s"
+        )
         params = [f"%{injury_part}%", f"%{injury_part}%"]
         print(f"[retrieve_injury] 텍스트 폴백 필터: {injury_part}")
 
@@ -240,6 +271,17 @@ def generate(state: RAGChatState) -> RAGChatState:
 
     history_block = f"[이전 대화]\n{history_text}\n\n" if history_text else ""
 
+    # 부상 질문이면 안전 가이드를 프롬프트에 추가 (환각 방지)
+    query_type = state.get("query_type", "")
+    injury_block = ""
+    if query_type == "injury":
+        injury_block = (
+            "[부상 주의]\n"
+            "- 사용자가 통증·부상을 언급했습니다. [운동 데이터]에 있는 운동만 추천하세요.\n"
+            "- 특정 운동이 특정 부위에 '안전하다/부담이 적다'는 판단은 데이터에 명시된 근거가 "
+            "있을 때만 하고, 없으면 단정하지 마세요.\n\n"
+        )
+
     prompt = ChatPromptTemplate.from_template(
         "당신은 AI 운동 전문가 챗봇입니다.\n\n"
         "[답변 규칙]\n"
@@ -247,13 +289,17 @@ def generate(state: RAGChatState) -> RAGChatState:
         "2. 훈련 방법론(세트 수, 반복 수, 주기화 등)은 전문 지식으로 보완할 수 있습니다.\n"
         "3. 영양·수면·멘탈 등 운동과 직접 관련 없는 주제는 다루지 마세요.\n"
         "4. 설명이 필요한 경우 항목별로 구분해서 작성하고, 불필요한 내용은 생략하세요.\n"
-        "5. [운동 데이터]의 필드(카테고리:, 주 타겟 근육: 등)를 그대로 출력하지 말고 자연스러운 문장으로 변환하세요.\n\n"
+        "5. [운동 데이터]의 필드(카테고리:, 주 타겟 근육: 등)를 그대로 출력하지 말고 자연스러운 문장으로 변환하세요.\n"
+        "6. [운동 데이터]에 없는 운동(예: 수영·자전거)이나 데이터로 확인되지 않는 안전성·효과는 단정하지 마세요.\n"
+        "7. 질문의 핵심에 먼저 간결하게 답하고, 묻지 않은 부수 설명은 최소화하세요.\n\n"
+        "{injury_block}"
         "{history_block}"
         "[운동 데이터]\n"
         "{context}\n\n"
         "질문: {question}"
     )
     answer = (prompt | llm | StrOutputParser()).invoke({
+        "injury_block": injury_block,
         "history_block": history_block,
         "context": context,
         "question": question,
