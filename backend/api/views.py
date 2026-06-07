@@ -134,13 +134,17 @@ class SessionDetailView(View):
 
     def delete(self, request, session_id):
         data = json.loads(request.body)
-        uuid = data.get('device_uuid')
-        session = self._get_session(session_id, uuid)
+        try:
+            actor = resolve_actor(request, data.get('device_uuid'))
+        except ActorError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+        
+        session = self._get_session(session_id, actor)
         if not session:
             return JsonResponse({'error': 'not found'}, status=404)
+        
         session.delete()
         return JsonResponse({'ok': True})
-
 
 # ─── Chat Messages ─────────────────────────────────────────────────────────────
 
