@@ -7,7 +7,6 @@ from api.services.auth_service import get_session_user
 from api.models import ChatSession
 
 
-
 @dataclass(frozen=True)
 class Actor:
     mode: str  # 'user' | 'guest'
@@ -72,10 +71,7 @@ def session_owner_filter(actor:Actor) -> dict:
 
 
 def session_belongs_to_actor(session: ChatSession, actor: Actor) -> bool:
-    """ 
-    채팅 세션이 현재 사용자(actor)에 속하는지 검증 함수 
-    """
-    
+    """채팅 세션이 현재 사용자(actor)에 속하는지 확인."""
     if actor.mode == 'user':
         return session.user_id == actor.user_id
     return str(session.device_uuid) == str(actor.device_uuid)
