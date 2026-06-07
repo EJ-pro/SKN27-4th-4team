@@ -4,11 +4,11 @@ from api.models import ChatSession, WeeklyScheduler
 
 def migrate_guest_sessions_to_user(user_id:int, device_uuid:Optional[str]=None) -> int:
     """
-    device_uuid로만 묶인 게스트 세션을 회원 user_id에 귀속하고 
-    device_uuid로 등록된 채팅 기록들을 이전한다. 
+    device_uuid로만 묶인 게스트 채팅 세션을 회원 user_id에 귀속한다.
+    chat_messages는 session_id FK로 자동 연동 — 별도 이전 없음.
 
     Returns:
-        이전된 세션 수, 채팅 기록들 이전 
+        이전된 chat_sessions 행 수
     """
     # device_uuid가 없으면 이전 불가 
     if not device_uuid:
@@ -16,16 +16,15 @@ def migrate_guest_sessions_to_user(user_id:int, device_uuid:Optional[str]=None) 
 
     return ChatSession.objects.filter(
         device_uuid=device_uuid,
-        user_id__innull=True,
+        user_id__isnull=True,
     ).update(user_id=user_id, is_converted=True)
 
 def migrate_guest_routines_to_user(user_id:int, device_uuid:Optional[str]=None) -> int:
     """
-    device_uuid로만 묶인 게스트 세션을 회원 user_id에 귀속하고 
-    device_uuid로 등록된 운동 루틴을 이전한다. 
+    device_uuid로만 묶인 게스트 루틴(weekly_schedulers)을 회원 user_id에 귀속한다.
 
     Returns:
-        이전된 운동 루틴 수 
+        이전된 weekly_schedulers 행 수
     """
     if not device_uuid:
         return 0
@@ -33,4 +32,4 @@ def migrate_guest_routines_to_user(user_id:int, device_uuid:Optional[str]=None) 
     return WeeklyScheduler.objects.filter(
         device_uuid=device_uuid,
         user_id__isnull=True,
-    ).update(user_id=user_id, is_converted=True)
+    ).update(user_id=user_id)

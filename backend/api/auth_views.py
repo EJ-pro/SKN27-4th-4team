@@ -18,6 +18,10 @@ from api.services.auth_service import (
     create_user,
     get_session_user,
 )
+from api.services.session_migration_service import (
+    migrate_guest_sessions_to_user,
+    migrate_guest_routines_to_user,
+)
 
 
 def _parse_json(request) -> dict:
@@ -73,6 +77,11 @@ class LoginView(View):
             # 사용자 정보를 세션에 바인딩
             bind_user_to_session(request, user)
 
+            # 게스트 채팅 세션 이전 (device_uuid optional)
+            device_uuid = (data.get('device_uuid') or '').strip() or None
+            migrated_sessions = migrate_guest_sessions_to_user(user.user_id, device_uuid)
+            migrated_routines = migrate_guest_routines_to_user(user.user_id, device_uuid)
+
         # 인증 에러 발생 시 리턴 
         except AuthError as exc:
             return JsonResponse({'error': str(exc)}, status=401)
@@ -80,6 +89,8 @@ class LoginView(View):
         return JsonResponse({
             'user_id': user.user_id,
             'nickname': user.nickname,
+            'migrated_sessions': migrated_sessions,
+            'migrated_routines': migrated_routines,
         })
 
 class LogoutView(View):
