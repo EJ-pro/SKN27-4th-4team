@@ -337,7 +337,16 @@ if EMBEDDING_PROVIDER not in ("openai", "remote"):
 
 ### 6-3. `llm.py` (예 — 커스텀 어댑터 없음)
 
+`constants.py`에서 `EMBEDDING_PROVIDER` 미설정·유효성 보정을 **모듈 로드 시 1회** 처리하므로, `_chat_model()`과 동일하게 **변수 직접 비교**만 하면 된다. 별도 `_resolve_embedding_provider()` 헬퍼는 불필요.
+
 ```python
+from .constants import (
+    OPENAI_LLM_MODEL, OPENAI_EMBEDDING_MODEL,
+    LLM_TEMPERATURE, LLM_TEMPERATURE_CLASSIFY,
+    LLM_PROVIDER, EMBEDDING_PROVIDER,
+    REMOTE_LLM_BASE_URL, REMOTE_LLM_MODEL, REMOTE_EMBEDDING_MODEL, REMOTE_API_KEY,
+)
+
 def _chat_model(temperature: float) -> ChatOpenAI:
     if LLM_PROVIDER == "remote":
         return ChatOpenAI(
@@ -349,7 +358,7 @@ def _chat_model(temperature: float) -> ChatOpenAI:
     return ChatOpenAI(model=OPENAI_LLM_MODEL, temperature=temperature)
 
 def _embedding_model() -> OpenAIEmbeddings:
-    if _resolve_embedding_provider() == "remote":
+    if EMBEDDING_PROVIDER == "remote":
         return OpenAIEmbeddings(
             model=REMOTE_EMBEDDING_MODEL,
             base_url=REMOTE_LLM_BASE_URL,
@@ -369,7 +378,25 @@ def get_embedding_model() -> OpenAIEmbeddings:
 
 ### 6-4. `RAG/embedding.py` (1곳)
 
+`get_embedding_model()`을 재사용한다.  
+[`pgvectordb.py`](../backend/api/services/RAG/pgvectordb.py)는 **Django `runserver` 없이** 컨테이너 기동 시 직접 실행되므로, `from api.services.chatbot.llm import ...` 전에 **`sys.path`에 backend 루트(`/app`)** 를 넣어야 한다.  
+기존 RAG import용 path(`api/services`)만 있으면 `ModuleNotFoundError: No module named 'api'` 로 **backend 기동 자체가 실패**한다.
+
 ```python
+import sys
+import os
+
+# RAG 스크립트(pgvectordb 등)는 Django 없이 실행 → backend 루트 path 추가
+_BACKEND_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+if _BACKEND_ROOT not in sys.path:
+    sys.path.insert(0, _BACKEND_ROOT)
+# RAG 패키지 import용 (api/services)
+_RAG_PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _RAG_PARENT not in sys.path:
+    sys.path.insert(0, _RAG_PARENT)
+
 from api.services.chatbot.llm import get_embedding_model
 
 def embed_documents(splits: list[Document]) -> tuple[list[str], list[list[float]]]:
@@ -379,7 +406,12 @@ def embed_documents(splits: list[Document]) -> tuple[list[str], list[list[float]
     return texts, vectors
 ```
 
+**Django 경로(`db.py` 등)** 는 앱 로드 시 `/app`이 path에 있으므로 위 `sys.path` 블록 없이도 `get_embedding_model()` import가 동작한다.
+
 ### 6-5. env 반영
+
+**기본(`.env.sample`)은 OpenAI만 사용** — `LLM_PROVIDER=openai`, `EMBEDDING_PROVIDER=openai`.  
+`REMOTE_*` 변수는 **주석 처리**해 두고, RunPod Step 2 완료 후 `provider=remote`로 전환할 때만 해제한다.
 
 `.env` 변경 후 **`docker compose up -d backend`**. [에픽03 Step 5](에픽03-JWT-LLM-게이트.md) 참고.
 
@@ -391,20 +423,21 @@ def embed_documents(splits: list[Document]) -> tuple[list[str], list[list[float]
 |------|--------|------|
 | `LLM_PROVIDER` | `openai` | Chat: `openai` \| `remote` |
 | `EMBEDDING_PROVIDER` | *(미설정 → `LLM_PROVIDER`)* | Embed: `openai` \| `remote` |
-| `REMOTE_LLM_BASE_URL` | — | RunPod proxy + `/v1` (예: `https://….proxy.runpod.net/v1`) |
-| `REMOTE_LLM_MODEL` | — | chat/completions `model` |
-| `REMOTE_EMBEDDING_MODEL` | — | embeddings `model` (**1536**차원) |
-| `REMOTE_API_KEY` | — | Bearer (선택) |
+| `REMOTE_LLM_BASE_URL` | *(미설정·주석)* | `provider=remote`일 때만 — RunPod proxy + `/v1` |
+| `REMOTE_LLM_MODEL` | *(미설정·주석)* | `provider=remote`일 때만 — chat/completions `model` |
+| `REMOTE_EMBEDDING_MODEL` | *(미설정·주석)* | `provider=remote`일 때만 — embeddings `model` (**1536**차원) |
+| `REMOTE_API_KEY` | *(미설정·주석)* | `provider=remote`일 때만 — Bearer (선택) |
 | `OPENAI_API_KEY` | — | provider=openai 쪽에 필요 |
 | `CHATBOT_REQUIRE_AUTH` | `False` | [에픽03](에픽03-JWT-LLM-게이트.md) — **독립** |
 
 ### 조합 예시
 
 ```env
-# ── OpenAI (기본·회귀) ──
+# ── OpenAI (기본·회귀 — .env.sample 기본값) ──
 LLM_PROVIDER=openai
 EMBEDDING_PROVIDER=openai
 OPENAI_API_KEY=sk-...
+# REMOTE_* 는 설정하지 않음 (또는 주석)
 
 # ── Full remote (OpenAI API 0회 목표) ──
 LLM_PROVIDER=remote
@@ -438,8 +471,58 @@ OPENAI_API_KEY=sk-...
 
 ### 8-3. Phase 3 — 발신부 (Step 3)
 
-- [ ] `llm.py` import OK
+- [x] `llm.py` import OK
+- [x] `_embedding_model()`이 `EMBEDDING_PROVIDER == "remote"` 직접 비교 (헬퍼 없음)
+- [x] `embedding.py` — RAG 단독 실행 시 `sys.path`(backend 루트) + `get_embedding_model()` 동작
+- [x] 기본 env(`openai` / `REMOTE_*` 미설정) — OpenAI만 사용, `base_url` 미설정
 - [ ] unit test: `LLM_PROVIDER=remote` 시 `base_url=REMOTE_LLM_BASE_URL` (mock)
+
+**컨테이너 기동 후 확인 (OpenAI 기본 env):**
+
+```bash
+docker compose ps backend
+docker compose exec backend python -c "
+from api.services.chatbot import constants as c
+from api.services.chatbot.llm import get_llm, get_embedding_model
+assert c.LLM_PROVIDER == 'openai'
+assert c.EMBEDDING_PROVIDER == 'openai'
+llm = get_llm(); emb = get_embedding_model()
+print('providers', c.LLM_PROVIDER, c.EMBEDDING_PROVIDER)
+print('chat model', getattr(llm, 'model_name', llm.model))
+print('embed model', emb.model)
+print('chat base_url', getattr(llm, 'openai_api_base', None))
+print('embed base_url', getattr(emb, 'openai_api_base', None))
+"
+```
+
+기대 (예):
+
+```
+providers openai openai
+chat model gpt-4o-mini
+embed model text-embedding-3-small
+chat base_url None
+embed base_url None
+```
+
+**RAG 배치 경로 (`pgvectordb` / `embedding.py` 단독):**
+
+```bash
+docker compose exec backend python -c "
+import os; os.chdir('/app/api/services/RAG')
+from embedding import embed_documents
+from RAG.loader import load_exercises_as_documents
+from RAG.splitter import split_documents
+docs = load_exercises_as_documents()[:1]
+splits = split_documents(docs)[:1]
+texts, vectors = embed_documents(splits)
+print('RAG embed OK: chunks=', len(texts), 'dim=', len(vectors[0]))
+"
+```
+
+기대: `RAG embed OK: chunks= 1 dim= 1536`
+
+**backend 기동 실패 시:** 로그에 `ModuleNotFoundError: No module named 'api'` → §6-4 `sys.path` 누락 여부 확인.
 
 ### 8-4. Phase 4 — 최종 E2E (Step 4, 1회)
 
@@ -488,6 +571,7 @@ curl -X POST http://localhost:8000/api/sessions/1/messages/ \
 
 | 증상 | 원인 | 해결 |
 |------|------|------|
+| backend `Exited (1)`, `No module named 'api'` | `pgvectordb` → `embedding.py`가 Django 없이 실행되는데 backend 루트 미등록 | §6-4 `sys.path` (`_BACKEND_ROOT`) 추가 |
 | `remote`인데 OpenAI 호출 | env 미반영 | `docker compose up -d backend` |
 | 404 on chat/completions | `/v1` path 미구현 | RunPod에 OpenAI API 추가 |
 | Connection refused | Pod 중단·URL 오류 | proxy URL·RunPod 대시보드 |

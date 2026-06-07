@@ -84,3 +84,19 @@ AUTH_REQUIRED_MESSAGE = (
 )
 
 LLM_ERROR_MESSAGE = "답변을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+
+# ────────────────────────────────────────────
+# LLM provider (에픽 04)
+# ────────────────────────────────────────────
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").strip().lower()
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "").strip().lower() or LLM_PROVIDER
+
+REMOTE_LLM_BASE_URL = os.getenv("REMOTE_LLM_BASE_URL", "").rstrip("/")
+REMOTE_LLM_MODEL = os.getenv("REMOTE_LLM_MODEL", "")
+REMOTE_EMBEDDING_MODEL = os.getenv("REMOTE_EMBEDDING_MODEL", "")
+REMOTE_API_KEY = os.getenv("REMOTE_API_KEY", "")
+
+if LLM_PROVIDER not in ("openai", "remote"):
+    LLM_PROVIDER = "openai"
+if EMBEDDING_PROVIDER not in ("openai", "remote"):
+    EMBEDDING_PROVIDER = LLM_PROVIDER
