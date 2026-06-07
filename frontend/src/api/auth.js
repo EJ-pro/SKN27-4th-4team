@@ -92,7 +92,7 @@ export function register({ nickname, email, password }) {
  * @param {string} params.nickname - 아이디
  * @param {string} params.password - 비밀번호
  * @param {string} params.device_uuid - 기기 고유 식별자
- * @returns {Promise<{ user_id: number, nickname: string }>}
+ * @returns {Promise<{ user_id: number, nickname: string, migrated_sessions?: number, migrated_routines?: number }>}
  * @throws {Error} 인증 실패 (401)
 */
 export function login({ nickname, password, device_uuid }) {
