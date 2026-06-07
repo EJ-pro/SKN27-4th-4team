@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../api/auth'
+import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -17,6 +18,7 @@ export default function LoginPage() {
       await login({
         nickname: userId,
         password,
+        device_uuid: getOrCreateDeviceUuid(),
       })
       navigate('/')
     } catch (err) {

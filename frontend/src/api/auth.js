@@ -6,8 +6,6 @@
  * 모든 요청에 credentials: 'include'가 필요하다.
  */
 
-import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 /** @type {string} CSRF 엔드포인트 응답에서 받은 토큰 (크로스 오리진용) */
@@ -105,14 +103,6 @@ export function login({ nickname, password, device_uuid }) {
     body: JSON.stringify(body),
   })
 }
-
-// 로그인 호출 시 UUID 전달.
-await login({
-  nickname: userId,
-  password,
-  device_uuid: getOrCreateDeviceUuid(),
-})
-
 /**
  * 로그아웃. 세션을 삭제하고 sessionid·JWT를 함께 제거한다.
  *
