@@ -287,18 +287,36 @@ export default function ConsultPage() {
     setScrollTargetId(null)
   }, [messages, scrollTargetId])
 
-  useEffect(() => {
-    fetch(`${API_URL}/api/sessions/?device_uuid=${uuid.current}`, {credentials:'include'})
+  const loadSessions = () => {
+    fetch(`${API_URL}/api/sessions/?device_uuid=${uuid.current}`, {
+      credentials: 'include',
+    })
       .then(r => r.json())
       .then(data => {
         if (data.length > 0) {
-          const list = data.map(s => ({ id: s.session_id, title: s.title, date: formatDate(s.created_at) }))
+          const list = data.map(s => ({
+            id: s.session_id,
+            title: s.title,
+            date: formatDate(s.created_at),
+          }))
           setSessions(list)
           setActiveId(list[0].id)
+        } else {
+          setSessions([])
+          setActiveId(null)
         }
       })
       .catch(() => {})
-  }, [])
+  }
+  // 페이지 진입 시 한번 목록 부르기 위해 함수로 분리해서 호출 
+  useEffect(() => { loadSessions() }, [])
+
+  // 로그인 후 인증 유저가 있다면 목록 재호출 
+  useEffect(() => {
+    if (authUser) {
+      loadSessions()
+    }
+  }, [authUser])
 
   // 세션 전환 시 메시지 로드
   useEffect(() => {
@@ -525,7 +543,7 @@ export default function ConsultPage() {
         {/* 유저 프로필 */}
         <div style={{ padding: '12px 8px 20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <button
-            onClick={() => navigate('/login')}
+            onClick={() => { if (!authUser) navigate('/login') }}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 10,
               padding: '10px 12px', borderRadius: 2,
@@ -543,7 +561,9 @@ export default function ConsultPage() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0, fontSize: 15,
             }}>👤</div>
-            <span style={{ fontSize: 13, color: 'rgba(226,226,226,0.75)', fontWeight: 500 }}>게스트</span>
+            <span style={{ fontSize: 13, color: 'rgba(226,226,226,0.75)', fontWeight: 500 }}>
+              {authUser ? authUser.nickname : '게스트'}
+            </span>
           </button>
         </div>
 
