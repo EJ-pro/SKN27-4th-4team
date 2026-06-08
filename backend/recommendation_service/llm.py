@@ -17,10 +17,19 @@ def create_llm():
             raise RuntimeError("OPENAI_API_KEY must be set when LLM_PROVIDER=openai.")
         if not settings.openai_model:
             raise RuntimeError("OPENAI_MODEL or LLM_MODEL must be set when LLM_PROVIDER=openai.")
+        llm_kwargs = {
+            "model": settings.openai_model,
+            "api_key": settings.openai_api_key,
+        }
+        if settings.openai_model.startswith("gpt-5"):
+            llm_kwargs.update({
+                "reasoning_effort": "minimal",
+                "verbosity": "low",
+            })
+        else:
+            llm_kwargs["temperature"] = 0.1
         return ChatOpenAI(
-            model=settings.openai_model,
-            api_key=settings.openai_api_key,
-            temperature=0.1,
+            **llm_kwargs,
         )
 
     if settings.llm_provider == "groq":
