@@ -9,7 +9,8 @@ from django.db import transaction
 
 from .models import Exercise, ChatSession, ChatMessage, WeeklyScheduler, DailyRoutine
 from .services.actor_service import ActorError, resolve_actor, scheduler_filter_kwargs, scheduler_owner_filter, session_belongs_to_actor, session_owner_filter
-from .services.chatbot.llm_gate import stream_bot_content
+from .services.chatbot.llm_gate import stream_bot_content, should_run_llm
+from .services.chatbot.constants import AUTH_REQUIRED_MESSAGE
 from .services.routine_recommender import review_recommendation, start_recommendation, verify_thread_belongs_to_owner
 
 DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
@@ -487,6 +488,11 @@ class RoutineRecommendView(View):
         except ActorError as exc:
             return JsonResponse({"ok": False, "status": "failed", "message": str(exc)}, status=400)
 
+        # 추천 세션 생성 전 LLM 실행 여부 확인
+        if not should_run_llm(actor):
+            return JsonResponse({"ok": False, "status": "failed", "message": AUTH_REQUIRED_MESSAGE}, status=400)
+
+        # 추천 세션 생성 
         user_id = str(actor.user_id) if actor.mode == "user" else actor.device_uuid
         result = start_recommendation(data, user_id=user_id)
 
