@@ -115,6 +115,7 @@ export default function RegisterPage() {
               <User size={16} />
               <input
                 id="nickname"
+                name="nickname"
                 type="text"
                 value={nickname}
                 onChange={(e) => {
@@ -123,7 +124,7 @@ export default function RegisterPage() {
                   setNicknameMessage('')
                 }}
                 placeholder="닉네임 입력"
-                autoComplete="username"
+                autoComplete="nickname"
                 required
               />
               <div className="auth-check-wrap">
@@ -164,6 +165,7 @@ export default function RegisterPage() {
               <Mail size={16} />
               <input
                 id="email"
+                name="email"
                 type="email"
                 value={email}
                 onChange={(e) => {
