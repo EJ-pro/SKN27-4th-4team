@@ -16,7 +16,7 @@ class SupervisorLoopGuardTests(unittest.TestCase):
         self.assertEqual(result["next_action"], "CALL_USER_PROFILE_TOOL")
         self.assertEqual(result["action_reason"], "deterministic normal-flow route")
 
-    def test_human_feedback_supervisor_can_route_to_graph_research(self):
+    def test_human_feedback_routes_to_revision_agent_without_supervisor_llm(self):
         state = initial_state(user_profile={"age": 30})
         state.update({
             "profile_normalized": True,
@@ -37,25 +37,14 @@ class SupervisorLoopGuardTests(unittest.TestCase):
             },
         })
 
-        with patch("recommendation_service.agents.invoke_json", return_value={
-            "strategy": "research",
-            "reason": "새로운 허리 안전 조건으로 후보 재검색이 필요합니다.",
-            "updated_params": {
-                "spine": "low",
-                "avoid_conditions": ["lower_back"],
-            },
-        }) as invoke_json:
+        with patch("recommendation_service.agents.invoke_json") as invoke_json:
             result = supervisor_agent(state)
 
-        invoke_json.assert_called_once()
-        self.assertEqual(result["next_action"], "CALL_GRAPH_SEARCH_TOOL")
-        self.assertEqual(result["recommendation_params"]["spine"], "low")
-        self.assertEqual(result["recommendation_params"]["avoid_conditions"], ["lower_back"])
-        self.assertEqual(result["exercise_candidates"], {})
-        self.assertIsNone(result["routine_draft"])
-        self.assertIsNone(result["human_review_result"])
+        invoke_json.assert_not_called()
+        self.assertEqual(result["next_action"], "CALL_REVISION_AGENT")
+        self.assertEqual(result["action_reason"], "deterministic normal-flow route")
 
-    def test_human_feedback_supervisor_can_choose_local_revision(self):
+    def test_human_feedback_local_order_change_routes_to_revision_agent(self):
         state = initial_state(user_profile={"age": 30})
         state.update({
             "profile_normalized": True,
@@ -74,17 +63,11 @@ class SupervisorLoopGuardTests(unittest.TestCase):
             },
         })
 
-        with patch("recommendation_service.agents.invoke_json", return_value={
-            "strategy": "local_revision",
-            "reason": "현재 후보 안에서 순서만 바꾸면 됩니다.",
-            "updated_params": {},
-        }) as invoke_json:
+        with patch("recommendation_service.agents.invoke_json") as invoke_json:
             result = supervisor_agent(state)
 
-        invoke_json.assert_called_once()
+        invoke_json.assert_not_called()
         self.assertEqual(result["next_action"], "CALL_REVISION_AGENT")
-        self.assertTrue(result["revision_request"]["handled_by_supervisor"])
-        self.assertEqual(result["revision_request"]["strategy"], "local_revision")
 
     def test_multiple_validation_issues_use_supervisor_llm(self):
         state = initial_state(user_profile={"age": 30})

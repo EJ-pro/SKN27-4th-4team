@@ -183,6 +183,27 @@ class SurveyScenarioTests(unittest.TestCase):
         self.assertEqual(back["sets"], 4)
         self.assertIn("CHEST 집중", chest["intensity_note"])
 
+    def test_detail_focus_terms_match_candidate_metadata_without_fixed_exercises(self):
+        candidates = {
+            "CHEST": [
+                {"id": 1, "name_kor": "base press", "equipment": "machine", "tag": "base"},
+                {"id": 2, "name_kor": "base fly", "equipment": "machine", "tag": "base"},
+                {"id": 3, "name_kor": "upper option", "equipment": "machine", "tag": "upper"},
+                {"id": 4, "name_kor": "lower option", "equipment": "machine", "tag": "lower"},
+            ],
+        }
+        params = {
+            "split_targets": ["CHEST"],
+            "session_min": 45,
+            "detail_focus_terms": {"CHEST": ["upper", "lower"]},
+        }
+
+        routine = _ensure_split_routine({"days": []}, candidates, params)
+        names = [exercise["name"] for exercise in routine["days"][0]["exercises"]]
+
+        self.assertIn("upper option", names)
+        self.assertIn("lower option", names)
+
     def test_pain_scenarios_force_low_spine_load(self):
         for scenario in SURVEY_SCENARIOS:
             profile = survey_to_user_profile(scenario["survey"])
@@ -872,6 +893,54 @@ class SurveyScenarioTests(unittest.TestCase):
         self.assertEqual(
             result["recommendation_params"]["relationship_seed_ids_by_target"],
             {"CHEST": [2087]},
+        )
+        self.assertEqual(result["exercise_candidates"], {})
+        self.assertIsNone(result["routine_draft"])
+        self.assertIsNone(result["validation_result"])
+        self.assertIsNone(result["human_review_result"])
+
+    def test_human_revision_detail_diversity_triggers_graphdb_research(self):
+        state = initial_state(user_profile=survey_to_user_profile(SURVEY_SCENARIOS[0]["survey"]))
+        state.update({
+            "recommendation_params": {
+                "split_targets": ["CHEST", "BACK"],
+                "goal": "hypertrophy",
+                "level": "intermediate",
+                "available_equipment": ["barbell", "machine"],
+                "avoid_conditions": [],
+                "exclude_exercises": [],
+                "home_only": False,
+                "session_min": 60,
+                "spine": "all",
+            },
+            "exercise_candidates": {"CHEST": [{"name_kor": "벤치 프레스"}]},
+            "routine_draft": {
+                "days": [{
+                    "target": "CHEST",
+                    "exercises": [{"exercise_id": 2001, "name": "벤치 프레스"}],
+                }],
+            },
+            "validation_result": {"is_valid": True, "issues": []},
+            "human_review_result": {
+                "decision": "revise",
+                "feedback": "가슴 운동 부위를 나눠주세요.",
+            },
+        })
+
+        with patch("recommendation_service.agents.invoke_json", return_value={
+            "requires_research": True,
+            "revision_reason": "GraphDB 세부 자극 메타데이터를 반영해 가슴 후보를 재구성합니다.",
+            "updated_params": {
+                "focus_targets": ["CHEST"],
+                "detail_focus_terms": {"CHEST": ["윗가슴", "밑가슴"]},
+            },
+        }):
+            result = routine_revision_agent(state)
+
+        self.assertEqual(result["recommendation_params"]["focus_targets"], ["CHEST"])
+        self.assertEqual(
+            result["recommendation_params"]["detail_focus_terms"],
+            {"CHEST": ["윗가슴", "밑가슴"]},
         )
         self.assertEqual(result["exercise_candidates"], {})
         self.assertIsNone(result["routine_draft"])
