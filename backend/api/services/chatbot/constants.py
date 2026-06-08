@@ -70,3 +70,33 @@ QUERY_TYPE_ROUTES: dict[str, str] = {
     "injury":       "retrieve_injury",
     "out_of_scope": "out_of_scope",
 }
+
+# ────────────────────────────────────────────
+# LLM 인증 게이트 (에픽 03)
+# ────────────────────────────────────────────
+# False(기본): JWT 검사 없이 LLM 실행 — 개발·게스트 테스트용
+# True: 세션 access_token JWT가 유효할 때만 LLM 실행
+CHATBOT_REQUIRE_AUTH = os.getenv("CHATBOT_REQUIRE_AUTH", "False") == "True"
+
+AUTH_REQUIRED_MESSAGE = (
+    "AI 답변을 이용하려면 로그인이 필요합니다. "
+    "로그인 후 다시 질문해 주세요."
+)
+
+LLM_ERROR_MESSAGE = "답변을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+
+# ────────────────────────────────────────────
+# LLM provider (에픽 04)
+# ────────────────────────────────────────────
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").strip().lower()
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "").strip().lower() or LLM_PROVIDER
+
+REMOTE_LLM_BASE_URL = os.getenv("REMOTE_LLM_BASE_URL", "").rstrip("/")
+REMOTE_LLM_MODEL = os.getenv("REMOTE_LLM_MODEL", "")
+REMOTE_EMBEDDING_MODEL = os.getenv("REMOTE_EMBEDDING_MODEL", "")
+REMOTE_API_KEY = os.getenv("REMOTE_API_KEY", "")
+
+if LLM_PROVIDER not in ("openai", "remote"):
+    LLM_PROVIDER = "openai"
+if EMBEDDING_PROVIDER not in ("openai", "remote"):
+    EMBEDDING_PROVIDER = LLM_PROVIDER

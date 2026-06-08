@@ -1,26 +1,26 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { login } from '../api/auth'
-import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
+import { register } from '../api/auth'
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const navigate = useNavigate()
   const [userId, setUserId] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleLogin = async(e) => {
+  const handleRegister = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
-      await login({
-        nickname: userId,
+      await register({
+        nickname: userId,   // 아이디 → nickname
+        email,
         password,
-        device_uuid: getOrCreateDeviceUuid(),
       })
-      navigate('/')
+      navigate('/login')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -66,10 +66,10 @@ export default function LoginPage() {
     }}>
       <div style={{ width: 320, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
         <div style={{ fontFamily: 'Bebas Neue', fontSize: 32, color: '#FFD700', letterSpacing: 4, marginBottom: 24 }}>
-          사용자 로그인
+          회원가입
         </div>
 
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {error && (
             <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0}}>{error}</p>
           )}
@@ -86,6 +86,18 @@ export default function LoginPage() {
           </div>
 
           <div>
+            <label htmlFor="email" style={labelStyle}>이메일</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={inputStyle}
+              autoComplete="email"
+            />
+          </div>
+
+          <div>
             <label htmlFor="password" style={labelStyle}>비밀번호</label>
             <input
               id="password"
@@ -93,12 +105,12 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={inputStyle}
-              autoComplete="current-password"
+              autoComplete="new-password"
             />
           </div>
 
           <button type="submit" style={buttonStyle} disabled={loading}>
-            {loading ? '진행 중...' : '로그인'}
+            {loading ? '진행 중...' : '가입'}
           </button>
 
           <button

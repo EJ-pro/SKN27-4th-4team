@@ -4,17 +4,20 @@
 
 | 파일 | 내용 |
 |------|------|
-| `planfit_exercises_enriched.json` | 969개 운동 (노드 데이터) |
-| `exercise_edges.json` | 3,170개 SUBSTITUTE_FOR 엣지 |
+| `planfit_exercises_enriched.json` | 969개 운동 (노드 데이터) — [`backend/data/`](backend/data/) |
+| `exercise_edges.json` | 3,170개 SUBSTITUTE_FOR 엣지 — [`backend/data/`](backend/data/) |
 
 ## 파일 구조
 
 ```
-build_graph.py                     ← DB 구축 (최초 1회 실행)
-queries.py                         ← Cypher 쿼리 클래스
-.env                               ← Neo4j 접속 정보
-planfit_exercises_enriched.json    ← 노드 데이터
-exercise_edges.json                ← 엣지 데이터
+backend/
+  db/
+    build_graph.py                 ← Neo4j DB 구축 (최초 1회 실행)
+    queries.py                     ← Cypher 쿼리 클래스
+  data/
+    planfit_exercises_enriched.json ← 노드 데이터
+    exercise_edges.json             ← 엣지 데이터
+.env                               ← Neo4j 접속 정보 (프로젝트 루트)
 ```
 
 ## 설치 & 실행
@@ -22,12 +25,13 @@ exercise_edges.json                ← 엣지 데이터
 ```bash
 pip install neo4j python-dotenv
 
-# .env 생성
+# .env 생성 (프로젝트 루트)
 echo "NEO4J_URI=your-neo4j-bolt-uri" > .env
 echo "NEO4J_USER=your-neo4j-user"    >> .env
 echo "NEO4J_PASSWORD=your-password"  >> .env
 
 # DB 구축
+cd backend/db
 python build_graph.py
 ```
 

@@ -1,11 +1,21 @@
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# RAG 스크립트(pgvectordb 등)는 Django 없이 실행되므로 backend 루트를 path에 추가
+_BACKEND_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+if _BACKEND_ROOT not in sys.path:
+    sys.path.insert(0, _BACKEND_ROOT)
+# RAG 패키지 import용 (api/services)
+_RAG_PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _RAG_PARENT not in sys.path:
+    sys.path.insert(0, _RAG_PARENT)
+    
 from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
 from RAG.loader import load_exercises_as_documents
+from api.services.chatbot.llm import get_embedding_model
 
 load_dotenv()
 
@@ -25,7 +35,8 @@ def embed_documents(docs: list[Document]) -> tuple[list[str], list[list[float]]]
     - text-embedding-3-small은 최대 8191 토큰을 지원하므로 운동 문서 단위로
       청킹 없이 임베딩한다 (스키마가 운동당 단일 벡터이기 때문).
     """
-    embedding_model = OpenAIEmbeddings(model="text-embedding-3-small")
+    # 모델 연결을 중간 라우팅 함수로 교체 
+    embedding_model = get_embedding_model()
 
     texts = [doc.page_content for doc in docs]
     vectors = embedding_model.embed_documents(texts)

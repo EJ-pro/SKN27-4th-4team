@@ -26,13 +26,25 @@ from api.views import (
     SessionListView,
 )
 
+from api.auth_views import CsrfCookieView, RegisterView, LoginView, LogoutView, MeView
+
 urlpatterns = [
+    # 기존 API 
     path('admin/', admin.site.urls),
     path('api/exercises/', ExerciseListView.as_view()),
     path('api/sessions/', SessionListView.as_view()),
     path('api/sessions/<int:session_id>/', SessionDetailView.as_view()),
     path('api/sessions/<int:session_id>/messages/', MessageListView.as_view()),
+
+    # 로그인, 인증/인가 API
+    path('api/auth/csrf/', CsrfCookieView.as_view()),
+    path('api/auth/register/', RegisterView.as_view()),
+    path('api/auth/login/', LoginView.as_view()),
+    path('api/auth/logout/', LogoutView.as_view()),
+    path('api/auth/me/', MeView.as_view()),
+
+    # 루틴 추천 API
+    path('api/routines/', RoutineView.as_view()),
     path('api/routines/recommend/', RoutineRecommendView.as_view()),
     path('api/routines/recommend/review/', RoutineRecommendReviewView.as_view()),
-    path('api/routines/', RoutineView.as_view()),
 ]

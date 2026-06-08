@@ -24,6 +24,7 @@ services:
     command: > 
       sh -c "python db/load_exercises.py &&
             python db/load_muscles.py &&
+            python manage.py migrate &&
             python api/services/RAG/pgvectordb.py &&
             python manage.py runserver 0.0.0.0:8000"
     volumes:
@@ -35,6 +36,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      neo4j:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -42,7 +45,7 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-      - ./docs/gifs:/docs/gifs
+      
     ports:
       - "5173:5173"
     environment:
