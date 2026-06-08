@@ -1,8 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
-import { X, Play } from 'lucide-react'
-
-const PART_FILTERS = ['전체', '가슴', '등', '하체', '어깨', '팔']
-const PLACE_FILTERS = ['헬스장', '홈']
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { X } from 'lucide-react'
 
 const CAT_COLOR = {
   등: '#FFD700', 가슴: '#FF6B35', 어깨: '#6C63FF', 하체: '#00D4A0',
@@ -11,25 +8,47 @@ const CAT_COLOR = {
 }
 const DIFF_COLOR = { 1: '#4CAF50', 2: '#8BC34A', 3: '#FFC107', 4: '#FF9800', 5: '#F44336' }
 
-// 팔 = 이두 + 삼두 + 전완근
-const PART_TO_CATS = {
-  '전체': null,
-  '가슴': ['가슴'],
-  '등': ['등'],
-  '하체': ['하체'],
-  '어깨': ['어깨'],
-  '팔': ['이두', '삼두', '전완근'],
+const EQUIPMENT_LABEL = {
+  '': '기타', body: '맨몸', barbell: '바벨', dumbbell: '덤벨',
+  machine: '머신', band: '밴드', kettlebell: '케틀벨',
+  pull_up_bar: '철봉', dips_bar: '딥스바', normal: '일반',
+  foamroller: '폼롤러', massageball: '마사지볼',
 }
-const HOME_EQUIPMENTS = ['body', 'band', 'dumbbell', 'kettlebell', '']
 
 function gifUrl(ex) {
   return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
 }
 
+function videoUrl(ex) {
+  return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
+}
+
+function StaticExerciseThumb({ ex, hovered, color }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      inset: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'flex-end',
+      padding: 18,
+      background: `linear-gradient(135deg, ${color}26, rgba(8,8,8,0.2) 45%, rgba(8,8,8,0.92)), radial-gradient(circle at 78% 24%, ${color}33, transparent 34%)`,
+      transform: hovered ? 'scale(1.03)' : 'scale(1)',
+      transition: 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
+    }}>
+      <div style={{ fontFamily: 'Bebas Neue', fontSize: 28, color: 'rgba(255,255,255,0.9)', letterSpacing: 1, lineHeight: 1 }}>
+        {ex.name_kor}
+      </div>
+    </div>
+  )
+}
+
 function MiniCard({ ex, onClick }) {
   const [hovered, setHovered] = useState(false)
+  const [videoOk, setVideoOk] = useState(true)
   const color = CAT_COLOR[ex.category] || '#FFD700'
-  const diffColor = DIFF_COLOR[ex.difficulty]
+  const difficulty = Math.min(Math.max(Number(ex.difficulty) || 1, 1), 5)
+  const diffColor = DIFF_COLOR[difficulty]
 
   return (
     <div
@@ -37,60 +56,72 @@ function MiniCard({ ex, onClick }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: '#0F0F0F',
-        border: hovered ? `1px solid ${color}55` : '1px solid rgba(255,255,255,0.06)',
+        background: '#111',
+        border: hovered ? `1px solid ${color}40` : '1px solid rgba(255,255,255,0.05)',
         borderRadius: 4,
         overflow: 'hidden',
         cursor: 'pointer',
-        transform: hovered ? 'translateY(-4px)' : 'none',
-        boxShadow: hovered
-          ? `0 16px 44px ${color}18, 0 4px 16px rgba(0,0,0,0.5)`
-          : '0 2px 10px rgba(0,0,0,0.4)',
+        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        boxShadow: hovered ? `0 16px 48px ${color}14, 0 4px 20px rgba(0,0,0,0.4)` : '0 2px 8px rgba(0,0,0,0.3)',
         transition: 'all 0.28s cubic-bezier(.22,.68,0,1.2)',
       }}
     >
       {/* 썸네일 */}
-      <div style={{ position: 'relative', height: 168, background: '#080808', overflow: 'hidden' }}>
-        <img
-          src={gifUrl(ex)}
-          alt={ex.name_kor}
-          onError={e => { e.currentTarget.style.display = 'none' }}
-          style={{
-            width: '100%', height: '100%', objectFit: 'cover',
-            transform: hovered ? 'scale(1.07)' : 'scale(1)',
-            transition: 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
-          }}
-        />
+      <div style={{ position: 'relative', height: 220, background: '#0A0A0A', overflow: 'hidden' }}>
+        {videoOk ? (
+          <video
+            src={videoUrl(ex)}
+            muted
+            loop
+            autoPlay
+            playsInline
+            preload="auto"
+            onLoadedData={e => e.currentTarget.play().catch(() => {})}
+            onCanPlay={e => e.currentTarget.play().catch(() => {})}
+            onError={() => setVideoOk(false)}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
+              transform: hovered ? 'scale(1.03)' : 'scale(1)',
+              transition: 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
+            }}
+          />
+        ) : (
+          <StaticExerciseThumb ex={ex} hovered={hovered} color={color} />
+        )}
         {/* 하단 그라디언트 */}
         <div style={{
           position: 'absolute', inset: 0,
-          background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 50%, transparent 100%)',
+          background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)',
+          pointerEvents: 'none',
+          zIndex: 3,
         }} />
 
         {/* 카테고리 뱃지 */}
         <div style={{
           position: 'absolute', top: 10, left: 10,
-          background: `${color}22`,
-          border: `1px solid ${color}55`,
-          color, fontSize: 9, fontWeight: 800,
-          padding: '3px 9px', borderRadius: 2,
-          letterSpacing: 0.8, backdropFilter: 'blur(6px)',
+          background: color,
+          color: '#000', fontSize: 10, fontWeight: 800,
+          padding: '3px 10px', borderRadius: 2,
+          letterSpacing: 0.5,
+          zIndex: 4,
         }}>{ex.category}</div>
 
-        {/* 난이도 — 가로 바 */}
+        {/* 난이도 */}
         <div style={{
           position: 'absolute', top: 10, right: 10,
-          display: 'flex', gap: 2, alignItems: 'center',
-          background: 'rgba(0,0,0,0.6)', borderRadius: 2,
-          padding: '4px 8px', backdropFilter: 'blur(6px)',
+          background: 'rgba(0,0,0,0.65)',
+          borderRadius: 50, padding: '3px 10px',
+          display: 'flex', gap: 2, backdropFilter: 'blur(6px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          zIndex: 4,
         }}>
-          {[1, 2, 3, 4, 5].map(n => (
+          {[1, 2, 3].map(n => (
             <span key={n} style={{
-              width: 14, height: 3, borderRadius: 2,
-              background: n <= ex.difficulty
-                ? diffColor
-                : 'rgba(255,255,255,0.12)',
-              transition: 'background 0.2s',
+              width: 6, height: 6, borderRadius: '50%',
+              background: n <= Math.min(difficulty, 3) ? diffColor : 'rgba(255,255,255,0.12)',
             }} />
           ))}
         </div>
@@ -98,12 +129,19 @@ function MiniCard({ ex, onClick }) {
 
       {/* 카드 바디 */}
       <div style={{ padding: '12px 14px 14px' }}>
-        <div style={{
-          fontFamily: 'Bebas Neue', fontSize: 16,
-          color: '#FFF', letterSpacing: 0.5,
-          marginBottom: 3, lineHeight: 1.1,
-        }}>{ex.name_kor}</div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.2 }}>{ex.name_eng}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontFamily: 'Bebas Neue', fontSize: 16, color: '#FFF', letterSpacing: 0.5, lineHeight: 1.25, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              {ex.name_kor}
+            </div>
+            <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.3)', marginTop: 2, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              {ex.name_eng}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.03)', padding: '3px 8px', borderRadius: 2, border: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+            <span>{EQUIPMENT_LABEL[ex.equipment] || '기타'}</span>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -213,8 +251,6 @@ function DetailModal({ ex, onClose }) {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export default function ExerciseSection({ onNavigate }) {
-  const [part, setPart] = useState('전체')
-  const [place, setPlace] = useState(null)
   const [selected, setSelected] = useState(null)
   const [visible, setVisible] = useState(false)
   const [exercises, setExercises] = useState([])
@@ -230,19 +266,26 @@ export default function ExerciseSection({ onNavigate }) {
   // 백엔드 API에서 운동 데이터 불러오기
   useEffect(() => {
     setLoading(true)
-    fetch(`${API_URL}/api/exercises/`)
+    fetch(`${API_URL}/api/exercises/featured/?limit=8`)
       .then(r => r.json())
       .then(data => { setExercises(data); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
 
+  const selectExercise = useCallback((ex) => {
+    setSelected(ex)
+    fetch(`${API_URL}/api/exercises/${ex.id}/`)
+      .then(r => r.ok ? r.json() : null)
+      .then(detail => {
+        if (!detail) return
+        setSelected(prev => prev?.id === ex.id ? { ...prev, ...detail } : prev)
+      })
+      .catch(() => {})
+  }, [])
+
   const filtered = useMemo(() => {
-    let list = exercises
-    const cats = PART_TO_CATS[part]
-    if (cats) list = list.filter(e => cats.includes(e.category))
-    if (place === '홈') list = list.filter(e => HOME_EQUIPMENTS.includes(e.equipment))
-    return list.slice(0, 8)
-  }, [part, place, exercises])
+    return exercises.slice(0, 8)
+  }, [exercises])
 
   return (
     <section ref={ref} style={{
@@ -288,7 +331,7 @@ export default function ExerciseSection({ onNavigate }) {
               </span>
             </div>
             <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(42px, 5.5vw, 70px)', color: '#FFF', lineHeight: 1 }}>
-              전체 <span className="gold-text">운동 목록</span>
+              <span className="gold-text">운동 목록</span>
             </h2>
           </div>
           <button onClick={() => onNavigate('exercises')} style={{
@@ -310,70 +353,22 @@ export default function ExerciseSection({ onNavigate }) {
           >전체 보기 →</button>
         </div>
 
-        {/* Filters */}
-        <div style={{
-          display: 'flex', gap: 24, alignItems: 'center',
-          marginBottom: 28, flexWrap: 'wrap',
-          opacity: visible ? 1 : 0, transition: 'all 0.6s ease 0.1s',
-        }}>
-          {/* Part filter */}
-          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, alignSelf: 'center' }}>부위</span>
-            {PART_FILTERS.map(p => {
-              const active = part === p
-              const color = p === '전체' ? '#FFD700' : (CAT_COLOR[p] || CAT_COLOR['이두'])
-              return (
-                <button key={p} onClick={() => setPart(p)} style={{
-                  padding: '6px 16px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
-                  background: active ? color : 'rgba(255,255,255,0.04)',
-                  border: active ? `1px solid ${color}` : '1px solid rgba(255,255,255,0.08)',
-                  color: active ? '#000' : 'rgba(255,255,255,0.5)',
-                  fontWeight: active ? 800 : 400, transition: 'all 0.2s',
-                }}
-                  onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = `${color}60`; e.currentTarget.style.color = color } }}
-                  onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)' } }}
-                >{p}</button>
-              )
-            })}
-          </div>
-
-          {/* Place divider */}
-          <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)' }} />
-
-          {/* Place filter */}
-          <div style={{ display: 'flex', gap: 7 }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, alignSelf: 'center' }}>장소</span>
-            {PLACE_FILTERS.map(p => {
-              const active = place === p
-              return (
-                <button key={p} onClick={() => setPlace(active ? null : p)} style={{
-                  padding: '6px 16px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
-                  background: active ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: active ? '1px solid rgba(255,215,0,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                  color: active ? '#FFD700' : 'rgba(255,255,255,0.5)',
-                  fontWeight: active ? 700 : 400, transition: 'all 0.2s',
-                }}>{p}</button>
-              )
-            })}
-          </div>
-        </div>
-
         {/* Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(238px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(285px, 1fr))',
           gap: 18,
           marginBottom: 38,
-          opacity: visible ? 1 : 0, transition: 'all 0.6s ease 0.2s',
+          opacity: visible ? 1 : 0, transition: 'all 0.6s ease 0.1s',
         }}>
           {loading
             ? Array.from({ length: 8 }).map((_, i) => (
               <div key={i} style={{
                 background: '#0F0F0F', border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 4, overflow: 'hidden', height: 220,
+                borderRadius: 4, overflow: 'hidden', height: 286,
                 animation: 'pulse 1.5s ease infinite',
               }}>
-                <div style={{ height: 168, background: 'rgba(255,255,255,0.04)' }} />
+                <div style={{ height: 220, background: 'rgba(255,255,255,0.04)' }} />
                 <div style={{ padding: '12px 14px' }}>
                   <div style={{ height: 12, width: '70%', background: 'rgba(255,255,255,0.06)', borderRadius: 1, marginBottom: 6 }} />
                   <div style={{ height: 10, width: '45%', background: 'rgba(255,255,255,0.04)', borderRadius: 1 }} />
@@ -381,7 +376,7 @@ export default function ExerciseSection({ onNavigate }) {
               </div>
             ))
             : filtered.map(ex => (
-              <MiniCard key={ex.id} ex={ex} onClick={setSelected} />
+              <MiniCard key={ex.id} ex={ex} onClick={selectExercise} />
             ))
           }
         </div>

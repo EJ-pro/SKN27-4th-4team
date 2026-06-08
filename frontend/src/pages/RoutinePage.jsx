@@ -913,7 +913,7 @@ export default function RoutinePage() {
 
   useEffect(() => {
     // 1. Fetch DB Exercises
-    fetch(`${API_URL}/api/exercises/`)
+    fetch(`${API_URL}/api/exercises/?full=1`)
       .then(r => {
         if (!r.ok) throw new Error('Failed to fetch exercises');
         return r.json();
@@ -2281,5 +2281,4 @@ function RoutineCheckView({
     </div>
   )
 }
-
 

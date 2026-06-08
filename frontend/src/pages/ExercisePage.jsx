@@ -33,42 +33,43 @@ function videoUrl(ex) {
   return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
 }
 
+function StaticExerciseThumb({ ex, hovered, color }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      inset: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'flex-end',
+      padding: 18,
+      background: `linear-gradient(135deg, ${color}26, rgba(10,10,10,0.18) 45%, rgba(10,10,10,0.94)), radial-gradient(circle at 78% 24%, ${color}33, transparent 34%)`,
+      transform: hovered ? 'scale(1.03)' : 'scale(1)',
+      transition: 'transform 0.5s ease',
+      zIndex: 2,
+    }}>
+      <div style={{ fontFamily: 'Bebas Neue', fontSize: 30, color: 'rgba(255,255,255,0.9)', letterSpacing: 1, lineHeight: 1 }}>
+        {ex.name_kor}
+      </div>
+    </div>
+  )
+}
+
 const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
   const [hovered, setHovered] = useState(false)
-  const [isNearViewport, setIsNearViewport] = useState(false)
   const [videoOk, setVideoOk] = useState(true)
   const [loaded, setLoaded] = useState(false)
-  const [reduceMotion, setReduceMotion] = useState(false)
   const cardRef = useRef(null)
   const videoRef = useRef(null)
 
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
-  const showPreview = videoOk && !reduceMotion && isNearViewport
+  const difficulty = Math.min(Math.max(Number(ex.difficulty) || 1, 1), 3)
+  const diffColor = DIFF_COLOR[difficulty] || '#FFC107'
+  const showPreview = videoOk
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const handleChange = () => setReduceMotion(mediaQuery.matches)
-    handleChange()
-    mediaQuery.addEventListener?.('change', handleChange)
-    return () => mediaQuery.removeEventListener?.('change', handleChange)
-  }, [])
-
-  useEffect(() => {
-    if (!cardRef.current) return
-    if (typeof IntersectionObserver === 'undefined') {
-      setIsNearViewport(true)
-      return
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsNearViewport(entry.isIntersecting),
-      { rootMargin: '360px 0px' }
-    )
-
-    observer.observe(cardRef.current)
-    return () => observer.disconnect()
-  }, [])
+    setVideoOk(true)
+    setLoaded(false)
+  }, [ex.id])
 
   useEffect(() => {
     if (!showPreview) {
@@ -103,41 +104,28 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
         transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
         boxShadow: hovered ? `0 16px 48px ${accentColor}14, 0 4px 20px rgba(0,0,0,0.4)` : '0 2px 8px rgba(0,0,0,0.3)',
         transition: 'all 0.28s cubic-bezier(.22,.68,0,1.2)',
-        contentVisibility: 'auto',
-        containIntrinsicSize: '285px 286px',
       }}
     >
       {/* Video */}
       <div style={{ position: 'relative', height: 220, background: '#0A0A0A', overflow: 'hidden' }}>
-        {/* Placeholder / Background */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 10,
-          background: `linear-gradient(135deg, ${accentColor}10, transparent)`,
-          zIndex: 1,
-        }}>
-          <span style={{ display: 'none', fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
-            {!videoOk ? '영상 없음' : '영상 불러오는 중'}
-          </span>
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
-            {!videoOk ? '영상 없음' : showPreview ? '영상 불러오는 중...' : '미리보기'}
-          </span>
-        </div>
-
-        {showPreview && (
+        {(!videoOk || !loaded) && <StaticExerciseThumb ex={ex} hovered={hovered} color={accentColor} />}
+        {videoOk && (
           <video
             ref={videoRef}
             src={videoUrl(ex)}
-            loop
             muted
+            loop
+            autoPlay
             playsInline
-            preload="metadata"
-            onLoadedData={() => setLoaded(true)}
+            preload="auto"
+            onLoadedData={e => {
+              setLoaded(true)
+              e.currentTarget.play().catch(() => {})
+            }}
+            onCanPlay={e => {
+              setLoaded(true)
+              e.currentTarget.play().catch(() => {})
+            }}
             onError={() => setVideoOk(false)}
             style={{
               position: 'absolute',
@@ -145,9 +133,10 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              transform: hovered ? 'scale(1.04)' : 'scale(1)',
+              display: 'block',
               opacity: loaded ? 1 : 0,
-              transition: 'transform 0.5s ease, opacity 0.3s ease',
+              transform: hovered ? 'scale(1.03)' : 'scale(1)',
+              transition: 'opacity 0.25s ease, transform 0.5s ease',
               zIndex: 2,
             }}
           />
@@ -184,7 +173,7 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
           {[1, 2, 3].map(n => (
             <span key={n} style={{
               width: 6, height: 6, borderRadius: '50%',
-              background: n <= ex.difficulty ? DIFF_COLOR[ex.difficulty] : 'rgba(255,255,255,0.12)',
+              background: n <= difficulty ? diffColor : 'rgba(255,255,255,0.12)',
             }} />
           ))}
         </div>
@@ -864,6 +853,17 @@ export default function ExercisePage() {
     setPage(1)
   }, [])
 
+  const selectExercise = useCallback((ex) => {
+    setSelected(ex)
+    fetch(`${API_URL}/api/exercises/${ex.id}/`)
+      .then(r => r.ok ? r.json() : null)
+      .then(detail => {
+        if (!detail) return
+        setSelected(prev => prev?.id === ex.id ? { ...prev, ...detail } : prev)
+      })
+      .catch(() => {})
+  }, [])
+
   const equipmentOptions = useMemo(() => {
     let list = exercises
     if (selectedCategories.length > 0) {
@@ -1204,7 +1204,7 @@ export default function ExercisePage() {
                 marginBottom: 36,
               }}>
                 {displayed.map(ex => (
-                  <ExerciseCard key={ex.id} ex={ex} onClick={setSelected} />
+                  <ExerciseCard key={ex.id} ex={ex} onClick={selectExercise} />
                 ))}
               </div>
 
