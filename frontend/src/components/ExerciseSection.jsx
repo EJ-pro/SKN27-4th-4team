@@ -14,7 +14,6 @@ const EQUIPMENT_LABEL = {
   pull_up_bar: '철봉', dips_bar: '딥스바', normal: '일반',
   foamroller: '폼롤러', massageball: '마사지볼',
 }
-
 function gifUrl(ex) {
   return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
 }
