@@ -69,10 +69,30 @@ async function authFetch(path, options = {}) {
 }
 
 /**
+ * 닉네임 중복 여부 조회.
+ * @param {string} nickname
+ * @returns {Promise<{ available: boolean }>}
+ */
+export function checkNickname(nickname) {
+  const q = encodeURIComponent(nickname)
+  return authFetch(`/api/auth/check-nickname/?nickname=${q}`)
+}
+
+/**
+ * 이메일 중복 여부 조회.
+ * @param {string} email
+ * @returns {Promise<{ available: boolean }>}
+ */
+export function checkEmail(email) {
+  const q = encodeURIComponent(email)
+  return authFetch(`/api/auth/check-email/?email=${q}`)
+}
+
+/**
  * 회원가입.
  *
  * @param {{ nickname: string, email: string, password: string }} params
- * @param {string} params.nickname - 아이디 (4자 이상, DB nickname 컬럼)
+ * @param {string} params.nickname - 닉네임
  * @param {string} params.email - 이메일
  * @param {string} params.password - 비밀번호
  * @returns {Promise<{ user_id: number, nickname: string, email: string }>}
@@ -86,23 +106,17 @@ export function register({ nickname, email, password }) {
 }
 
 /**
- * 로그인. 성공 시 서버가 sessionid 쿠키를 발급한다.
- *
- * @param {{ nickname: string, password: string, device_uuid?: string }} params
- * @param {string} params.nickname - 아이디
- * @param {string} params.password - 비밀번호
- * @param {string} params.device_uuid - 기기 고유 식별자
- * @returns {Promise<{ user_id: number, nickname: string, migrated_sessions?: number, migrated_routines?: number }>}
- * @throws {Error} 인증 실패 (401)
-*/
-export function login({ nickname, password, device_uuid }) {
-  const body = { nickname, password }
+ * @param {{ email: string, password: string, device_uuid?: string }} params
+ */
+export function login({ email, password, device_uuid }) {
+  const body = { email, password }
   if (device_uuid) body.device_uuid = device_uuid
   return authFetch('/api/auth/login/', {
     method: 'POST',
     body: JSON.stringify(body),
   })
 }
+
 /**
  * 로그아웃. 세션을 삭제하고 sessionid·JWT를 함께 제거한다.
  *

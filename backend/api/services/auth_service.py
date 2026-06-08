@@ -14,25 +14,49 @@ class AuthError(ValueError):
     """인증/가입 검증 실패. 메시지를 그대로 API error로 반환한다."""
 
 
-def _validate_register(nickname:str, email:str, password:str) -> None:
-    nickname = (nickname or '').strip()
-    email = (email or '').strip()
+def _validate_register(nickname: str, email: str, password: str) -> None:
+    nickname = (nickname or '').strip().lower()
+    email = (email or '').strip().lower()
 
     # 사용자 입력정보 검증 로직
-    if len(nickname) < 4:
-        raise AuthError("닉네임은 최소 4자 이상이어야 합니다.")
+    if len(nickname) < 3:
+        raise AuthError("닉네임은 최소 3자 이상이어야 합니다.")
     if not password:
         raise AuthError("비밀번호를 입력해주세요.")
     if AppUser.objects.filter(nickname=nickname).exists():
-        raise AuthError("이미 존재하는 아이디입니다.")
+        raise AuthError("이미 사용 중인 닉네임입니다.")
     if AppUser.objects.filter(email=email).exists():
-        raise AuthError("이미 존재하는 이메일입니다.")
+        raise AuthError("이미 사용 중인 이메일입니다.")
 
-    # 입력된 이메일 포멧 검사 
+    # 입력된 이메일 포맷 검사 
     try:
         validate_email(email)
     except ValidationError as exc:
         raise AuthError("입력한 이메일 양식이 올바르지 않습니다.") from exc
+
+def check_nickname_available(nickname: str) -> bool:
+    """ 사용 가능한 닉네임 인지 체크 """ 
+    nickname = (nickname or '').strip().lower()
+    if len(nickname) < 3:
+        raise AuthError("닉네임은 최소 3자 이상이어야 합니다.")
+    return not AppUser.objects.filter(nickname=nickname).exists()
+
+def check_email_available(email: str) -> bool:
+    """
+    사용 가능한 이메일 인지 체크
+    - 이미 존재하는 이메일이면 False
+    - 올바른 이메일 양식이 아니면 AuthError 발생
+    - 사용 가능한 이메일이면 True
+    """
+    email = (email or '').strip().lower()
+    if not email:
+        raise AuthError("이메일을 입력해주세요.")
+    try:
+        validate_email(email)
+    except ValidationError as exc:
+        raise AuthError("입력한 이메일 양식이 올바르지 않습니다.") from exc
+    return not AppUser.objects.filter(email=email).exists()
+
 
 # 회원가입
 def create_user(nickname:str, email:str, password:str) -> AppUser:
@@ -40,27 +64,27 @@ def create_user(nickname:str, email:str, password:str) -> AppUser:
     _validate_register(nickname, email, password)
 
     return AppUser.objects.create(
-        nickname=nickname.strip(),
+        nickname=nickname.strip().lower(),
         email=email.strip().lower(),
         password_hash=make_password(password),
     )
 
 # 로그인 인증 -> 성공시 AppUser 반환, 실패시 AuthError 발생
-def authenticate_user(nickname:str, password:str) -> AppUser:
+def authenticate_user(email:str, password:str) -> AppUser:
     """로그인 인증. 성공시 AppUser 반환, 실패 시 AuthError 발생"""
-    nickname = (nickname or '').strip()
+    email = (email or '').strip().lower()
 
-    # 아이디 패스워드 입력 확인 
-    if not nickname:
-        raise AuthError("아이디를 입력해주세요.")
+    # 이메일 패스워드 입력 확인 
+    if not email:
+        raise AuthError("이메일을 입력해주세요.")
     elif not password:
         raise AuthError("비밀번호를 입력해주세요.")
 
-    # 아이디 존재 확인 
+    # 이메일 존재 확인 
     try:
-        user = AppUser.objects.get(nickname=nickname)
+        user = AppUser.objects.get(email=email)
     except AppUser.DoesNotExist:
-        raise AuthError("아이디가 존재하지 않습니다.")
+        raise AuthError("등록되지 않은 이메일입니다.")
     
     # 비밀번호 검증 
     if not check_password(password, user.password_hash):
@@ -112,7 +136,7 @@ def get_session_user(request) -> AppUser:
         return None
 
 
-# 토큰 인증 유틸함수 
+# 토큰 인증 유틸 함수 
 def validate_session_access_token(request) -> bool:
     """
     Django 세션에 저장된 access_token JWT가 유효한지 검사한다.
@@ -134,7 +158,3 @@ def validate_session_access_token(request) -> bool:
     except (InvalidToken, TokenError):
         return False
     return True
-
-
-
-
