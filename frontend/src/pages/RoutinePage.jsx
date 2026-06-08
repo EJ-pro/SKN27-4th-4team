@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw, X, Play } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw, X } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -2311,42 +2311,27 @@ function RoutineCheckView({
     const dayExs = workoutRoutine[initialDay] || []
     return dayExs[0] ? getSlotKey(initialDay, dayExs[0], 0) : null
   })
-  const [showExerciseMedia, setShowExerciseMedia] = useState(false)
-  const [isExerciseVideoPlaying, setIsExerciseVideoPlaying] = useState(false)
+  const [isExerciseVideoPlaying, setIsExerciseVideoPlaying] = useState(true)
   const exerciseVideoRef = useRef(null)
 
   // Safe reference to the active exercise object
   const activeEx = currentDayExercises.find((ex, index) => getSlotKey(currentDay, ex, index) === selectedSlotKey) || currentDayExercises[0]
 
   useEffect(() => {
-    setShowExerciseMedia(false)
-    setIsExerciseVideoPlaying(false)
+    setIsExerciseVideoPlaying(true)
   }, [currentDay, selectedSlotKey])
 
   useEffect(() => {
-    if (!showExerciseMedia || !activeEx?.video_url || !exerciseVideoRef.current) return
+    if (!activeEx?.video_url || !exerciseVideoRef.current) return
     const video = exerciseVideoRef.current
     if (isExerciseVideoPlaying) {
       video.play().catch(() => {
-        // Browser autoplay policy can block playback; controls remain available.
+        // Muted inline videos should autoplay, but blocked playback can be ignored.
       })
     } else {
       video.pause()
     }
-  }, [showExerciseMedia, isExerciseVideoPlaying, activeEx?.video_url])
-
-  const handleExerciseMediaToggle = () => {
-    if (!activeEx?.video_url) {
-      setShowExerciseMedia(true)
-      return
-    }
-    if (!showExerciseMedia) {
-      setShowExerciseMedia(true)
-      setIsExerciseVideoPlaying(true)
-      return
-    }
-    setIsExerciseVideoPlaying(prev => !prev)
-  }
+  }, [isExerciseVideoPlaying, activeEx?.video_url])
 
   const handleExerciseVideoClick = () => {
     setIsExerciseVideoPlaying(prev => !prev)
@@ -2927,63 +2912,44 @@ function RoutineCheckView({
                 justifyContent: 'center',
                 position: 'relative',
               }}>
-                {showExerciseMedia ? (
-                  activeEx.video_url ? (
-                    <video
-                      ref={exerciseVideoRef}
-                      src={activeEx.video_url}
-                      controls
-                      muted
-                      preload="none"
-                      onClick={handleExerciseVideoClick}
-                      onPlay={() => setIsExerciseVideoPlaying(true)}
-                      onPause={() => setIsExerciseVideoPlaying(false)}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'contain',
-                        maxHeight: '100%',
-                      }}
-                    />
-                  ) : (
-                    <img
-                      src={activeEx.gif || activeEx.image_url || '/workout_guide.png'}
-                      alt={activeEx.name}
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = activeEx.image_url || '/workout_guide.png';
-                      }}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'contain',
-                        maxHeight: '100%',
-                      }}
-                    />
-                  )
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleExerciseMediaToggle}
+                {activeEx.video_url ? (
+                  <video
+                    key={activeEx.video_url}
+                    ref={exerciseVideoRef}
+                    src={activeEx.video_url}
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                    preload="metadata"
+                    onClick={handleExerciseVideoClick}
+                    onPlay={() => setIsExerciseVideoPlaying(true)}
+                    onPause={() => setIsExerciseVideoPlaying(false)}
                     style={{
                       width: '100%',
                       height: '100%',
-                      border: 'none',
-                      background: 'rgba(255,255,255,0.03)',
-                      color: '#FFD700',
+                      objectFit: 'contain',
+                      maxHeight: '100%',
                       cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 10,
-                      fontWeight: 800,
+                      display: 'block',
                     }}
-                  >
-                    <Play size={28} />
-                    <span style={{ fontSize: 13 }}>운동 영상 보기</span>
-                  </button>
+                  />
+                ) : (
+                  <img
+                    src={activeEx.gif || activeEx.image_url || '/workout_guide.png'}
+                    alt={activeEx.name}
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = activeEx.image_url || '/workout_guide.png';
+                    }}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      maxHeight: '100%',
+                    }}
+                  />
                 )}
               </div>
 
