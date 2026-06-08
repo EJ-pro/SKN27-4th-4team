@@ -96,7 +96,21 @@ REMOTE_LLM_MODEL = os.getenv("REMOTE_LLM_MODEL", "")
 REMOTE_EMBEDDING_MODEL = os.getenv("REMOTE_EMBEDDING_MODEL", "")
 REMOTE_API_KEY = os.getenv("REMOTE_API_KEY", "")
 
-if LLM_PROVIDER not in ("openai", "remote"):
-    LLM_PROVIDER = "openai"
+
+# 모델 타입 검증
+_ALLOWED_LLM_PROVIDERS = frozenset({"openai", "remote", "groq", "ollama"})
+if LLM_PROVIDER not in _ALLOWED_LLM_PROVIDERS:
+    raise RuntimeError(
+        f"Invalid LLM_PROVIDER={LLM_PROVIDER!r}. "
+        f"Allowed: {sorted(_ALLOWED_LLM_PROVIDERS)}"
+    )
 if EMBEDDING_PROVIDER not in ("openai", "remote"):
-    EMBEDDING_PROVIDER = LLM_PROVIDER
+    raise RuntimeError(
+        f"Invalid EMBEDDING_PROVIDER={EMBEDDING_PROVIDER!r}. Allowed: openai, remote"
+    )
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("GROQ")
+GROQ_MODEL = os.getenv("GROQ_MODEL") or os.getenv("LLM_MODEL")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL") or os.getenv("LLM_MODEL")
+
