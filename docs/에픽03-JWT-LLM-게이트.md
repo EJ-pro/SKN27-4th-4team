@@ -5,7 +5,9 @@
 
 **선행 조건:** [에픽02-챗봇-회원-전환.md](에픽02-챗봇-회원-전환.md) 완료 (세션 API + 로그인 시 `access_token` 세션 저장)
 
-**다음 에픽:** [에픽04-로컬-LLM-연동.md](에픽04-로컬-LLM-연동.md) (병행 가능)
+**다음 에픽:** [에픽04-로컬-LLM-연동.md](에픽04-로컬-LLM-연동.md) (병행 가능) · [에픽05-dev-머지-및-동작-수정.md](에픽05-dev-머지-및-동작-수정.md) (SSE 머지 후 갱신)
+
+> **에픽05 이후:** 챗봇 POST는 `StreamingHttpResponse` + `stream_bot_content()` 경로이다. 본 문서의 `generate_bot_content` / sync `get_answer` 설명은 **설계 이력**이며, 현재 코드는 [에픽05 §4](에픽05-dev-머지-및-동작-수정.md) 참고.
 
 ---
 
@@ -15,12 +17,12 @@
 
 | # | 요구사항 | 현재 코드 상태 | 본 에픽 대응 |
 |---|----------|----------------|--------------|
-| 1 | 유료 LLM 호출 전 JWT 인증 | `MessageListView.post`가 **무조건** `get_answer()` 호출 ([`views.py` L199–203](../backend/api/views.py)) | `generate_bot_content()` 앞단에서 JWT 검사 |
+| 1 | 유료 LLM 호출 전 JWT 인증 | ~~`get_answer()` 직접 호출~~ → **`stream_bot_content()`** ([`views.py`](../backend/api/views.py)) | `should_run_llm()` → `stream_answer()` 또는 차단 메시지 |
 | 2 | 제어 대상 기능 수 파악 | **런타임 API 1곳** (챗봇 메시지 POST). 루틴 API·운동 목록은 LLM 미사용 | §1 인벤토리 표 참고 |
 | 3 | 토큰 검사 유틸 1개 + 기능 앞단 체크 | `validate_session_access_token` **미구현** | `auth_service.py`에 유틸, `llm_gate.py`의 `should_run_llm()`이 진입점 |
 | 4 | `.env` on/off로 검사 우회 | env 토글 **없음** | `CHATBOT_REQUIRE_AUTH=False` → `should_run_llm()`이 항상 `True` 반환 |
 
-**핵심:** 게이트는 `get_answer()` **진입 전**에만 건다. `get_answer()` 내부의 분류·추출·생성·임베딩 LLM 호출은 모두 한 번에 차단된다.
+**핵심:** 게이트는 `stream_answer()` **진입 전**에만 건다. `stream_answer()` → LangGraph 내부의 분류·추출·생성·임베딩 LLM 호출은 게이트 통과 시에만 실행된다.
 
 ---
 
@@ -30,11 +32,11 @@
 
 | API | View | LLM 진입 함수 | 내부 LLM 호출 (게이트 통과 시) | 비고 |
 |-----|------|---------------|--------------------------------|------|
-| `POST /api/sessions/:id/messages/` | `MessageListView.post` | `get_answer()` | 아래 §1-2 참고 | **유일한 사용자 대면 LLM API** |
+| `POST /api/sessions/:id/messages/` | `MessageListView.post` | `stream_bot_content()` → `stream_answer()` | 아래 §1-2 참고 | **유일한 사용자 대면 LLM API** (SSE) |
 
-### 1-2. `get_answer()` 체인 내부 LLM (API 노출 없음, 게이트로 일괄 차단)
+### 1-2. `stream_answer()` 체인 내부 LLM (API 노출 없음, 게이트로 일괄 차단)
 
-`get_answer()` → LangGraph → [`nodes.py`](../backend/api/services/chatbot/nodes.py):
+`stream_answer()` → LangGraph `graph.stream` → [`nodes.py`](../backend/api/services/chatbot/nodes.py):
 
 | 단계 | 노드 | LLM/유료 API | 모델 |
 |------|------|--------------|------|
@@ -45,7 +47,7 @@
 | 3 | `generate` | `llm` — 최종 답변 생성 | gpt-4o-mini |
 | — | `out_of_scope` | 분류 LLM은 이미 실행됨 | — |
 
-> **비용 포인트:** 게이트가 `False`를 반환하면 `get_answer()` 자체가 호출되지 않으므로 **Chat Completions + Embedding API 모두 0회**다.
+> **비용 포인트:** 게이트가 차단하면 `stream_answer()`가 호출되지 않으므로 **Chat Completions + Embedding API 모두 0회**다.
 
 ### 1-3. 게이트 **불필요** (범위 외)
 
@@ -83,7 +85,7 @@
 | 1 | JWT는 **세션 `access_token`** 검증 | [에픽00](에픽00-로그인-인증구현.md) 패턴(세션-JWT 종속). Authorization Bearer 헤더 불필요 |
 | 2 | 차단 시 **HTTP 201 + 고정 bot 메시지** | user 메시지는 DB 저장, 채팅 UX 끊김 최소화 (403 미사용) |
 | 3 | `CHATBOT_REQUIRE_AUTH=False`면 게이트 **완전 우회** | env off 시 `validate_session_access_token`도 호출하지 않음 |
-| 4 | 게이트는 `get_answer()` **직전**만 | actor·세션 소유권 검증은 에픽 2 [`resolve_actor`](../backend/api/services/actor_service.py) 유지 |
+| 4 | 게이트는 `stream_answer()` **직전**만 (`stream_bot_content` 내부) | actor·세션 소유권 검증은 에픽 2 [`resolve_actor`](../backend/api/services/actor_service.py) 유지 |
 | 5 | 검사 유틸은 **2계층** | ① `validate_session_access_token` (JWT만) ② `should_run_llm` (env + JWT) |
 
 ### 에픽 04와 환경변수 분리
@@ -164,7 +166,7 @@
 
 | 항목 | 현재 | 목표 |
 |------|------|------|
-| `MessageListView.post` | 무조건 `get_answer()` | `generate_bot_content()` 경유 |
+| `MessageListView.post` | ~~무조건 `get_answer()`~~ | **`stream_bot_content()`** → SSE |
 | JWT 검증 함수 | 없음 | `validate_session_access_token(request)` |
 | env 토글 | 없음 | `CHATBOT_REQUIRE_AUTH` |
 | 미인증 응답 | — | `constants`의 `AUTH_REQUIRED_MESSAGE` |
@@ -179,9 +181,9 @@ flowchart TD
   Actor["resolve_actor + 소유권 OK"]
   Gate{"CHATBOT_REQUIRE_AUTH?"}
   JWT{"should_run_llm → validate_session_access_token"}
-  LLM["get_answer() → LangGraph → OpenAI"]
-  Fixed["AUTH_REQUIRED_MESSAGE"]
-  Save["ChatMessage user+bot 저장"]
+  LLM["stream_answer() → LangGraph → OpenAI"]
+  Fixed["AUTH_REQUIRED_MESSAGE (SSE token)"]
+  Save["ChatMessage user 선저장 + bot 스트림 후 저장"]
   POST --> Actor --> Gate
   Gate -->|"false: 우회"| LLM
   Gate -->|"true"| JWT
@@ -199,24 +201,24 @@ sequenceDiagram
   participant Gate as should_run_llm
   participant Auth as validate_session_access_token
   participant SE as Django_Session
-  participant Bot as get_answer
+  participant Bot as stream_answer
 
   ML->>SE: session access_token (로그인 시 bind_user_to_session)
+  ML->>ML: user_msg DB 저장
   alt CHATBOT_REQUIRE_AUTH=false
-    ML->>Bot: get_answer (JWT 검사 생략)
+    ML->>Bot: stream_bot_content → stream_answer
   else CHATBOT_REQUIRE_AUTH=true
     ML->>Gate: request
     Gate->>Auth: access_token 검증
     alt 유효
       Auth-->>Gate: True
-      Gate-->>ML: True
-      ML->>Bot: get_answer
+      Gate-->>ML: yield from stream_answer
     else 무효/없음
       Auth-->>Gate: False
-      Gate-->>ML: False
-      ML->>ML: AUTH_REQUIRED_MESSAGE
+      Gate-->>ML: AUTH_REQUIRED SSE token/done
     end
   end
+  ML->>ML: bot_msg 저장 + SSE done
 ```
 
 ### 유틸 함수 역할 분리
@@ -226,7 +228,11 @@ validate_session_access_token(request)   ← JWT 문자열만 검사 (재사용 
         ↑
 should_run_llm(request)                  ← env off면 True 즉시 반환 / on이면 위 함수 호출
         ↑
-generate_bot_content(request, ...)       ← 챗봇 전용: 게이트 + get_answer + 에러 처리
+stream_bot_content(request, ...)         ← 챗봇 전용: 게이트 + stream_answer (SSE token/done)
+        ↑
+MessageListView.post                     ← user 선저장 → StreamingHttpResponse
+
+(레거시) generate_bot_content / sync get_answer — 에픽05에서 제거. [에픽05 §4-1](에픽05-dev-머지-및-동작-수정.md)
 ```
 
 ---
@@ -334,151 +340,80 @@ validate_session_access_token(req)  # False
 
 ---
 
-### Step 3. `llm_gate.py` — 신규 파일 생성
+### Step 3. `llm_gate.py` — 게이트 모듈 (에픽05: SSE 경로)
 
-파일: [`backend/api/services/chatbot/llm_gate.py`](../backend/api/services/chatbot/llm_gate.py) (**새로 생성**)
+파일: [`backend/api/services/chatbot/llm_gate.py`](../backend/api/services/chatbot/llm_gate.py)
+
+**현재 구현 (에픽05):**
 
 ```python
 """
 런타임 LLM 호출 전 JWT 게이트.
 
 - should_run_llm: env 토글 + JWT 검사 (다른 LLM API에서도 재사용)
-- generate_bot_content: 챗봇 MessageListView.post 전용
+- stream_bot_content: 챗봇 MessageListView.post SSE 스트리밍 전용
 """
 from django.http import HttpRequest
 
 from api.services.auth_service import validate_session_access_token
-from .constants import CHATBOT_REQUIRE_AUTH, AUTH_REQUIRED_MESSAGE, LLM_ERROR_MESSAGE
-from .chatbot import get_answer
+from .constants import CHATBOT_REQUIRE_AUTH, AUTH_REQUIRED_MESSAGE
+from .chatbot import stream_answer
 
 
 def should_run_llm(request: HttpRequest) -> bool:
-    """
-    LLM 실행 허용 여부.
-
-    CHATBOT_REQUIRE_AUTH=False → 검사 없이 True (즉시 통과).
-    CHATBOT_REQUIRE_AUTH=True  → validate_session_access_token 결과.
-    """
     if not CHATBOT_REQUIRE_AUTH:
         return True
     return validate_session_access_token(request)
 
 
-def generate_bot_content(
-    request: HttpRequest,
-    user_content: str,
-    session_id: int,
-) -> str:
-    """
-    게이트 통과 시 get_answer(), 차단·오류 시 constants 안내 문구.
-    get_answer 예외는 여기서 처리 (뷰 try/except 중복 제거).
-    """
+def stream_bot_content(request: HttpRequest, user_content: str, session_id: int):
     if not should_run_llm(request):
         print('[llm_gate] LLM blocked: auth required (CHATBOT_REQUIRE_AUTH=True)')
-        return AUTH_REQUIRED_MESSAGE
-
-    try:
-        return get_answer(user_content, session_id)
-    except Exception as exc:
-        print(f'[chatbot] answer generation failed: {exc}')
-        return LLM_ERROR_MESSAGE
+        yield ("token", AUTH_REQUIRED_MESSAGE)
+        yield ("done", AUTH_REQUIRED_MESSAGE)
+        return
+    yield from stream_answer(user_content, session_id)
 ```
 
-**완료 기준:** `from api.services.chatbot.llm_gate import should_run_llm, generate_bot_content` import OK.
+**완료 기준:** `from api.services.chatbot.llm_gate import should_run_llm, stream_bot_content` import OK.
+
+<details>
+<summary>설계 이력: sync `generate_bot_content` (제거됨)</summary>
+
+에픽03 최초 구현은 `get_answer()` sync 반환용 `generate_bot_content()`였다. dev SSE 머지 후 `stream_bot_content()`로 대체되었다. 상세: [에픽05 §3](에픽05-dev-머지-및-동작-수정.md).
+
+</details>
 
 ---
 
-### Step 4. `views.py` — `MessageListView.post` 연동
+### Step 4. `views.py` — `MessageListView.post` 연동 (에픽05: SSE)
 
 파일: [`backend/api/views.py`](../backend/api/views.py)
 
-#### 4-1. import 변경
-
-**삭제:**
+#### 4-1. import
 
 ```python
-from .services.chatbot.chatbot import get_answer
+from .services.chatbot.llm_gate import stream_bot_content
 ```
 
-**추가:**
+(`get_answer` / `generate_bot_content` import **없음**)
 
-```python
-from .services.chatbot.llm_gate import generate_bot_content
-```
+#### 4-2. `post` 핵심 흐름
 
-#### 4-2. `post` 메서드 내부 변경
+1. actor·세션·content 검증 (에픽02와 동일)
+2. **user `ChatMessage` 선저장**
+3. `stream_bot_content(request, content, session_id)` → SSE `token` / `done`
+4. 스트림 완료 후 bot `ChatMessage` 저장
+5. `StreamingHttpResponse` 반환 (`text/event-stream`)
 
-`content` 검증 직후 블록을 아래처럼 교체:
+**참고 코드:** [에픽05 §4-2](에픽05-dev-머지-및-동작-수정.md) 또는 [`views.py` L202–242](../backend/api/views.py)
 
-**변경 전:**
+<details>
+<summary>설계 이력: sync JsonResponse (제거됨)</summary>
 
-```python
-        try:
-            bot_content = get_answer(content, session_id)
-        except Exception as exc:
-            print(f'[chatbot] answer generation failed: {exc}')
-            bot_content = '답변을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
-```
+에픽03 초기안은 `bot_content = generate_bot_content(...)` 후 user/bot 저장 → `JsonResponse` 201이었다. ConsultPage SSE 머지 후 위 SSE 흐름으로 대체되었다.
 
-**변경 후:**
-
-```python
-        bot_content = generate_bot_content(request, content, session_id)
-```
-
-나머지 `ChatMessage.objects.create` ~ `JsonResponse`는 **그대로**.
-
-#### 4-3. 변경 후 `post` 전체 참고
-
-```python
-    def post(self, request, session_id):
-        data = json.loads(request.body)
-
-        try: 
-            actor = resolve_actor(request, data.get('device_uuid'))
-        except ActorError as exc:
-            return JsonResponse({'error': str(exc)}, status=400)
-
-        try:
-            session = ChatSession.objects.get(session_id=session_id)
-        except ChatSession.DoesNotExist:
-            return JsonResponse({'error': 'not found'}, status=404)
-
-        if not session_belongs_to_actor(session, actor):
-            return JsonResponse({'error': 'not found'}, status=404)
-
-        content = data.get('content', '').strip()
-        if not content:
-            return JsonResponse({'error': 'content required'}, status=400)
-
-        bot_content = generate_bot_content(request, content, session_id)
-
-        user_msg = ChatMessage.objects.create(
-            session_id=session_id,
-            sender='user',
-            content=content,
-        )
-        bot_msg = ChatMessage.objects.create(
-            session_id=session_id,
-            sender='bot',
-            content=bot_content,
-        )
-
-        return JsonResponse({
-            'user_message': {
-                'message_id': user_msg.message_id,
-                'sender': user_msg.sender,
-                'content': user_msg.content,
-                'created_at': user_msg.created_at.isoformat(),
-            },
-            'bot_message': {
-                'message_id': bot_msg.message_id,
-                'sender': bot_msg.sender,
-                'content': bot_msg.content,
-                'created_at': bot_msg.created_at.isoformat(),
-            },
-        }, status=201)
-```
+</details>
 
 ---
 
@@ -537,8 +472,8 @@ if not should_run_llm(request):
 
 | 모드 | user 메시지 저장 | bot 응답 | LLM/Embedding 호출 |
 |------|------------------|----------|-------------------|
-| `REQUIRE_AUTH=false` | O | `get_answer()` 결과 | O |
-| `REQUIRE_AUTH=true` + 유효 JWT | O | `get_answer()` 결과 | O |
+| `REQUIRE_AUTH=false` | O | SSE `stream_answer` 결과 | O |
+| `REQUIRE_AUTH=true` + 유효 JWT | O | SSE `stream_answer` 결과 | O |
 | `REQUIRE_AUTH=true` + 무효 JWT | O | `AUTH_REQUIRED_MESSAGE` | **X (0회)** |
 | LLM 호출 중 예외 | O | `LLM_ERROR_MESSAGE` | 시도 후 실패 |
 
@@ -619,7 +554,7 @@ curl -X POST http://localhost:8000/api/sessions/1/messages/ \
 기대:
 - `bot_message.content` == `AUTH_REQUIRED_MESSAGE`
 - 서버 로그: `[llm_gate] LLM blocked: auth required`
-- **`[classify]` 로그 없음** (get_answer 미호출 확인)
+- **`[classify]` 로그 없음** (`stream_answer` / gate 차단 시 LangGraph 미진입 확인)
 
 ### 9-3. `CHATBOT_REQUIRE_AUTH=True` — 로그인
 
@@ -664,7 +599,7 @@ curl -b cookies.txt -X POST http://localhost:8000/api/sessions/1/messages/ \
 | **1** | env 상수 + 메시지 | `constants.py`, `.env`, `.env.sample` | import OK |
 | **2** | JWT 검증 유틸 | `auth_service.py` | 만료/없음 → False |
 | **3** | 게이트 모듈 | `llm_gate.py` (신규) | `should_run_llm` 분기 |
-| **4** | 뷰 연동 | `views.py` | `get_answer` 직접 호출 제거 |
+| **4** | 뷰 연동 | `views.py` | `stream_bot_content` + SSE, user 선저장 |
 | **5** | 재시작 + curl 3케이스 | — | §9 전부 통과 |
 
 ---
@@ -682,6 +617,7 @@ curl -b cookies.txt -X POST http://localhost:8000/api/sessions/1/messages/ \
 ### 다음 에픽
 
 - [에픽04](에픽04-로컬-LLM-연동.md): `LLM_PROVIDER` / `EMBEDDING_PROVIDER` — OpenAI vs RunPod OpenAI 호환 `base_url` (게이트와 독립)
+- [에픽05](에픽05-dev-머지-및-동작-수정.md): dev SSE 머지, conflict 해결, `stream_bot_content` 런타임 경로
 
 ---
 
@@ -694,8 +630,8 @@ curl -b cookies.txt -X POST http://localhost:8000/api/sessions/1/messages/ \
 | `True`인데 로그인도 차단 | `access_token` 세션 없음 | 재로그인, `bind_user_to_session` 확인 |
 | 항상 차단 | `SIMPLE_JWT` SECRET 변경·토큰 손상 | 재로그인 |
 | 403 발생 | 잘못된 구현 | 본 가이드는 201 유지 |
-| OpenAI 비용 계속 발생 | 게이트 우회 | `generate_bot_content` 경로 확인, `[llm_gate]` 로그 |
-| `[classify]` 로그가 게스트에도 찍힘 | `get_answer`가 여전히 직접 호출됨 | `views.py` import·호출 경로 재확인 |
+| OpenAI 비용 계속 발생 | 게이트 우회 | `stream_bot_content` 경로 확인, `[llm_gate]` 로그 |
+| `[classify]` 로그가 게스트에도 찍힘 | `stream_answer`가 views에서 gate 없이 직접 호출됨 | `views.py` → `stream_bot_content`만 사용 |
 
 ---
 
