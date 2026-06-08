@@ -19,10 +19,13 @@ import json
 import re
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
-load_dotenv()
+# 환경변수 파일 경로 지정해서 로드하도록 수정 
+from dotenv import load_dotenv
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BACKEND_DIR.parent / ".env")
+
 
 # ── 설정 ────────────────────────────────────────────────────────────────────
 BACKEND_DIR = Path(__file__).resolve().parent.parent
