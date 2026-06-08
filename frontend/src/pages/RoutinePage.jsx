@@ -767,6 +767,10 @@ const enrichPreloadedRoutine = (preloaded, dbExercises, painParts) => {
         detail,
         targetPain,
         gif,
+        video_url: item.video_url || dbEx?.video_url || '',
+        image_url: item.image_url || dbEx?.image_url || '',
+        caution: item.caution || dbEx?.caution || '',
+        spine_loading: item.spine_loading || dbEx?.spine_loading || '',
         alternatives
       };
     });
@@ -1081,6 +1085,14 @@ export default function RoutinePage() {
     return res.json()
   }
 
+  const persistRecommendationRoutine = (routine) => {
+    if (!routine || Object.keys(routine).length === 0) return
+    saveRoutineToDb(routine, {})
+      .catch(err => {
+        setRecommendationError(err.message || '추천 루틴 자동 저장에 실패했습니다.')
+      })
+  }
+
   const applyRecommendationResult = (data) => {
     if (!data.ok) {
       setRecommendationError(data.message || '추천 루틴 생성에 실패했습니다.')
@@ -1092,6 +1104,7 @@ export default function RoutinePage() {
     setPreloadedWorkoutRoutine(mappedRoutine)
     setPreloadedDailyNotes({})
     setStep(TOTAL)
+    persistRecommendationRoutine(mappedRoutine)
     return true
   }
 
@@ -1107,6 +1120,7 @@ export default function RoutinePage() {
       const res = await fetch(`${API_URL}/api/routines/recommend/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(buildSurveyPayload()),
       })
       const data = await res.json()
@@ -1129,7 +1143,9 @@ export default function RoutinePage() {
       const res = await fetch(`${API_URL}/api/routines/recommend/review/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
+          device_uuid: deviceUuid,
           thread_id: recommendationThreadId,
           decision,
           feedback: decision === 'approve' ? '' : reviewFeedback,
@@ -1154,7 +1170,6 @@ export default function RoutinePage() {
       if (data.status === 'completed') {
         setIsApproved(true)
         setShowApprovedNotice(true)
-        await saveRoutineToDb(nextRoutine, {})
       }
       setReviewFeedback('')
     } catch (err) {
@@ -1181,8 +1196,8 @@ export default function RoutinePage() {
     : isReviewing
       ? reviewAction === 'approve'
         ? {
-            title: '최종 승인 저장 중...',
-            message: '승인된 추천 루틴을 이번 주 루틴으로 저장하고 있습니다.',
+            title: '최종 승인 처리 중...',
+            message: '승인된 추천 루틴을 최종 확정하고 있습니다.',
           }
         : {
             title: '피드백 반영 중...',
@@ -1280,17 +1295,6 @@ export default function RoutinePage() {
         justifyContent: 'center',
         boxSizing: 'border-box',
       }}>
-        {!isApproved && reviewPayload?.status === 'needs_review' && (
-          <HumanReviewPanel
-            validation={reviewPayload.validation_result}
-            feedback={reviewFeedback}
-            onFeedbackChange={setReviewFeedback}
-            onApprove={() => handleReview('approve')}
-            onRevise={() => handleReview('revise')}
-            isSubmitting={isReviewing}
-            error={recommendationError}
-          />
-        )}
         <RoutineCheckView
           workDays={workDays}
           goal={goal}
@@ -1306,6 +1310,17 @@ export default function RoutinePage() {
           onLoginClick={() => navigate('/login')}
           disableAutoSave={!isApproved}
         />
+        {!isApproved && reviewPayload?.status === 'needs_review' && (
+          <HumanReviewPanel
+            validation={reviewPayload.validation_result}
+            feedback={reviewFeedback}
+            onFeedbackChange={setReviewFeedback}
+            onApprove={() => handleReview('approve')}
+            onRevise={() => handleReview('revise')}
+            isSubmitting={isReviewing}
+            error={recommendationError}
+          />
+        )}
         {isApproved && showApprovedNotice && (
           <div style={{
             position: 'fixed',
@@ -2128,7 +2143,8 @@ function HumanReviewPanel({
     <div style={{
       width: '100%',
       maxWidth: 1200,
-      marginTop: 24,
+      marginTop: 28,
+      marginBottom: 24,
       padding: '24px 28px',
       borderRadius: 4,
       background: '#111',
@@ -2138,9 +2154,9 @@ function HumanReviewPanel({
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 10, letterSpacing: 2, color: '#FFD700', fontWeight: 800, marginBottom: 6 }}>
-            HUMAN REVIEW REQUIRED
+            HUMAN REVIEW
           </div>
-          <div style={{ fontSize: 18, color: '#FFF', fontWeight: 900 }}>추천 루틴 최종 검토</div>
+          <div style={{ fontSize: 18, color: '#FFF', fontWeight: 900 }}>추천 루틴 검토 및 수정</div>
         </div>
         {validation && (
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.48)', lineHeight: 1.6, textAlign: 'right' }}>
@@ -2152,7 +2168,7 @@ function HumanReviewPanel({
       <textarea
         value={feedback}
         onChange={e => onFeedbackChange(e.target.value)}
-        placeholder="수정 요청이 있으면 입력하세요. 예: 허리에 부담이 적게 해주세요."
+        placeholder="수정이 필요하면 요청 내용을 입력하세요. 예: 허리에 부담이 적게 해주세요."
         style={{
           width: '100%',
           minHeight: 86,
@@ -2186,7 +2202,7 @@ function HumanReviewPanel({
             cursor: feedback.trim() && !isSubmitting ? 'pointer' : 'default',
           }}
         >
-          {isSubmitting ? '처리 중...' : '수정 요청 보내기'}
+          {isSubmitting ? '처리 중...' : '수정하기'}
         </button>
         <button
           type="button"
@@ -2203,7 +2219,7 @@ function HumanReviewPanel({
             cursor: isSubmitting ? 'default' : 'pointer',
           }}
         >
-          {isSubmitting ? '저장 중...' : '승인하고 저장하기'}
+          {isSubmitting ? '처리 중...' : '최종 승인'}
         </button>
       </div>
     </div>

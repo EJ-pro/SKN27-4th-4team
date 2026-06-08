@@ -5,6 +5,7 @@
 --             day_of_week GENERATED 컬럼, hnsw 인덱스 추가
 --   v2 → v3: exercises.difficulty VARCHAR → fitness_level_enum 적용
 --             [API 계약 주석] 드래그 앤 드롭 요일 변경 가이드라인 추가
+--   v3 → v4: 로그인 사용자 user_id 기준 주간 루틴 조회/저장 보정 인덱스 추가
 -- ================================================================
 
 -- ────────────────────────────────────────────
@@ -125,6 +126,18 @@ CREATE TABLE IF NOT EXISTS weekly_schedulers (
     weekly_review TEXT,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE IF EXISTS weekly_schedulers
+    ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(user_id) ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS weekly_schedulers
+    ADD COLUMN IF NOT EXISTS device_uuid UUID;
+
+CREATE INDEX IF NOT EXISTS idx_weekly_schedulers_user_week
+    ON weekly_schedulers(user_id, year, week_number);
+
+CREATE INDEX IF NOT EXISTS idx_weekly_schedulers_device_week
+    ON weekly_schedulers(device_uuid, year, week_number);
 
 -- ────────────────────────────────────────────
 -- 7. daily_routines

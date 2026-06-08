@@ -20,7 +20,7 @@ class Settings:
     neo4j_uri: str = require_env("NEO4J_URI")
     neo4j_user: str = require_env("NEO4J_USER")
     neo4j_password: str = require_env("NEO4J_PASSWORD")
-    llm_provider: str = os.getenv("LLM_PROVIDER", "groq").lower()
+    llm_provider: str = os.getenv("LLM_PROVIDER", "openai").lower()
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     ollama_model: str | None = os.getenv("OLLAMA_MODEL") or os.getenv("LLM_MODEL")
     groq_api_key: str | None = os.getenv("GROQ_API_KEY") or os.getenv("GROQ")

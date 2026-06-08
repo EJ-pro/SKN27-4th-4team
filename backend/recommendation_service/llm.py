@@ -3,6 +3,7 @@ import time
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from langchain_groq import ChatGroq
 
@@ -11,6 +12,17 @@ from .json_utils import extract_json_object
 
 
 def create_llm():
+    if settings.llm_provider == "openai":
+        if not settings.openai_api_key:
+            raise RuntimeError("OPENAI_API_KEY must be set when LLM_PROVIDER=openai.")
+        if not settings.openai_model:
+            raise RuntimeError("OPENAI_MODEL or LLM_MODEL must be set when LLM_PROVIDER=openai.")
+        return ChatOpenAI(
+            model=settings.openai_model,
+            api_key=settings.openai_api_key,
+            temperature=0.1,
+        )
+
     if settings.llm_provider == "groq":
         if not settings.groq_api_key:
             raise RuntimeError("GROQ_API_KEY or GROQ must be set when LLM_PROVIDER=groq.")

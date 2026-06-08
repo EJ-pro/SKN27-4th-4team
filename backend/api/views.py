@@ -305,6 +305,10 @@ class RoutineView(View):
                     'eq': r.exercise.equipment if r.exercise else 'body',
                     'detail': r.exercise.guide if r.exercise else '',
                     'category': r.exercise.category if r.exercise else '',
+                    'video_url': r.exercise.video_url if r.exercise else '',
+                    'image_url': r.exercise.image_url if r.exercise else '',
+                    'caution': r.exercise.caution if r.exercise else '',
+                    'spine_loading': r.exercise.spine_loading if r.exercise else '',
                     'is_completed': r.is_completed
                 }
                 workout_routine[day].append(ex_data)
@@ -481,7 +485,13 @@ class RoutineRecommendView(View):
         except json.JSONDecodeError:
             return JsonResponse({'ok': False, 'status': 'failed', 'message': 'Invalid JSON'}, status=400)
 
-        result = start_recommendation(data, user_id=data.get('device_uuid'))
+        try:
+            actor = resolve_actor(request, data.get('device_uuid'))
+        except ActorError as exc:
+            return JsonResponse({'ok': False, 'status': 'failed', 'message': str(exc)}, status=400)
+
+        graph_user_id = str(actor.user_id) if actor.mode == 'user' else str(actor.device_uuid)
+        result = start_recommendation(data, user_id=graph_user_id)
         return JsonResponse(result, status=200 if result.get('ok') else 400)
 
 
@@ -492,6 +502,11 @@ class RoutineRecommendReviewView(View):
             data = json.loads(request.body)
         except json.JSONDecodeError:
             return JsonResponse({'ok': False, 'status': 'failed', 'message': 'Invalid JSON'}, status=400)
+
+        try:
+            resolve_actor(request, data.get('device_uuid'))
+        except ActorError as exc:
+            return JsonResponse({'ok': False, 'status': 'failed', 'message': str(exc)}, status=400)
 
         result = review_recommendation(
             thread_id=data.get('thread_id', ''),
