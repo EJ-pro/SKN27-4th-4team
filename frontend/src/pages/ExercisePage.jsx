@@ -1,4 +1,5 @@
 import { memo, useDeferredValue, useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Flame, MapPin, Search, Target, X, RotateCcw, Filter } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -23,36 +24,33 @@ const CAT_COLOR = {
   유산소: '#E63946', 스트레칭: '#06D6A0',
 }
 
-const PAGE_SIZE = 40
-
-function gifUrl(ex) {
-  return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
-}
+const PAGE_SIZE = 16
 
 function videoUrl(ex) {
   return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
+}
+
+function scrollToPageTop() {
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
 }
 
 const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
   const [hovered, setHovered] = useState(false)
   const [isNearViewport, setIsNearViewport] = useState(false)
   const [videoOk, setVideoOk] = useState(true)
-  const [loaded, setLoaded] = useState(false)
-  const [reduceMotion, setReduceMotion] = useState(false)
   const cardRef = useRef(null)
   const videoRef = useRef(null)
 
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
-  const showPreview = videoOk && !reduceMotion && isNearViewport
+  const difficulty = Math.min(Math.max(Number(ex.difficulty) || 1, 1), 3)
+  const diffColor = DIFF_COLOR[difficulty] || '#FFC107'
+  const showPreview = videoOk && isNearViewport
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const handleChange = () => setReduceMotion(mediaQuery.matches)
-    handleChange()
-    mediaQuery.addEventListener?.('change', handleChange)
-    return () => mediaQuery.removeEventListener?.('change', handleChange)
-  }, [])
+    setVideoOk(true)
+  }, [ex.id])
 
   useEffect(() => {
     if (!cardRef.current) return
@@ -63,7 +61,7 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
 
     const observer = new IntersectionObserver(
       ([entry]) => setIsNearViewport(entry.isIntersecting),
-      { rootMargin: '360px 0px' }
+      { rootMargin: '220px 0px' }
     )
 
     observer.observe(cardRef.current)
@@ -72,7 +70,6 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
 
   useEffect(() => {
     if (!showPreview) {
-      setLoaded(false)
       return
     }
 
@@ -80,6 +77,16 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
       // Muted previews should autoplay, but blocked playback can be ignored.
     })
   }, [showPreview])
+
+  useEffect(() => {
+    return () => {
+      const video = videoRef.current
+      if (!video) return
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+    }
+  }, [])
 
   return (
     <div
@@ -103,30 +110,29 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
         transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
         boxShadow: hovered ? `0 16px 48px ${accentColor}14, 0 4px 20px rgba(0,0,0,0.4)` : '0 2px 8px rgba(0,0,0,0.3)',
         transition: 'all 0.28s cubic-bezier(.22,.68,0,1.2)',
-        contentVisibility: 'auto',
-        containIntrinsicSize: '285px 286px',
       }}
     >
       {/* Video */}
       <div style={{ position: 'relative', height: 220, background: '#0A0A0A', overflow: 'hidden' }}>
-        {/* Placeholder / Background */}
         <div style={{
           position: 'absolute',
           inset: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 10,
-          background: `linear-gradient(135deg, ${accentColor}10, transparent)`,
+          background: `linear-gradient(135deg, ${accentColor}18, rgba(10,10,10,0.22) 45%, rgba(10,10,10,0.94))`,
           zIndex: 1,
         }}>
-          <span style={{ display: 'none', fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
-            {!videoOk ? '영상 없음' : '영상 불러오는 중'}
-          </span>
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>
-            {!videoOk ? '영상 없음' : showPreview ? '영상 불러오는 중...' : '미리보기'}
-          </span>
+          <div style={{
+            position: 'absolute',
+            left: 18,
+            right: 18,
+            bottom: 18,
+            fontFamily: 'Bebas Neue',
+            fontSize: 30,
+            color: 'rgba(255,255,255,0.9)',
+            letterSpacing: 1,
+            lineHeight: 1,
+          }}>
+            {ex.name_kor}
+          </div>
         </div>
 
         {showPreview && (
@@ -135,9 +141,11 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
             src={videoUrl(ex)}
             loop
             muted
+            autoPlay
             playsInline
             preload="metadata"
-            onLoadedData={() => setLoaded(true)}
+            onLoadedData={e => e.currentTarget.play().catch(() => {})}
+            onCanPlay={e => e.currentTarget.play().catch(() => {})}
             onError={() => setVideoOk(false)}
             style={{
               position: 'absolute',
@@ -146,8 +154,7 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
               height: '100%',
               objectFit: 'cover',
               transform: hovered ? 'scale(1.04)' : 'scale(1)',
-              opacity: loaded ? 1 : 0,
-              transition: 'transform 0.5s ease, opacity 0.3s ease',
+              transition: 'transform 0.5s ease',
               zIndex: 2,
             }}
           />
@@ -184,7 +191,7 @@ const ExerciseCard = memo(function ExerciseCard({ ex, onClick }) {
           {[1, 2, 3].map(n => (
             <span key={n} style={{
               width: 6, height: 6, borderRadius: '50%',
-              background: n <= ex.difficulty ? DIFF_COLOR[ex.difficulty] : 'rgba(255,255,255,0.12)',
+              background: n <= difficulty ? diffColor : 'rgba(255,255,255,0.12)',
             }} />
           ))}
         </div>
@@ -777,17 +784,19 @@ function PaginationControls({ page, totalPages, onChange }) {
 }
 
 export default function ExercisePage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [exercises, setExercises] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCategories, setSelectedCategories] = useState([])
   const [equipment, setEquipment] = useState('전체')
   const [difficulty, setDifficulty] = useState(0)
-  const [page, setPage] = useState(1)
   const [selected, setSelected] = useState(null)
   const [showFilters, setShowFilters] = useState(false)
   const listRef = useRef(null)
+  const lastPageRef = useRef(null)
   const deferredSearch = useDeferredValue(search)
+  const rawPage = Number.parseInt(searchParams.get('page') || '1', 10)
 
   useEffect(() => {
     fetch(`${API_URL}/api/exercises/`)
@@ -824,22 +833,46 @@ export default function ExercisePage() {
   }, [exercises, deferredSearch, selectedCategories, equipment, difficulty])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const page = Number.isFinite(rawPage) ? Math.min(Math.max(rawPage, 1), totalPages) : 1
   const pageStart = (page - 1) * PAGE_SIZE
   const pageEnd = Math.min(pageStart + PAGE_SIZE, filtered.length)
   const displayed = filtered.slice(pageStart, pageEnd)
   const hasMore = false
 
+  const setPageParam = useCallback((nextPage, options = {}) => {
+    const target = Math.min(Math.max(nextPage, 1), totalPages)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('page', String(target))
+      return next
+    }, options)
+  }, [setSearchParams, totalPages])
+
   useEffect(() => {
-    setPage(current => Math.min(Math.max(current, 1), totalPages))
-  }, [totalPages])
+    const normalized = Number.isFinite(rawPage) ? Math.min(Math.max(rawPage, 1), totalPages) : 1
+    if (searchParams.get('page') !== String(normalized)) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev)
+        next.set('page', String(normalized))
+        return next
+      }, { replace: true })
+    }
+  }, [rawPage, searchParams, setSearchParams, totalPages])
+
+  useEffect(() => {
+    if (lastPageRef.current === null) {
+      lastPageRef.current = page
+      return
+    }
+    if (lastPageRef.current === page) return
+    lastPageRef.current = page
+    scrollToPageTop()
+  }, [page])
 
   const goToPage = useCallback((nextPage) => {
     const target = Math.min(Math.max(nextPage, 1), totalPages)
-    setPage(target)
-    requestAnimationFrame(() => {
-      listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-  }, [totalPages])
+    setPageParam(target)
+  }, [setPageParam, totalPages])
 
   const handleCategoryChange = useCallback((cat) => {
     setSelectedCategories(prev => {
@@ -851,17 +884,17 @@ export default function ExercisePage() {
         : [...prev, cat]
       return next
     })
-    setPage(1)
-    listRef.current?.scrollTo({ top: 0 })
-  }, [])
+    setPageParam(1, { replace: true })
+    scrollToPageTop()
+  }, [setPageParam])
 
   const resetFilters = useCallback(() => {
     setSearch('')
     setSelectedCategories([])
     setEquipment('전체')
     setDifficulty(0)
-    setPage(1)
-  }, [])
+    setPageParam(1, { replace: true })
+  }, [setPageParam])
 
   const equipmentOptions = useMemo(() => {
     let list = exercises
@@ -929,7 +962,7 @@ export default function ExercisePage() {
             <input
               type="text"
               value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1) }}
+              onChange={e => { setSearch(e.target.value); setPageParam(1, { replace: true }) }}
               placeholder="운동 이름으로 검색... (한국어, 영어)"
               style={{
                 width: '100%', padding: '14px 48px 14px 50px',
@@ -944,7 +977,7 @@ export default function ExercisePage() {
               onBlur={e => e.target.style.boxShadow = 'none'}
             />
             {search && (
-              <button onClick={() => { setSearch(''); setPage(1) }} style={{
+              <button onClick={() => { setSearch(''); setPageParam(1, { replace: true }) }} style={{
                 position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
                 background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 2,
                 width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1055,7 +1088,7 @@ export default function ExercisePage() {
                       return (
                         <button
                           key={eq}
-                          onClick={() => { setEquipment(eq); setPage(1) }}
+                          onClick={() => { setEquipment(eq); setPageParam(1, { replace: true }) }}
                           style={{
                             padding: '5px 14px',
                             borderRadius: 2,
@@ -1100,7 +1133,7 @@ export default function ExercisePage() {
                       return (
                         <button
                           key={d}
-                          onClick={() => { setDifficulty(d); setPage(1) }}
+                          onClick={() => { setDifficulty(d); setPageParam(1, { replace: true }) }}
                           style={{
                             padding: '5px 14px',
                             borderRadius: 2,
@@ -1178,7 +1211,7 @@ export default function ExercisePage() {
       </div>
 
       {/* ── Grid ── */}
-      <div ref={listRef} style={{ flex: 1, padding: '36px 48px', overflowY: 'auto' }}>
+      <div ref={listRef} style={{ flex: 1, padding: '36px 48px' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           {filtered.length === 0 ? (
             <div style={{
@@ -1201,7 +1234,7 @@ export default function ExercisePage() {
                 gridTemplateColumns: 'repeat(auto-fill, minmax(285px, 1fr))',
                 gap: 18,
                 marginBottom: 36,
-              }}>
+              }} key={`exercise-grid-page-${page}`}>
                 {displayed.map(ex => (
                   <ExerciseCard key={ex.id} ex={ex} onClick={setSelected} />
                 ))}
