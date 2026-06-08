@@ -8,10 +8,14 @@ openai
 # JWT 토큰 발급용 라이브러리
 djangorestframework-simplejwt==5.5.1
 
-langchain-core
+langgraph>=1.0.0
+langchain-core>=1.0.0
+langchain-ollama>=1.0.0
+langchain-groq>=1.0.0
+neo4j==5.28.2
+pydantic>=2.0.0
 langchain-openai
 langchain-text-splitters
-langgraph
 typing_extensions
 langchain-community
 sentence-transformers

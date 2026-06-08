@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw, X, Play } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -28,20 +28,30 @@ function getISOWeekAndYear(date) {
 }
 
 const PAIN_OPTIONS = [
-  { key: 'shoulder',    label: '어깨 / 회전근개 불안정',     sub: '벤치 프레스, 숄더 프레스 우회', emoji: '🦾' },
-  { key: 'lower_back',  label: '허리 디스크 이력 / 요통',     sub: '스쿼트, 데드리프트 우회',       emoji: '🦴' },
-  { key: 'wrist',       label: '손목 터널 증후군 / 통증',     sub: '바벨 컬, 푸쉬업 우회',          emoji: '🤚' },
-  { key: 'knee',        label: '무릎 관절 시림 / 통증',       sub: '런지, 레그 익스텐션 우회',       emoji: '🦵' },
-  { key: 'none',        label: '현재 통증 없음',              sub: '정석 고강도 5분할 추천',         emoji: '💪' },
+  { key: 'shoulder',    label: '어깨 / 회전근개 불안정',     sub: '벤치 프레스, 숄더 프레스 우회' },
+  { key: 'lower_back',  label: '허리 디스크 이력 / 요통',     sub: '스쿼트, 데드리프트 우회' },
+  { key: 'wrist',       label: '손목 터널 증후군 / 통증',     sub: '바벨 컬, 푸쉬업 우회' },
+  { key: 'knee',        label: '무릎 관절 시림 / 통증',       sub: '런지, 레그 익스텐션 우회' },
+  { key: 'none',        label: '현재 통증 없음',              sub: '정석 고강도 5분할 추천' },
 ]
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일']
+const DEFAULT_WORK_DAYS = ['월', '화', '수', '목', '금']
+const DEFAULT_DAY_PARTS = {
+  '월': '가슴',
+  '화': '등',
+  '수': '하체',
+  '목': '어깨',
+  '금': '팔/코어',
+  '토': '유산소',
+  '일': '스트레칭'
+}
 
 const GOAL_OPTIONS = [
-  { key: 'hypertrophy', label: '근비대',   desc: '볼륨 극대화 · 8~12rep · 짧은 휴식',       emoji: '💪', color: '#FF6B35' },
-  { key: 'diet',        label: '다이어트', desc: '고반복 서킷 · 15~20rep · 유산소 병행',     emoji: '🔥', color: '#00D4A0' },
-  { key: 'strength',    label: '스트렝스', desc: '저반복 고중량 · 3~5rep · 긴 휴식',         emoji: '🏆', color: '#6C63FF' },
-  { key: 'maintenance', label: '체력 유지', desc: '균형 유지 · 10~15rep · 부상 방지 중심',   emoji: '⚖️', color: '#FFD700' },
+  { key: 'hypertrophy', label: '근비대',   desc: '중간 중량 · 6~8rep · 충분한 볼륨',          color: '#FF6B35' },
+  { key: 'diet',        label: '다이어트', desc: '저중량 · 12~15rep · 짧은 휴식',             color: '#00D4A0' },
+  { key: 'strength',    label: '스트렝스', desc: '저반복 고중량 · 3~5rep · 긴 휴식',         color: '#6C63FF' },
+  { key: 'maintenance', label: '체력 유지', desc: '머신 중심 · 10~15rep · 안정성 우선',       color: '#FFD700' },
 ]
 
 const TIME_OPTIONS = [
@@ -90,6 +100,95 @@ function StepDots({ current, total }) {
   )
 }
 
+const GENDER_OPTIONS = [
+  { key: 'male', label: '남성' },
+  { key: 'female', label: '여성' },
+]
+
+const LEVEL_OPTIONS = [
+  { key: 'beginner', label: '초급' },
+  { key: 'intermediate', label: '중급' },
+  { key: 'advanced', label: '상급' },
+]
+
+const ALL_EQUIPMENT_KEYS = ['body', 'dumbbell', 'barbell', 'machine', 'band', 'pull_up_bar', 'kettlebell']
+const SURVEY_STEP_COUNT = 5
+
+function ChoiceButton({ active, children, onClick, style = {} }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '14px 16px',
+        borderRadius: 4,
+        background: active ? 'rgba(255,215,0,0.08)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${active ? 'rgba(255,215,0,0.38)' : 'rgba(255,255,255,0.08)'}`,
+        color: active ? '#FFD700' : '#E2E2E2',
+        fontSize: 13,
+        fontWeight: 800,
+        textAlign: 'left',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function StepProfile({ age, gender, level, onAgeChange, onGenderChange, onLevelChange }) {
+  return (
+    <div>
+      <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
+        STEP 1 / 5
+      </span>
+      <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
+        기본 정보
+      </h2>
+      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 28, lineHeight: 1.7 }}>
+        추천 강도와 난이도 기준으로 사용합니다.
+      </p>
+      <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 8 }}>나이</label>
+      <input
+        type="number"
+        min="14"
+        max="90"
+        value={age}
+        onChange={e => onAgeChange(e.target.value)}
+        placeholder="예: 28"
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: '14px 16px',
+          borderRadius: 4,
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color: '#E2E2E2',
+          fontSize: 15,
+          outline: 'none',
+          marginBottom: 20,
+        }}
+      />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+        {GENDER_OPTIONS.map(opt => (
+          <ChoiceButton key={opt.key} active={gender === opt.key} onClick={() => onGenderChange(opt.key)} style={{ textAlign: 'center' }}>
+            {opt.label}
+          </ChoiceButton>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        {LEVEL_OPTIONS.map(opt => (
+          <ChoiceButton key={opt.key} active={level === opt.key} onClick={() => onLevelChange(opt.key)} style={{ textAlign: 'center' }}>
+            {opt.label}
+          </ChoiceButton>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Step 1: 통증 ─────────────────────────────────────────────────────────────
 
 const GET_DEFAULT_PART = (index, splitStyle) => {
@@ -113,10 +212,10 @@ function Step1({ value, onChange }) {
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 1 / 5
+        STEP 2 / 5
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
-        💥 만성 통증 · 부상 부위
+        만성 통증 · 부상 부위
       </h2>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 32, lineHeight: 1.7 }}>
         AI가 루틴 설계 내내 해당 근육군을 자동으로 우회합니다.<br />복수 선택 가능합니다.
@@ -134,7 +233,6 @@ function Step1({ value, onChange }) {
               cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s',
               gridColumn: isNone ? 'span 2' : 'auto',
             }}>
-              <span style={{ fontSize: 26, flexShrink: 0 }}>{opt.emoji}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: active ? '#FFD700' : '#E2E2E2', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {opt.label}
@@ -164,10 +262,10 @@ function StepSplitStyle({ value, onChange }) {
   return (
     <div>
       <span style={{ fontSize: 11, letterSpacing: 4, color: '#FFD700', opacity: 0.8, display: 'block', marginBottom: 12 }}>
-        STEP 2 / 5
+        비활성화된 이전 분할 단계
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
-        🏋️ 분할 스타일 선택
+        분할 스타일 선택
       </h2>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 32, lineHeight: 1.7 }}>
         이번 주에 집중할 루틴 방향성을 골라주세요.
@@ -223,88 +321,24 @@ function StepSplitStyle({ value, onChange }) {
 // ─── Step 3: 요일 및 부위 선택 (기존 Step 2 변경) ───────────────────────────────────
 
 function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, splitStyle }) {
-  const [isDetailMode, setIsDetailMode] = useState(false)
-  const [activeEditingDay, setActiveEditingDay] = useState(null)
-  const [selectedPartForEditingDay, setSelectedPartForEditingDay] = useState('')
-
   const PART_OPTIONS = ['가슴', '등', '하체', '어깨', '팔/코어', '코어', '유산소', '스트레칭']
 
-  // Sort helper
   const sortDays = (daysArray) => {
     return [...daysArray].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b))
   }
 
-  // Recalculate automatic parts for active days
-  const recalculateAutoParts = (nextDays) => {
-    const sorted = sortDays(nextDays)
-    const newDayParts = { ...dayParts }
-    
-    // Clear days not in nextDays
-    DAYS.forEach(d => {
-      if (!nextDays.includes(d)) {
-        delete newDayParts[d]
-      }
-    })
-
-    // Assign default parts chronologically for active days
-    sorted.forEach((day, index) => {
-      newDayParts[day] = GET_DEFAULT_PART(index, splitStyle)
-    })
-    
-    onChangeDayParts(newDayParts)
-  }
-
-  // Toggle day in Auto mode
-  const handleDayToggleAuto = (day) => {
-    const nextDays = workDays.includes(day)
-      ? workDays.filter(d => d !== day)
-      : [...workDays, day]
-    
-    const sortedNextDays = sortDays(nextDays)
-    onChangeDays(sortedNextDays)
-    recalculateAutoParts(sortedNextDays)
-  }
-
-  // Click day in Detail mode
-  const handleDayClickDetail = (day) => {
-    // If clicking the already editing day, close it
-    if (activeEditingDay === day) {
-      setActiveEditingDay(null)
+  const toggleDay = (day) => {
+    if (workDays.includes(day)) {
+      onChangeDays(workDays.filter(d => d !== day))
       return
     }
-    setActiveEditingDay(day)
-    const existingPart = dayParts[day] || GET_DEFAULT_PART(workDays.indexOf(day) >= 0 ? workDays.indexOf(day) : 0, splitStyle)
-    setSelectedPartForEditingDay(existingPart)
-  }
-
-  // Save detail part selection
-  const handleSaveDetail = () => {
-    if (!activeEditingDay) return
-
-    // 1. Add to workDays if not already present, and sort chronologically
-    if (!workDays.includes(activeEditingDay)) {
-      onChangeDays(sortDays([...workDays, activeEditingDay]))
-    }
-    
-    // 2. Save target part
+    const nextDays = sortDays([...workDays, day])
+    const nextIndex = nextDays.indexOf(day)
+    onChangeDays(nextDays)
     onChangeDayParts(prev => ({
       ...prev,
-      [activeEditingDay]: selectedPartForEditingDay
+      [day]: prev[day] || GET_DEFAULT_PART(nextIndex, splitStyle),
     }))
-
-    setActiveEditingDay(null)
-  }
-
-  // Set day as rest day
-  const handleSetRestDay = () => {
-    if (!activeEditingDay) return
-    onChangeDays(workDays.filter(d => d !== activeEditingDay))
-    onChangeDayParts(prev => {
-      const next = { ...prev }
-      delete next[activeEditingDay]
-      return next
-    })
-    setActiveEditingDay(null)
   }
 
   return (
@@ -313,237 +347,95 @@ function StepDaysAndParts({ workDays, onChangeDays, dayParts, onChangeDayParts, 
         STEP 3 / 5
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
-        🗓️ 운동 요일 & 부위 설정
+        운동 요일 & 부위 설정
       </h2>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 24, lineHeight: 1.7 }}>
-        자동 배정으로 요일만 선택하거나, 요일별 상세 설정을 통해 원하는 부위를 직접 구성하세요.
+        기본은 월요일부터 금요일까지의 5분할입니다. 필요한 경우 요일을 휴식일로 바꾸거나 각 요일의 운동 부위를 직접 조정하세요.
       </p>
 
-      {/* 모드 선택 탭 */}
-      <div style={{
-        display: 'flex',
-        background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 4,
-        padding: 4,
-        marginBottom: 28,
-      }}>
-        <button
-          type="button"
-          onClick={() => {
-            setIsDetailMode(false)
-            setActiveEditingDay(null)
-            recalculateAutoParts(workDays)
-          }}
-          style={{
-            flex: 1, padding: '10px 0', borderRadius: 3, border: 'none',
-            background: !isDetailMode ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'transparent',
-            color: !isDetailMode ? '#000' : 'rgba(255,255,255,0.4)',
-            fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
-          }}
-        >
-          자동
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setIsDetailMode(true)
-            setActiveEditingDay(null)
-          }}
-          style={{
-            flex: 1, padding: '10px 0', borderRadius: 3, border: 'none',
-            background: isDetailMode ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'transparent',
-            color: isDetailMode ? '#000' : 'rgba(255,255,255,0.4)',
-            fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
-          }}
-        >
-          상세
-        </button>
-      </div>
-
-      {/* 요일 그리드 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(74px, 1fr))', gap: 8, marginBottom: 20 }}>
         {DAYS.map(day => {
           const isSelected = workDays.includes(day)
-          const isEditing = activeEditingDay === day
           const isWeekend = day === '토' || day === '일'
-          
-          // 표시할 라벨
           const partLabel = isSelected ? (dayParts[day] || '가슴') : '휴식'
 
           return (
-            <button
+            <div
               key={day}
-              type="button"
-              onClick={() => {
-                if (isDetailMode) {
-                  handleDayClickDetail(day)
-                } else {
-                  handleDayToggleAuto(day)
-                }
-              }}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '14px 0', borderRadius: 4,
-                background: isEditing
-                  ? 'rgba(255,215,0,0.15)'
-                  : isSelected
-                    ? 'rgba(255,215,0,0.06)'
-                    : 'rgba(255,255,255,0.02)',
-                border: isEditing
-                  ? '1px solid #FFD700'
-                  : isSelected
-                    ? '1px solid rgba(255,215,0,0.35)'
-                    : '1px solid rgba(255,255,255,0.06)',
-                cursor: 'pointer', transition: 'all 0.2s',
-                gap: 6,
+                padding: '12px 8px', borderRadius: 4,
+                background: isSelected ? 'rgba(255,215,0,0.06)' : 'rgba(255,255,255,0.02)',
+                border: isSelected ? '1px solid rgba(255,215,0,0.35)' : '1px solid rgba(255,255,255,0.06)',
+                gap: 8,
               }}
             >
-              <span style={{
-                fontSize: 14, fontWeight: 800,
-                color: isSelected || isEditing ? '#FFD700' : isWeekend ? 'rgba(255,100,100,0.6)' : 'rgba(255,255,255,0.5)',
-              }}>{day}</span>
-              
-              <span style={{
-                fontSize: 10,
-                color: isSelected ? '#FFD700' : 'rgba(255,255,255,0.22)',
-                fontWeight: isSelected ? 700 : 400,
-              }}>
-                {partLabel}
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => toggleDay(day)}
+                style={{
+                  width: '100%',
+                  padding: '9px 0',
+                  borderRadius: 3,
+                  background: isSelected ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.03)',
+                  border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                  color: isSelected ? '#000' : isWeekend ? 'rgba(255,130,130,0.7)' : 'rgba(255,255,255,0.58)',
+                  fontSize: 14,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                {day}
+              </button>
+              {isSelected ? (
+                <select
+                  value={partLabel}
+                  onChange={event => onChangeDayParts(prev => ({ ...prev, [day]: event.target.value }))}
+                  style={{
+                    width: '100%',
+                    height: 34,
+                    borderRadius: 3,
+                    background: '#111',
+                    border: '1px solid rgba(255,215,0,0.22)',
+                    color: '#E2E2E2',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    outline: 'none',
+                    padding: '0 6px',
+                  }}
+                >
+                  {PART_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{
+                  width: '100%',
+                  height: 34,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'rgba(255,255,255,0.22)',
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}>
+                  {partLabel}
+                </div>
+              )}
+            </div>
           )
         })}
       </div>
 
-      {/* [상세 설정 모드] 활성화된 요일 토글 박스 */}
-      {isDetailMode && activeEditingDay && (
-        <div style={{ position: 'relative', marginTop: 8, marginBottom: 20 }}>
-          {/* Pointing arrow indicator */}
-          <div style={{
-            position: 'absolute',
-            top: -8,
-            left: `calc((100% / 7) * ${DAYS.indexOf(activeEditingDay)} + (100% / 7) / 2)`,
-            transform: 'translateX(-50%)',
-            width: 0,
-            height: 0,
-            borderLeft: '8px solid transparent',
-            borderRight: '8px solid transparent',
-            borderBottom: '8px solid rgba(255, 215, 0, 0.25)',
-            zIndex: 2,
-          }} />
-          <div style={{
-            position: 'absolute',
-            top: -7,
-            left: `calc((100% / 7) * ${DAYS.indexOf(activeEditingDay)} + (100% / 7) / 2)`,
-            transform: 'translateX(-50%)',
-            width: 0,
-            height: 0,
-            borderLeft: '8px solid transparent',
-            borderRight: '8px solid transparent',
-            borderBottom: '8px solid #1A1A1A',
-            zIndex: 3,
-          }} />
-
-          <div style={{
-            background: '#1A1A1A',
-            border: '1px solid rgba(255,215,0,0.25)',
-            borderRadius: 4,
-            padding: '24px 28px',
-            animation: 'float-up 0.25s ease',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: '#FFF' }}>
-                📅 {activeEditingDay}요일 운동 부위 설정
-              </span>
-              {workDays.includes(activeEditingDay) && (
-                <button
-                  type="button"
-                  onClick={handleSetRestDay}
-                  style={{
-                    background: 'none', border: 'none', color: '#FF6B6B', fontSize: 12,
-                    cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3
-                  }}
-                >
-                  이 요일 운동 취소 (휴식일로 지정)
-                </button>
-              )}
-            </div>
-
-            {/* 운동 부위 토글 버튼 */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
-              {PART_OPTIONS.map(opt => {
-                const active = selectedPartForEditingDay === opt
-                return (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setSelectedPartForEditingDay(opt)}
-                    style={{
-                      padding: '12px 0',
-                      borderRadius: 2,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      background: active ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.03)',
-                      border: active ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                      color: active ? '#000' : 'rgba(255,255,255,0.5)',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={e => { if (!active) e.currentTarget.style.borderColor = 'rgba(255,215,0,0.3)' }}
-                    onMouseLeave={e => { if (!active) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
-                  >
-                    {opt}
-                  </button>
-                )
-              })}
-            </div>
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setActiveEditingDay(null)}
-                style={{
-                  flex: 1, padding: '11px 0', borderRadius: 3,
-                  background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
-                  color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer'
-                }}
-              >
-                닫기
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveDetail}
-                style={{
-                  flex: 2, padding: '11px 0', borderRadius: 3,
-                  background: 'linear-gradient(135deg, #FFD700, #C8A200)', border: 'none',
-                  color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(255,215,0,0.2)'
-                }}
-              >
-                선택 완료
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 안내 문구 */}
-      {!activeEditingDay && (
-        <div style={{
-          padding: '16px 20px', borderRadius: 4,
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          fontSize: 12.5, color: 'rgba(255,255,255,0.35)',
-          lineHeight: 1.6,
-        }}>
-          {isDetailMode ? (
-            <span>💡 <strong>상세 설정 가이드</strong>: 요일 버튼을 클릭한 뒤, 아래 패널에서 원하는 부위를 토글하고 [선택 완료]를 누르면 저장됩니다.</span>
-          ) : (
-            <span>💡 <strong>자동 배정 가이드</strong>: 요일을 누르면 활성화되며, 2단계에서 고른 <strong>{splitStyle === 'bodybuilding' ? '보디빌딩 5분할' : splitStyle === 'lower_core' ? '하체/코어 강화' : '스트렝스 중심'}</strong> 규칙에 따라 타겟 부위가 자동 매핑됩니다.</span>
-          )}
-        </div>
-      )}
+      <div style={{
+        padding: '14px 16px', borderRadius: 4,
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        fontSize: 12.5, color: 'rgba(255,255,255,0.38)',
+        lineHeight: 1.6,
+      }}>
+        선택된 요일 수: <strong style={{ color: '#FFD700' }}>{workDays.length}</strong>일
+      </div>
     </div>
   )
 }
@@ -557,7 +449,7 @@ function Step4({ value, onChange }) {
         STEP 4 / 5
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
-        🎯 운동 목표
+        운동 목표
       </h2>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 32, lineHeight: 1.7 }}>
         목표에 따라 세트수 · rep 범위 · 운동 종류가 달라집니다.
@@ -573,7 +465,6 @@ function Step4({ value, onChange }) {
               border: `1px solid ${active ? `${opt.color}50` : 'rgba(255,255,255,0.08)'}`,
               cursor: 'pointer', transition: 'all 0.2s', gap: 10,
             }}>
-              <span style={{ fontSize: 30 }}>{opt.emoji}</span>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: active ? opt.color : '#E2E2E2', marginBottom: 5 }}>
                   {opt.label}
@@ -609,7 +500,7 @@ function Step5({ value, onChange }) {
         STEP 5 / 5
       </span>
       <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px, 4vw, 42px)', color: '#E2E2E2', letterSpacing: 2, marginBottom: 8, lineHeight: 1.1 }}>
-        ⏱️ 세션당 운동 시간
+        세션당 운동 시간
       </h2>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 32, lineHeight: 1.7 }}>
         시간에 맞게 운동 개수와 볼륨을 최적화합니다.
@@ -835,6 +726,8 @@ const enrichPreloadedRoutine = (preloaded, dbExercises, painParts) => {
       detail: ex.guide || `${ex.name_kor} 운동 가이드입니다.`,
       targetPain: targetPain,
       gif: `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`,
+      video_url: ex.video_url || '',
+      image_url: ex.image_url || '',
       category: ex.category
     };
   });
@@ -856,11 +749,15 @@ const enrichPreloadedRoutine = (preloaded, dbExercises, painParts) => {
         const warnedAlts = otherInCat.filter(ex => ex.targetPain && activePainParts.includes(ex.targetPain));
         
         alternatives = [...safeAlts, ...warnedAlts].slice(0, 5).map(alt => ({
+          id: alt.id,
           name: alt.name,
           eq: alt.eq,
           detail: alt.detail,
           targetPain: alt.targetPain,
-          gif: alt.gif
+          gif: alt.gif,
+          video_url: alt.video_url,
+          image_url: alt.image_url,
+          category: alt.category
         }));
       }
 
@@ -878,6 +775,141 @@ const enrichPreloadedRoutine = (preloaded, dbExercises, painParts) => {
   return enriched;
 };
 
+const buildLocalGifPath = (exercise) => {
+  if (!exercise?.category || !exercise?.id || !exercise?.name_kor) return '/workout_guide.png'
+  return `/gifs/${encodeURIComponent(exercise.category)}/${exercise.id}_${encodeURIComponent(exercise.name_kor)}.gif`
+}
+
+const normalizeRepsForSave = (reps) => {
+  if (typeof reps === 'number') return reps
+  const match = String(reps || '').match(/\d+/)
+  return match ? Number(match[0]) : 10
+}
+
+const DAY_PART_TO_TARGET = {
+  '가슴': 'CHEST',
+  '등': 'BACK',
+  '하체': 'LEG',
+  '어깨': 'SHOULDER',
+  '팔': 'ARM',
+  '팔/코어': 'ARM',
+  '이두': 'ARM',
+  '삼두': 'ARM',
+  '전완근': 'ARM',
+}
+
+const normalizeDayTarget = (value) => {
+  const raw = Array.isArray(value) ? value.find(Boolean) : value
+  const text = String(raw || '').trim()
+  return DAY_PART_TO_TARGET[text] || text.toUpperCase()
+}
+
+const mapRecommendedRoutineToWorkoutRoutine = (routineDraft, workDays, dbExercises, dayParts = {}) => {
+  const exerciseMap = new Map((dbExercises || []).map(ex => [Number(ex.id), ex]))
+  const exerciseNameMap = new Map((dbExercises || []).map(ex => [ex.name_kor, ex]))
+  const mapped = {}
+  const days = routineDraft?.days || []
+  const daysByTarget = new Map()
+  days.forEach(day => {
+    const target = String(day?.target || '').trim().toUpperCase()
+    if (!target) return
+    const queue = daysByTarget.get(target) || []
+    queue.push(day)
+    daysByTarget.set(target, queue)
+  })
+
+  workDays.forEach((day, index) => {
+    const target = normalizeDayTarget(dayParts[day])
+    const targetQueue = daysByTarget.get(target) || []
+    const recommendedDay = targetQueue.shift() || days.find(item => String(item?.target || '').trim().toUpperCase() === target) || days[index] || {}
+    mapped[day] = (recommendedDay.exercises || []).map((ex, exIndex) => {
+      const dbEx = exerciseMap.get(Number(ex.exercise_id)) || exerciseNameMap.get(ex.name)
+      const exerciseId = ex.exercise_id || dbEx?.id || null
+      const targetPain = getTargetPainForExercise(dbEx?.name_kor || ex.name, dbEx?.category)
+      return {
+        id: exerciseId,
+        slot_key: `${day}-${exIndex}-${exerciseId || ex.name}`,
+        name: dbEx?.name_kor || ex.name,
+        sets: ex.sets || 3,
+        reps: normalizeRepsForSave(ex.reps),
+        recommended_sets: ex.sets || 3,
+        recommended_reps: normalizeRepsForSave(ex.reps),
+        rest_seconds: ex.rest_seconds,
+        eq: dbEx?.equipment || ex.equipment || 'body',
+        detail: dbEx?.guide || '',
+        targetPain,
+        gif: buildLocalGifPath(dbEx),
+        video_url: dbEx?.video_url || '',
+        image_url: dbEx?.image_url || '',
+        category: dbEx?.category || recommendedDay.target || '',
+        caution: dbEx?.caution || '',
+        spine_loading: dbEx?.spine_loading || '',
+        alternatives: [],
+      }
+    })
+  })
+
+  return mapped
+}
+
+const summarizeRoutineChanges = (beforeRoutine, afterRoutine, workDays, dayParts) => {
+  if (!beforeRoutine || !afterRoutine) return []
+
+  const changes = []
+  workDays.forEach(day => {
+    const before = beforeRoutine[day] || []
+    const after = afterRoutine[day] || []
+    const maxLen = Math.max(before.length, after.length)
+
+    for (let index = 0; index < maxLen; index += 1) {
+      const prevEx = before[index]
+      const nextEx = after[index]
+      const label = `${day}요일 ${dayParts[day] || ''}`.trim()
+
+      if (prevEx && nextEx && prevEx.name !== nextEx.name) {
+        changes.push({
+          type: '교체',
+          day: label,
+          before: prevEx.name,
+          after: nextEx.name,
+        })
+        continue
+      }
+
+      if (!prevEx && nextEx) {
+        changes.push({
+          type: '추가',
+          day: label,
+          before: '',
+          after: nextEx.name,
+        })
+        continue
+      }
+
+      if (prevEx && !nextEx) {
+        changes.push({
+          type: '제거',
+          day: label,
+          before: prevEx.name,
+          after: '',
+        })
+        continue
+      }
+
+      if (prevEx && nextEx && (prevEx.sets !== nextEx.sets || prevEx.reps !== nextEx.reps)) {
+        changes.push({
+          type: '볼륨 조정',
+          day: label,
+          before: `${prevEx.sets}세트 ${prevEx.reps}회`,
+          after: `${nextEx.sets}세트 ${nextEx.reps}회`,
+        })
+      }
+    }
+  })
+
+  return changes
+}
+
 export default function RoutinePage() {
   const navigate = useNavigate()
   const [authUser, setAuthUser] = useState(null) // null = 게스트 또는 로딩 전
@@ -889,26 +921,31 @@ export default function RoutinePage() {
   }, [])
 
   const [step, setStep] = useState(0)
+  const [age, setAge] = useState('')
+  const [gender, setGender] = useState('')
+  const [level, setLevel] = useState('')
   const [painParts, setPainParts] = useState([])
-  const [workDays, setWorkDays] = useState([])
-  const [splitStyle, setSplitStyle] = useState('')
+  const [workDays, setWorkDays] = useState(DEFAULT_WORK_DAYS)
+  const [splitStyle, setSplitStyle] = useState('bodybuilding')
   const [goal, setGoal] = useState('')
   const [sessionMin, setSessionMin] = useState(null)
   const [showAutoWarning, setShowAutoWarning] = useState(false)
-  const [dayParts, setDayParts] = useState({
-    '월': '가슴',
-    '화': '등',
-    '수': '하체',
-    '목': '어깨',
-    '금': '팔/코어',
-    '토': '유산소',
-    '일': '스트레칭'
-  })
+  const [dayParts, setDayParts] = useState(DEFAULT_DAY_PARTS)
   const [dbExercises, setDbExercises] = useState([])
   const [loadingExercises, setLoadingExercises] = useState(true)
   const [loadingRoutine, setLoadingRoutine] = useState(true)
   const [preloadedWorkoutRoutine, setPreloadedWorkoutRoutine] = useState(null)
   const [preloadedDailyNotes, setPreloadedDailyNotes] = useState(null)
+  const [recommendationThreadId, setRecommendationThreadId] = useState('')
+  const [reviewPayload, setReviewPayload] = useState(null)
+  const [reviewFeedback, setReviewFeedback] = useState('')
+  const [recommendationError, setRecommendationError] = useState('')
+  const [isGeneratingRoutine, setIsGeneratingRoutine] = useState(false)
+  const [isReviewing, setIsReviewing] = useState(false)
+  const [reviewAction, setReviewAction] = useState('')
+  const [isApproved, setIsApproved] = useState(false)
+  const [showApprovedNotice, setShowApprovedNotice] = useState(false)
+  const [reviewNotice, setReviewNotice] = useState(null)
 
   const loadingDb = loadingExercises || loadingRoutine
 
@@ -933,7 +970,9 @@ export default function RoutinePage() {
           setDayParts(data.day_parts || {})
           setPreloadedWorkoutRoutine(data.workout_routine)
           setPreloadedDailyNotes(data.daily_notes)
-          setStep(5) // TOTAL = 5, jump to final view directly
+          setIsApproved(true)
+          setShowApprovedNotice(false)
+          setStep(SURVEY_STEP_COUNT)
         } else if (data.preferences) {
           // No current routine, but historical preferences exist! Pre-fill onboarding steps.
           const prefs = data.preferences;
@@ -982,23 +1021,190 @@ export default function RoutinePage() {
     }
   }, [authUser])
 
+  useEffect(() => {
+    if (!showApprovedNotice) return undefined
+    const timer = setTimeout(() => setShowApprovedNotice(false), 7000)
+    return () => clearTimeout(timer)
+  }, [showApprovedNotice])
+
+  useEffect(() => {
+    const hasPainHistory = painParts.some(part => part && part !== 'none')
+    if (!goal && (Number(age) >= 50 || hasPainHistory)) {
+      setGoal('maintenance')
+    }
+  }, [age, painParts, goal])
+
+  const buildSurveyPayload = () => ({
+    device_uuid: deviceUuid,
+    age: Number(age),
+    gender,
+    level,
+    place: 'gym',
+    available_equipment: ALL_EQUIPMENT_KEYS,
+    pain_parts: painParts,
+    split_style: 'bodybuilding',
+    work_days: workDays,
+    day_parts: workDays.reduce((acc, day) => {
+      acc[day] = dayParts[day]
+      return acc
+    }, {}),
+    goal,
+    session_min: sessionMin,
+  })
+
+  const saveRoutineToDb = async (routine, notes = {}) => {
+    const { year, weekNumber } = getISOWeekAndYear(new Date())
+    const payload = {
+      device_uuid: deviceUuid,
+      year,
+      week_number: weekNumber,
+      split_style: splitStyle,
+      goal,
+      session_min: sessionMin,
+      pain_parts: painParts,
+      work_days: workDays,
+      day_parts: workDays.reduce((acc, day) => {
+        acc[day] = dayParts[day]
+        return acc
+      }, {}),
+      workout_routine: routine,
+      daily_notes: notes,
+    }
+
+    const res = await fetch(`${API_URL}/api/routines/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error('추천 루틴 저장에 실패했습니다.')
+    return res.json()
+  }
+
+  const applyRecommendationResult = (data) => {
+    if (!data.ok) {
+      setRecommendationError(data.message || '추천 루틴 생성에 실패했습니다.')
+      return false
+    }
+    const mappedRoutine = mapRecommendedRoutineToWorkoutRoutine(data.routine_draft, workDays, dbExercises, dayParts)
+    setRecommendationThreadId(data.thread_id || '')
+    setReviewPayload(data)
+    setPreloadedWorkoutRoutine(mappedRoutine)
+    setPreloadedDailyNotes({})
+    setStep(TOTAL)
+    return true
+  }
+
+  const handleCreateRecommendation = async () => {
+    if (loadingDb || isGeneratingRoutine) return
+    setRecommendationError('')
+    setIsGeneratingRoutine(true)
+    setReviewAction('')
+    setIsApproved(false)
+    setShowApprovedNotice(false)
+    setReviewNotice(null)
+    try {
+      const res = await fetch(`${API_URL}/api/routines/recommend/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildSurveyPayload()),
+      })
+      const data = await res.json()
+      if (!res.ok || !applyRecommendationResult(data)) {
+        setRecommendationError(data.message || '추천 루틴 생성에 실패했습니다.')
+      }
+    } catch (err) {
+      setRecommendationError(err.message || '추천 API 호출 중 오류가 발생했습니다.')
+    } finally {
+      setIsGeneratingRoutine(false)
+    }
+  }
+
+  const handleReview = async (decision) => {
+    if (!recommendationThreadId || isReviewing) return
+    setRecommendationError('')
+    setReviewAction(decision)
+    setIsReviewing(true)
+    try {
+      const res = await fetch(`${API_URL}/api/routines/recommend/review/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          thread_id: recommendationThreadId,
+          decision,
+          feedback: decision === 'approve' ? '' : reviewFeedback,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) {
+        setRecommendationError(data.message || '검토 요청 처리에 실패했습니다.')
+        return
+      }
+      const previousRoutine = preloadedWorkoutRoutine
+      const nextRoutine = mapRecommendedRoutineToWorkoutRoutine(data.routine_draft, workDays, dbExercises, dayParts)
+      const routineChanges = summarizeRoutineChanges(previousRoutine, nextRoutine, workDays, dayParts)
+      applyRecommendationResult(data)
+      if (decision !== 'approve') {
+        setReviewNotice({
+          title: '수정 요청 반영 완료',
+          message: '입력한 피드백을 바탕으로 추천 루틴을 다시 구성했습니다.',
+          changes: routineChanges,
+        })
+      }
+      if (data.status === 'completed') {
+        setIsApproved(true)
+        setShowApprovedNotice(true)
+        await saveRoutineToDb(nextRoutine, {})
+      }
+      setReviewFeedback('')
+    } catch (err) {
+      setRecommendationError(err.message || '검토 API 호출 중 오류가 발생했습니다.')
+    } finally {
+      setIsReviewing(false)
+      setReviewAction('')
+    }
+  }
+
   const canNext = [
+    Number(age) > 0 && gender !== '' && level !== '',
     painParts.length > 0,
-    splitStyle !== '',
     workDays.length > 0,
     goal !== '',
     sessionMin !== null,
   ][step]
 
+  const loadingOverlay = isGeneratingRoutine
+    ? {
+        title: '추천 루틴 설계 중...',
+        message: '운동 후보를 검토하고 AI 루틴 구성을 진행하고 있습니다. 잠시만 기다려주세요.',
+      }
+    : isReviewing
+      ? reviewAction === 'approve'
+        ? {
+            title: '최종 승인 저장 중...',
+            message: '승인된 추천 루틴을 이번 주 루틴으로 저장하고 있습니다.',
+          }
+        : {
+            title: '피드백 반영 중...',
+            message: '입력한 수정 요청을 바탕으로 운동 후보를 다시 검토하고 루틴을 재구성하고 있습니다.',
+          }
+      : null
+
   const steps = [
+    <StepProfile
+      age={age}
+      gender={gender}
+      level={level}
+      onAgeChange={setAge}
+      onGenderChange={setGender}
+      onLevelChange={setLevel}
+    />,
     <Step1 value={painParts} onChange={setPainParts} />,
-    <StepSplitStyle value={splitStyle} onChange={setSplitStyle} />,
     <StepDaysAndParts
       workDays={workDays}
       onChangeDays={setWorkDays}
       dayParts={dayParts}
       onChangeDayParts={setDayParts}
-      splitStyle={splitStyle}
+      splitStyle="bodybuilding"
     />,
     <Step4 value={goal} onChange={setGoal} />,
     <Step5 value={sessionMin} onChange={setSessionMin} />,
@@ -1008,22 +1214,25 @@ export default function RoutinePage() {
 
   const handleReset = () => {
     setStep(0)
+    setAge('')
+    setGender('')
+    setLevel('')
     setPainParts([])
-    setWorkDays([])
-    setSplitStyle('')
+    setWorkDays(DEFAULT_WORK_DAYS)
+    setSplitStyle('bodybuilding')
     setGoal('')
     setSessionMin(null)
-    setDayParts({
-      '월': '가슴',
-      '화': '등',
-      '수': '하체',
-      '목': '어깨',
-      '금': '팔/코어',
-      '토': '유산소',
-      '일': '스트레칭'
-    })
+    setDayParts(DEFAULT_DAY_PARTS)
     setPreloadedWorkoutRoutine(null)
     setPreloadedDailyNotes(null)
+    setRecommendationThreadId('')
+    setReviewPayload(null)
+    setReviewFeedback('')
+    setRecommendationError('')
+    setReviewAction('')
+    setIsApproved(false)
+    setShowApprovedNotice(false)
+    setReviewNotice(null)
   }
 
   if (step === TOTAL) {
@@ -1063,12 +1272,24 @@ export default function RoutinePage() {
       <div style={{
         minHeight: '100vh',
         background: '#080808',
-        paddingTop: 100,
+        padding: '100px 20px 60px',
         display: 'flex',
-        alignItems: 'flex-start',
+        flexDirection: 'column',
+        alignItems: 'center',
         justifyContent: 'center',
-        paddingBottom: 60,
+        boxSizing: 'border-box',
       }}>
+        {!isApproved && reviewPayload?.status === 'needs_review' && (
+          <HumanReviewPanel
+            validation={reviewPayload.validation_result}
+            feedback={reviewFeedback}
+            onFeedbackChange={setReviewFeedback}
+            onApprove={() => handleReview('approve')}
+            onRevise={() => handleReview('revise')}
+            isSubmitting={isReviewing}
+            error={recommendationError}
+          />
+        )}
         <RoutineCheckView
           workDays={workDays}
           goal={goal}
@@ -1082,7 +1303,240 @@ export default function RoutinePage() {
           initialDailyNotes={preloadedDailyNotes}
           authUser={authUser}
           onLoginClick={() => navigate('/login')}
+          disableAutoSave={!isApproved}
         />
+        {isApproved && showApprovedNotice && (
+          <div style={{
+            position: 'fixed',
+            left: 24,
+            bottom: 24,
+            maxWidth: 360,
+            padding: '14px 16px',
+            borderRadius: 4,
+            background: 'rgba(17,17,17,0.96)',
+            border: '1px solid rgba(255,215,0,0.25)',
+            color: '#E2E2E2',
+            fontSize: 12,
+            lineHeight: 1.6,
+            boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+          }}>
+            <button
+              type="button"
+              aria-label="저장 알림 닫기"
+              onClick={() => setShowApprovedNotice(false)}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 24,
+                height: 24,
+                borderRadius: 4,
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.04)',
+                color: 'rgba(255,255,255,0.65)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <X size={14} />
+            </button>
+            <div style={{ paddingRight: 24, fontWeight: 800, color: '#FFF' }}>
+              최종 승인된 추천 루틴이 저장되었습니다.
+            </div>
+            <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.45)' }}>
+              운동 목록과 상세 가이드는 현재 화면에서 확인할 수 있습니다.
+            </div>
+          </div>
+        )}
+        {reviewNotice && (
+          <div
+            onClick={() => setReviewNotice(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 4200,
+              background: 'rgba(0,0,0,0.62)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 24,
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 460,
+                borderRadius: 4,
+                background: '#111',
+                border: '1px solid rgba(255,215,0,0.28)',
+                boxShadow: '0 24px 70px rgba(0,0,0,0.68)',
+                padding: '28px 28px 24px',
+                color: '#E2E2E2',
+                position: 'relative',
+              }}
+            >
+              <button
+                type="button"
+                aria-label="수정 요청 완료 알림 닫기"
+                onClick={() => setReviewNotice(null)}
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  right: 12,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 4,
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'rgba(255,255,255,0.04)',
+                  color: 'rgba(255,255,255,0.68)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={15} />
+              </button>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: 4,
+                background: 'rgba(255,215,0,0.12)',
+                border: '1px solid rgba(255,215,0,0.32)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 18,
+              }}>
+                <Check size={24} color="#FFD700" strokeWidth={3} />
+              </div>
+              <div style={{
+                fontSize: 10,
+                letterSpacing: 2,
+                color: '#FFD700',
+                fontWeight: 900,
+                marginBottom: 7,
+              }}>
+                HUMAN FEEDBACK APPLIED
+              </div>
+              <h3 style={{
+                margin: 0,
+                color: '#FFF',
+                fontSize: 22,
+                lineHeight: 1.35,
+                fontWeight: 900,
+              }}>
+                {reviewNotice.title}
+              </h3>
+              <p style={{
+                margin: '12px 0 14px',
+                color: 'rgba(255,255,255,0.58)',
+                fontSize: 13,
+                lineHeight: 1.75,
+              }}>
+                {reviewNotice.message}
+              </p>
+              <div style={{
+                margin: '0 0 22px',
+                padding: '14px 14px',
+                borderRadius: 4,
+                background: 'rgba(0,0,0,0.18)',
+                border: '1px solid rgba(255,255,255,0.07)',
+              }}>
+                <div style={{
+                  fontSize: 11,
+                  color: '#FFD700',
+                  fontWeight: 900,
+                  marginBottom: 10,
+                  letterSpacing: 0.5,
+                }}>
+                  실제 변경사항
+                </div>
+                {reviewNotice.changes?.length > 0 ? (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                      {reviewNotice.changes.slice(0, 6).map((change, index) => (
+                        <div
+                          key={`${change.day}-${change.type}-${index}`}
+                          style={{
+                            paddingBottom: index === Math.min(reviewNotice.changes.length, 6) - 1 ? 0 : 9,
+                            borderBottom: index === Math.min(reviewNotice.changes.length, 6) - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)',
+                          }}
+                        >
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            marginBottom: 5,
+                            flexWrap: 'wrap',
+                          }}>
+                            <span style={{
+                              fontSize: 9,
+                              fontWeight: 900,
+                              color: '#050505',
+                              background: '#FFD700',
+                              borderRadius: 3,
+                              padding: '2px 5px',
+                            }}>
+                              {change.type}
+                            </span>
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)', fontWeight: 700 }}>
+                              {change.day}
+                            </span>
+                          </div>
+                          {change.before && change.after ? (
+                            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.55 }}>
+                              <span style={{ color: 'rgba(255,255,255,0.38)' }}>{change.before}</span>
+                              <span style={{ color: '#FFD700', padding: '0 7px' }}>→</span>
+                              <span style={{ color: '#FFF', fontWeight: 800 }}>{change.after}</span>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 12, color: '#FFF', fontWeight: 800, lineHeight: 1.55 }}>
+                              {change.after || change.before}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {reviewNotice.changes.length > 6 && (
+                      <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,0.42)' }}>
+                        외 {reviewNotice.changes.length - 6}건의 변경사항이 더 있습니다.
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>
+                    운동명 기준의 큰 변경은 감지되지 않았습니다. 세부 조건이나 검증 결과가 조정되었는지 루틴 내용을 확인해주세요.
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setReviewNotice(null)}
+                style={{
+                  width: '100%',
+                  padding: '13px 0',
+                  borderRadius: 4,
+                  background: 'linear-gradient(135deg, #FFD700, #C8A200)',
+                  border: 'none',
+                  color: '#000',
+                  fontSize: 14,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                변경된 루틴 확인하기
+              </button>
+            </div>
+          </div>
+        )}
+        {loadingOverlay && (
+          <LoadingOverlay title={loadingOverlay.title} message={loadingOverlay.message} />
+        )}
       </div>
     )
   }
@@ -1091,12 +1545,13 @@ export default function RoutinePage() {
     <div style={{
       minHeight: '100vh',
       background: '#080808',
-      paddingTop: 70,
+      padding: '90px 20px 60px',
       display: 'flex',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       justifyContent: 'center',
+      boxSizing: 'border-box',
     }}>
-      <div style={{ width: '100%', maxWidth: 640, padding: 'clamp(32px, 5vw, 56px) 20px 60px' }}>
+      <div style={{ width: '100%', maxWidth: 640 }}>
 
         {/* 카드 */}
         <div style={{
@@ -1156,22 +1611,33 @@ export default function RoutinePage() {
                 </button>
               )}
               <button
-                disabled={!canNext}
-                onClick={() => setStep(s => s + 1)}
+                disabled={!canNext || isGeneratingRoutine}
+                onClick={() => {
+                  if (step === TOTAL - 1) {
+                    handleCreateRecommendation()
+                  } else {
+                    setStep(s => s + 1)
+                  }
+                }}
                 style={{
                   flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   padding: '13px 24px', borderRadius: 3,
-                  background: canNext ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.05)',
+                  background: canNext && !isGeneratingRoutine ? 'linear-gradient(135deg, #FFD700, #C8A200)' : 'rgba(255,255,255,0.05)',
                   border: 'none',
-                  color: canNext ? '#000' : 'rgba(255,255,255,0.2)',
-                  fontSize: 14, fontWeight: 700, cursor: canNext ? 'pointer' : 'default',
+                  color: canNext && !isGeneratingRoutine ? '#000' : 'rgba(255,255,255,0.2)',
+                  fontSize: 14, fontWeight: 700, cursor: canNext && !isGeneratingRoutine ? 'pointer' : 'default',
                   transition: 'all 0.25s',
-                  boxShadow: canNext ? '0 4px 20px rgba(255,215,0,0.2)' : 'none',
+                  boxShadow: canNext && !isGeneratingRoutine ? '0 4px 20px rgba(255,215,0,0.2)' : 'none',
                 }}
               >
-                {step === TOTAL - 1 ? '루틴 생성하기' : '다음 단계'} <ChevronRight size={15} />
+                {isGeneratingRoutine ? '추천 생성 중...' : step === TOTAL - 1 ? 'AI 추천 루틴 생성하기' : '다음 단계'} <ChevronRight size={15} />
               </button>
             </div>
+            {recommendationError && (
+              <div style={{ marginTop: 14, color: '#FF8A8A', fontSize: 12, lineHeight: 1.6 }}>
+                {recommendationError}
+              </div>
+            )}
 
             {/* 자동 설정 */}
             <div style={{ textAlign: 'center', marginTop: 16 }}>
@@ -1207,7 +1673,7 @@ export default function RoutinePage() {
             boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
             animation: 'float-up 0.2s ease',
           }}>
-            <div style={{ fontSize: 28, marginBottom: 14 }}>⚠️</div>
+            <div style={{ fontSize: 12, letterSpacing: 2, color: '#FFD700', fontWeight: 800, marginBottom: 14 }}>NOTICE</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#E2E2E2', marginBottom: 12 }}>
               자동 설정을 사용할까요?
             </div>
@@ -1223,6 +1689,9 @@ export default function RoutinePage() {
               }}>직접 입력할게요</button>
               <button onClick={() => {
                 setPainParts(AUTO_DEFAULTS.painParts)
+                setAge(age || '28')
+                setGender(gender || 'male')
+                setLevel('intermediate')
                 setWorkDays(AUTO_DEFAULTS.workDays)
                 setSplitStyle(AUTO_DEFAULTS.splitStyle)
                 setGoal(AUTO_DEFAULTS.goal)
@@ -1237,6 +1706,9 @@ export default function RoutinePage() {
             </div>
           </div>
         </div>
+      )}
+      {loadingOverlay && (
+        <LoadingOverlay title={loadingOverlay.title} message={loadingOverlay.message} />
       )}
     </div>
   )
@@ -1556,10 +2028,6 @@ const EQUIPMENT_LABEL = {
   body: '맨몸', barbell: '바벨', dumbbell: '덤벨', machine: '머신'
 }
 
-const EQUIPMENT_ICON = {
-  barbell: '🏋️', dumbbell: '💪', machine: '⚙️', body: '🤸'
-}
-
 const GOAL_LABEL = {
   hypertrophy: '근비대 훈련',
   diet: '다이어트 훈련',
@@ -1567,18 +2035,194 @@ const GOAL_LABEL = {
   maintenance: '체력 유지 훈련'
 }
 
+function LoadingOverlay({ title, message }) {
+  if (!title) return null
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 5000,
+      background: 'rgba(0,0,0,0.68)',
+      backdropFilter: 'blur(8px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    }}>
+      <style>{`
+        @keyframes routine-overlay-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes routine-overlay-pulse {
+          0%, 100% { opacity: 0.55; }
+          50% { opacity: 1; }
+        }
+      `}</style>
+      <div style={{
+        width: '100%',
+        maxWidth: 430,
+        borderRadius: 4,
+        background: '#111',
+        border: '1px solid rgba(255,215,0,0.28)',
+        boxShadow: '0 24px 70px rgba(0,0,0,0.7)',
+        padding: '34px 30px 30px',
+        textAlign: 'center',
+        color: '#E2E2E2',
+      }}>
+        <div style={{
+          width: 54,
+          height: 54,
+          margin: '0 auto 22px',
+          borderRadius: '50%',
+          border: '4px solid rgba(255,215,0,0.12)',
+          borderTopColor: '#FFD700',
+          animation: 'routine-overlay-spin 0.9s linear infinite',
+        }} />
+        <div style={{
+          fontSize: 10,
+          letterSpacing: 2,
+          color: '#FFD700',
+          fontWeight: 900,
+          marginBottom: 8,
+          animation: 'routine-overlay-pulse 1.5s ease-in-out infinite',
+        }}>
+          AI ROUTINE PROCESSING
+        </div>
+        <h3 style={{
+          margin: 0,
+          color: '#FFF',
+          fontSize: 23,
+          lineHeight: 1.35,
+          fontWeight: 900,
+        }}>
+          {title}
+        </h3>
+        {message && (
+          <p style={{
+            margin: '12px 0 0',
+            color: 'rgba(255,255,255,0.55)',
+            fontSize: 13,
+            lineHeight: 1.75,
+          }}>
+            {message}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function HumanReviewPanel({
+  validation,
+  feedback,
+  onFeedbackChange,
+  onApprove,
+  onRevise,
+  isSubmitting,
+  error,
+}) {
+  return (
+    <div style={{
+      width: '100%',
+      maxWidth: 1200,
+      marginTop: 24,
+      padding: '24px 28px',
+      borderRadius: 4,
+      background: '#111',
+      border: '1px solid rgba(255,215,0,0.18)',
+      boxShadow: '0 18px 44px rgba(0,0,0,0.42)',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: '#FFD700', fontWeight: 800, marginBottom: 6 }}>
+            HUMAN REVIEW REQUIRED
+          </div>
+          <div style={{ fontSize: 18, color: '#FFF', fontWeight: 900 }}>추천 루틴 최종 검토</div>
+        </div>
+        {validation && (
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.48)', lineHeight: 1.6, textAlign: 'right' }}>
+            valid={String(validation.is_valid)} · risk={validation.risk_level || 'unknown'}
+            {validation.reason && <div>{validation.reason}</div>}
+          </div>
+        )}
+      </div>
+      <textarea
+        value={feedback}
+        onChange={e => onFeedbackChange(e.target.value)}
+        placeholder="수정 요청이 있으면 입력하세요. 예: 허리에 부담이 적게 해주세요."
+        style={{
+          width: '100%',
+          minHeight: 86,
+          boxSizing: 'border-box',
+          padding: '13px 14px',
+          borderRadius: 4,
+          background: 'rgba(0,0,0,0.2)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color: '#E2E2E2',
+          fontSize: 13,
+          lineHeight: 1.6,
+          outline: 'none',
+          resize: 'vertical',
+          marginBottom: 14,
+        }}
+      />
+      {error && <div style={{ color: '#FF8A8A', fontSize: 12, marginBottom: 12 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          disabled={isSubmitting || !feedback.trim()}
+          onClick={onRevise}
+          style={{
+            padding: '12px 18px',
+            borderRadius: 4,
+            background: feedback.trim() ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.025)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: feedback.trim() ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.25)',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: feedback.trim() && !isSubmitting ? 'pointer' : 'default',
+          }}
+        >
+          {isSubmitting ? '처리 중...' : '수정 요청 보내기'}
+        </button>
+        <button
+          type="button"
+          disabled={isSubmitting}
+          onClick={onApprove}
+          style={{
+            padding: '12px 22px',
+            borderRadius: 4,
+            background: 'linear-gradient(135deg, #FFD700, #C8A200)',
+            border: 'none',
+            color: '#000',
+            fontSize: 13,
+            fontWeight: 900,
+            cursor: isSubmitting ? 'default' : 'pointer',
+          }}
+        >
+          {isSubmitting ? '저장 중...' : '승인하고 저장하기'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function RoutineCheckView({
   workDays, goal, splitStyle, sessionMin, painParts, dayParts, onReset, dbExercises,
   initialWorkoutRoutine, initialDailyNotes, authUser, onLoginClick,
+  disableAutoSave = false
 }) {
   const [activeDay, setActiveDay] = useState(workDays[0] || '월')
+  const getSlotKey = (day, ex, index) => ex.slot_key || `${day}-${index}-${ex.id || ex.name}`
   const [completedExercises, setCompletedExercises] = useState(() => {
     const initial = {}
     if (initialWorkoutRoutine) {
-      Object.values(initialWorkoutRoutine).forEach(exs => {
-        exs.forEach(ex => {
+      Object.entries(initialWorkoutRoutine).forEach(([day, exs]) => {
+        exs.forEach((ex, index) => {
           if (ex.is_completed) {
-            initial[ex.id] = true
+            initial[getSlotKey(day, ex, index)] = true
           }
         })
       })
@@ -1588,6 +2232,9 @@ function RoutineCheckView({
   const [dailyNotes, setDailyNotes] = useState(initialDailyNotes || {})
   const [isSavedModalOpen, setIsSavedModalOpen] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+  const [isSavingChanges, setIsSavingChanges] = useState(false)
+  const [changeMessage, setChangeMessage] = useState('')
+  const [saveError, setSaveError] = useState('')
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
   // 1. Copy templates locally to allow exercise swapping
@@ -1605,14 +2252,14 @@ function RoutineCheckView({
   })
 
   // Function to save routine to DB
-  const saveRoutineToDb = (routine, notes, completedMap) => {
+  const saveRoutineToDb = async (routine, notes, completedMap) => {
     const { year, weekNumber } = getISOWeekAndYear(new Date());
     
     const updatedRoutine = {}
     Object.keys(routine).forEach(day => {
-      updatedRoutine[day] = routine[day].map(ex => ({
+      updatedRoutine[day] = routine[day].map((ex, index) => ({
         ...ex,
-        is_completed: !!completedMap[ex.id]
+        is_completed: !!completedMap[getSlotKey(day, ex, index)]
       }))
     })
 
@@ -1630,7 +2277,7 @@ function RoutineCheckView({
       daily_notes: notes
     };
 
-    fetch(`${API_URL}/api/routines/`, {
+    const response = await fetch(`${API_URL}/api/routines/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -1638,22 +2285,17 @@ function RoutineCheckView({
       credentials: 'include',
       body: JSON.stringify(payload)
     })
-    .then(r => {
-      if (!r.ok) throw new Error('Failed to save routine');
-      return r.json();
-    })
-    .then(res => {
-      console.log('Routine saved successfully to DB:', res);
-    })
-    .catch(err => {
-      console.error('Error saving routine to DB:', err);
-    });
+    if (!response.ok) {
+      throw new Error('루틴 저장에 실패했습니다.')
+    }
+    return response.json()
   };
 
   // Auto-save on mount if it's a fresh routine
   useEffect(() => {
-    if (!initialWorkoutRoutine || Object.keys(initialWorkoutRoutine).length === 0) {
-      saveRoutineToDb(workoutRoutine, dailyNotes, completedExercises);
+    if (!disableAutoSave && (!initialWorkoutRoutine || Object.keys(initialWorkoutRoutine).length === 0)) {
+      saveRoutineToDb(workoutRoutine, dailyNotes, completedExercises)
+        .catch(err => console.error('Error saving routine to DB:', err));
     }
   }, []);
 
@@ -1662,42 +2304,83 @@ function RoutineCheckView({
   const currentDayExercises = workoutRoutine[currentDay] || []
 
   // 2. State for the highlighted exercise details panel
-  const [selectedExId, setSelectedExId] = useState(() => {
+  const [selectedSlotKey, setSelectedSlotKey] = useState(() => {
     const initialDay = workDays[0] || '월'
     const dayExs = workoutRoutine[initialDay] || []
-    return dayExs[0]?.id || null
+    return dayExs[0] ? getSlotKey(initialDay, dayExs[0], 0) : null
   })
+  const [showExerciseMedia, setShowExerciseMedia] = useState(false)
+  const [isExerciseVideoPlaying, setIsExerciseVideoPlaying] = useState(false)
+  const exerciseVideoRef = useRef(null)
 
   // Safe reference to the active exercise object
-  const activeEx = currentDayExercises.find(ex => ex.id === selectedExId) || currentDayExercises[0]
+  const activeEx = currentDayExercises.find((ex, index) => getSlotKey(currentDay, ex, index) === selectedSlotKey) || currentDayExercises[0]
+
+  useEffect(() => {
+    setShowExerciseMedia(false)
+    setIsExerciseVideoPlaying(false)
+  }, [currentDay, selectedSlotKey])
+
+  useEffect(() => {
+    if (!showExerciseMedia || !activeEx?.video_url || !exerciseVideoRef.current) return
+    const video = exerciseVideoRef.current
+    if (isExerciseVideoPlaying) {
+      video.play().catch(() => {
+        // Browser autoplay policy can block playback; controls remain available.
+      })
+    } else {
+      video.pause()
+    }
+  }, [showExerciseMedia, isExerciseVideoPlaying, activeEx?.video_url])
+
+  const handleExerciseMediaToggle = () => {
+    if (!activeEx?.video_url) {
+      setShowExerciseMedia(true)
+      return
+    }
+    if (!showExerciseMedia) {
+      setShowExerciseMedia(true)
+      setIsExerciseVideoPlaying(true)
+      return
+    }
+    setIsExerciseVideoPlaying(prev => !prev)
+  }
+
+  const handleExerciseVideoClick = () => {
+    setIsExerciseVideoPlaying(prev => !prev)
+  }
 
   // Update highlighted exercise when switching tabs
   const handleDayChange = (day) => {
     setActiveDay(day)
     const dayExs = workoutRoutine[day] || []
     if (dayExs.length > 0) {
-      setSelectedExId(dayExs[0].id)
+      setSelectedSlotKey(getSlotKey(day, dayExs[0], 0))
     } else {
-      setSelectedExId(null)
+      setSelectedSlotKey(null)
     }
   }
 
   // Swap exercise with an alternative option
   const handleSwapExercise = (alternativeEx) => {
     if (!activeEx) return
-    const targetId = activeEx.id
+    const targetSlotKey = selectedSlotKey
 
     setWorkoutRoutine(prev => {
       const currentDayExs = prev[currentDay] || []
-      const nextDayExs = currentDayExs.map(ex => {
-        if (ex.id === targetId) {
+      const nextDayExs = currentDayExs.map((ex, index) => {
+        if (getSlotKey(currentDay, ex, index) === targetSlotKey) {
           // Prepend original exercise to alternatives so the user can easily swap back
           const originalAsAlternative = {
+            id: ex.id,
             name: ex.name,
             eq: ex.eq,
             detail: ex.detail,
             targetPain: ex.targetPain,
             gif: ex.gif,
+            video_url: ex.video_url,
+            image_url: ex.image_url,
+            category: ex.category,
             alternatives: ex.alternatives
           }
           const updatedAlts = [
@@ -1707,11 +2390,15 @@ function RoutineCheckView({
 
           return {
             ...ex,
+            id: alternativeEx.id || ex.id,
+            slot_key: ex.slot_key || targetSlotKey,
             name: alternativeEx.name,
             eq: alternativeEx.eq,
             detail: alternativeEx.detail,
             targetPain: alternativeEx.targetPain,
             gif: alternativeEx.gif,
+            video_url: alternativeEx.video_url || '',
+            image_url: alternativeEx.image_url || '',
             alternatives: updatedAlts
           }
         }
@@ -1726,8 +2413,10 @@ function RoutineCheckView({
     // Reset exercise slot completion check upon swap
     setCompletedExercises(prev => ({
       ...prev,
-      [targetId]: false
+      [targetSlotKey]: false
     }))
+    setChangeMessage(`${alternativeEx.name} 운동으로 교체했습니다.`)
+    setSaveError('')
     setIsDirty(true)
   }
 
@@ -1761,7 +2450,10 @@ function RoutineCheckView({
   }, 0)
 
   // 완료 개수 계산
-  const completedCount = Object.values(completedExercises).filter(Boolean).length
+  const completedCount = workDays.reduce((acc, day) => {
+    const exs = workoutRoutine[day] || []
+    return acc + exs.filter((ex, index) => completedExercises[getSlotKey(day, ex, index)]).length
+  }, 0)
   const progressPercent = totalExercises > 0 ? Math.round((completedCount / totalExercises) * 100) : 0
 
   const handleNoteChange = (text) => {
@@ -1769,13 +2461,25 @@ function RoutineCheckView({
       ...prev,
       [currentDay]: text
     }))
+    setChangeMessage(`${currentDay}요일 메모가 수정되었습니다.`)
+    setSaveError('')
     setIsDirty(true)
   }
 
-  const handleSaveSessionChanges = () => {
-    saveRoutineToDb(workoutRoutine, dailyNotes, completedExercises)
-    setIsDirty(false)
-    setIsSavedModalOpen(true)
+  const handleSaveSessionChanges = async () => {
+    if (isSavingChanges) return
+    setIsSavingChanges(true)
+    setSaveError('')
+    try {
+      await saveRoutineToDb(workoutRoutine, dailyNotes, completedExercises)
+      setIsDirty(false)
+      setChangeMessage('변경사항이 저장되었습니다.')
+      setIsSavedModalOpen(true)
+    } catch (err) {
+      setSaveError(err.message || '루틴 저장에 실패했습니다.')
+    } finally {
+      setIsSavingChanges(false)
+    }
   }
 
   return (
@@ -1803,9 +2507,9 @@ function RoutineCheckView({
             이번 주 맞춤형 <span className="gold-text">{GOAL_LABEL[goal] || '개인화'}</span> 루틴
           </h2>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
-            <span>⚡ {splitStyle === 'bodybuilding' ? '보디빌딩 5분할' : splitStyle === 'lower_core' ? '하체/코어 강화' : '스트렝스 중심'}</span>
+            <span>{splitStyle === 'bodybuilding' ? '보디빌딩 5분할' : splitStyle === 'lower_core' ? '하체/코어 강화' : '스트렝스 중심'}</span>
             <span style={{ width: 4, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.2)' }} />
-            <span>⏱️ 세션당 {sessionMin}분</span>
+            <span>세션당 {sessionMin}분</span>
             {painParts.length > 0 && !painParts.includes('none') && (
               <>
                 <span style={{ width: 4, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.2)' }} />
@@ -1935,38 +2639,56 @@ function RoutineCheckView({
               </span>
             </div>
 
-            {currentDayExercises.map(ex => {
-              const isDone = !!completedExercises[ex.id]
+            {currentDayExercises.map((ex, index) => {
+              const slotKey = getSlotKey(currentDay, ex, index)
+              const isDone = !!completedExercises[slotKey]
               const isWarned = ex.targetPain && painParts.includes(ex.targetPain)
-              const isSelected = activeEx && activeEx.id === ex.id
+              const isSelected = slotKey === selectedSlotKey
               const { sets, reps } = getScaledSetsReps(ex)
 
               return (
                 <div
-                  key={ex.id}
-                  onClick={() => setSelectedExId(ex.id)}
+                  key={slotKey}
+                  onClick={() => setSelectedSlotKey(slotKey)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 20,
                     padding: '20px 16px',
                     borderRadius: 4,
-                    border: `1px solid ${isSelected ? 'rgba(255,215,0,0.35)' : 'transparent'}`,
-                    background: isSelected ? 'rgba(255,215,0,0.02)' : 'transparent',
-                    borderBottom: !isSelected ? '1px solid rgba(255,255,255,0.04)' : '1px solid rgba(255,215,0,0.35)',
-                    opacity: isDone ? 0.45 : 1,
+                    border: `1px solid ${
+                      isSelected
+                        ? 'rgba(255,215,0,0.45)'
+                        : isDone
+                          ? 'rgba(55, 210, 145, 0.28)'
+                          : 'transparent'
+                    }`,
+                    background: isSelected
+                      ? 'rgba(255,215,0,0.035)'
+                      : isDone
+                        ? 'rgba(55, 210, 145, 0.075)'
+                        : 'transparent',
+                    borderBottom: !isSelected && !isDone ? '1px solid rgba(255,255,255,0.04)' : undefined,
+                    boxShadow: isDone ? 'inset 3px 0 0 rgba(55, 210, 145, 0.75)' : 'none',
                     transition: 'all 0.25s',
                     cursor: 'pointer',
                     marginBottom: 4,
                   }}
-                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.01)' }}
-                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                  onMouseEnter={e => {
+                    if (!isSelected) e.currentTarget.style.background = isDone ? 'rgba(55, 210, 145, 0.11)' : 'rgba(255,255,255,0.01)'
+                  }}
+                  onMouseLeave={e => {
+                    if (!isSelected) e.currentTarget.style.background = isDone ? 'rgba(55, 210, 145, 0.075)' : 'transparent'
+                  }}
                 >
                   {/* 완료 토글 체크박스 */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      setCompletedExercises(prev => ({ ...prev, [ex.id]: !prev[ex.id] }))
+                      const nextDone = !completedExercises[slotKey]
+                      setCompletedExercises(prev => ({ ...prev, [slotKey]: nextDone }))
+                      setChangeMessage(nextDone ? `${ex.name} 운동을 완료 처리했습니다.` : `${ex.name} 완료 처리를 해제했습니다.`)
+                      setSaveError('')
                       setIsDirty(true)
                     }}
                     style={{
@@ -1974,7 +2696,7 @@ function RoutineCheckView({
                       height: 26,
                       borderRadius: 4,
                       cursor: 'pointer',
-                      background: isDone ? '#FFD700' : 'rgba(255,255,255,0.02)',
+                      background: isDone ? '#37D291' : 'rgba(255,255,255,0.02)',
                       border: isDone ? 'none' : '1px solid rgba(255,255,255,0.18)',
                       display: 'flex',
                       alignItems: 'center',
@@ -1983,23 +2705,39 @@ function RoutineCheckView({
                       flexShrink: 0,
                     }}
                   >
-                    {isDone && <Check size={16} color="#000" strokeWidth={3.5} />}
+                    {isDone && <Check size={16} color="#050505" strokeWidth={3.5} />}
                   </button>
 
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                       <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', padding: '2px 8px', borderRadius: 4 }}>
-                        {EQUIPMENT_ICON[ex.eq] || '❔'} {EQUIPMENT_LABEL[ex.eq] || '기타'}
+                        {EQUIPMENT_LABEL[ex.eq] || '기타'}
                       </span>
                       
                       <span style={{
                         fontSize: 14,
                         fontWeight: 700,
-                        color: isDone ? 'rgba(255,255,255,0.3)' : '#FFF',
-                        textDecoration: isDone ? 'line-through' : 'none'
+                        color: '#FFF',
                       }}>
                         {ex.name}
                       </span>
+
+                      {isDone && (
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          background: 'rgba(55,210,145,0.14)',
+                          border: '1px solid rgba(55,210,145,0.32)',
+                          color: '#6EF0B5',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}>
+                          <Check size={8} /> 완료
+                        </span>
+                      )}
 
                       {isWarned && (
                         <span style={{
@@ -2025,7 +2763,7 @@ function RoutineCheckView({
 
                   {/* 세트 / 횟수 표시 */}
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: isDone ? 'rgba(255,255,255,0.2)' : '#FFD700' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: isDone ? '#6EF0B5' : '#FFD700' }}>
                       {sets} <span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>Set</span>
                     </div>
                     <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
@@ -2039,7 +2777,7 @@ function RoutineCheckView({
             {/* 데일리 메모 */}
             <div style={{ marginTop: 28, paddingTop: 12 }}>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontWeight: 600 }}>
-                ✍️ {currentDay}요일 피드백 및 데일리 이슈 (예: 통증, 피로도)
+                {currentDay}요일 피드백 및 데일리 이슈 (예: 통증, 피로도)
               </div>
               <textarea
                 value={dailyNotes[currentDay] || ''}
@@ -2066,12 +2804,44 @@ function RoutineCheckView({
               />
             </div>
 
+            {(isDirty || changeMessage || saveError) && (
+              <div style={{
+                marginTop: 16,
+                padding: '12px 14px',
+                borderRadius: 4,
+                background: saveError
+                  ? 'rgba(255, 100, 100, 0.08)'
+                  : isDirty
+                    ? 'rgba(255, 215, 0, 0.08)'
+                    : 'rgba(55, 210, 145, 0.08)',
+                border: `1px solid ${
+                  saveError
+                    ? 'rgba(255, 100, 100, 0.22)'
+                    : isDirty
+                      ? 'rgba(255, 215, 0, 0.22)'
+                      : 'rgba(55, 210, 145, 0.22)'
+                }`,
+                color: saveError ? '#FF8A8A' : isDirty ? '#FFD700' : '#6EF0B5',
+                fontSize: 12,
+                lineHeight: 1.55,
+                fontWeight: 700,
+              }}>
+                {saveError || changeMessage}
+                {isDirty && !saveError && (
+                  <div style={{ marginTop: 3, color: 'rgba(255,255,255,0.42)', fontWeight: 500 }}>
+                    저장 버튼을 눌러야 이번 주 루틴에 반영됩니다.
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* 변경사항 저장 버튼 */}
             {isDirty && (
               <div style={{ marginTop: 16, animation: 'float-up 0.2s ease' }}>
                 <button
                   type="button"
                   onClick={handleSaveSessionChanges}
+                  disabled={isSavingChanges}
                   style={{
                     width: '100%',
                     padding: '14px 0',
@@ -2081,14 +2851,15 @@ function RoutineCheckView({
                     color: '#000',
                     fontSize: 14,
                     fontWeight: 800,
-                    cursor: 'pointer',
+                    cursor: isSavingChanges ? 'wait' : 'pointer',
+                    opacity: isSavingChanges ? 0.72 : 1,
                     boxShadow: '0 4px 16px rgba(255, 215, 0, 0.2)',
                     transition: 'all 0.2s',
                   }}
                   onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
                   onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                 >
-                  💾 변경사항 저장
+                  {isSavingChanges ? '저장 중...' : '변경사항 저장'}
                 </button>
               </div>
             )}
@@ -2105,7 +2876,7 @@ function RoutineCheckView({
               padding: 24,
               boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
               animation: 'float-up 0.25s ease',
-            }} key={activeEx.name}>
+            }} key={selectedSlotKey || activeEx.name}>
               {/* 타이틀 및 기구 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                 <div>
@@ -2117,7 +2888,7 @@ function RoutineCheckView({
                   </h3>
                 </div>
                 <span style={{ fontSize: 12, background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: 4, fontWeight: 700 }}>
-                  {EQUIPMENT_ICON[activeEx.eq]} {EQUIPMENT_LABEL[activeEx.eq]}
+                  {EQUIPMENT_LABEL[activeEx.eq]}
                 </span>
               </div>
 
@@ -2154,32 +2925,76 @@ function RoutineCheckView({
                 justifyContent: 'center',
                 position: 'relative',
               }}>
-                <img
-                  src={activeEx.gif}
-                  alt={activeEx.name}
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = '/workout_guide.png';
-                  }}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    maxHeight: '100%',
-                  }}
-                />
+                {showExerciseMedia ? (
+                  activeEx.video_url ? (
+                    <video
+                      ref={exerciseVideoRef}
+                      src={activeEx.video_url}
+                      controls
+                      muted
+                      preload="none"
+                      onClick={handleExerciseVideoClick}
+                      onPlay={() => setIsExerciseVideoPlaying(true)}
+                      onPause={() => setIsExerciseVideoPlaying(false)}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        maxHeight: '100%',
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={activeEx.gif || activeEx.image_url || '/workout_guide.png'}
+                      alt={activeEx.name}
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = activeEx.image_url || '/workout_guide.png';
+                      }}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        maxHeight: '100%',
+                      }}
+                    />
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleExerciseMediaToggle}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      border: 'none',
+                      background: 'rgba(255,255,255,0.03)',
+                      color: '#FFD700',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 10,
+                      fontWeight: 800,
+                    }}
+                  >
+                    <Play size={28} />
+                    <span style={{ fontSize: 13 }}>운동 영상 보기</span>
+                  </button>
+                )}
               </div>
 
               {/* 운동 디테일 텍스트 */}
               <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: '0 0 24px 0', background: 'rgba(0,0,0,0.15)', padding: '12px 14px', borderRadius: 12 }}>
-                💡 {activeEx.detail}
+                {activeEx.detail}
               </p>
 
               {/* 대체 운동 섹션 */}
               {activeEx.alternatives && activeEx.alternatives.length > 0 && (
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.4)', marginBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: 6 }}>
-                    🔄 이 운동 대신 대체하기 (대체 운동 선택)
+                    이 운동 대신 대체하기 (대체 운동 선택)
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {activeEx.alternatives.map(alt => (
@@ -2202,7 +3017,6 @@ function RoutineCheckView({
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 215, 0, 0.04)'; e.currentTarget.style.borderColor = 'rgba(255, 215, 0, 0.3)' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)' }}
                       >
-                        <span style={{ fontSize: 16 }}>🔄</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12.5, fontWeight: 700, color: '#FFD700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {alt.name}
@@ -2226,7 +3040,7 @@ function RoutineCheckView({
               textAlign: 'center',
               color: 'rgba(255,255,255,0.22)',
             }}>
-              👈 왼쪽 리스트에서 운동을 눌러 자세한 가이드와 대체 운동을 확인하세요.
+              왼쪽 리스트에서 운동을 눌러 자세한 가이드와 대체 운동을 확인하세요.
             </div>
           )}
         </div>
@@ -2292,7 +3106,7 @@ function RoutineCheckView({
             boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
             animation: 'float-up 0.2s ease',
           }}>
-            <div style={{ fontSize: 28, marginBottom: 14 }}>⚠️</div>
+            <div style={{ fontSize: 12, letterSpacing: 2, color: '#FFD700', fontWeight: 800, marginBottom: 14 }}>NOTICE</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#E2E2E2', marginBottom: 12 }}>
               루틴을 다시 설계할까요?
             </div>
