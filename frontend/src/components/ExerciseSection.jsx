@@ -396,7 +396,7 @@ export default function ExerciseSection({ onNavigate }) {
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,215,0,0.15)'}
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,215,0,0.08)'}
           >
-            전체 운동 1,043개 보기
+            전체 운동 900개+ 보기
           </button>
         </div>
       </div>
