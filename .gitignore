@@ -25,6 +25,7 @@ db.sqlite3
 db.sqlite3-journal
 media/
 staticfiles/
+backend/models/
 
 # Django migrations (팀 상황에 따라 주석 해제)
 # */migrations/

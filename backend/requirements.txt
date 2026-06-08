@@ -10,3 +10,8 @@ langchain-ollama>=1.0.0
 langchain-groq>=1.0.0
 neo4j==5.28.2
 pydantic>=2.0.0
+langchain-openai
+langchain-text-splitters
+typing_extensions
+langchain-community
+sentence-transformers
