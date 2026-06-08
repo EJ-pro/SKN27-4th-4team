@@ -4,15 +4,16 @@ from .constants import LLM_PROVIDER, EMBEDDING_PROVIDER, REMOTE_LLM_BASE_URL, RE
 
 
 # 환경변수에 따라 채팅 모델 및 api 호출 주소 교체하는 지역 함수 
-def _chat_model(temperature: float) -> ChatOpenAI:
+def _chat_model(temperature: float, *, streaming: bool = False) -> ChatOpenAI:
     if LLM_PROVIDER == "remote":
         return ChatOpenAI(
             model=REMOTE_LLM_MODEL,
             temperature=temperature,
             base_url=REMOTE_LLM_BASE_URL,
             api_key=REMOTE_API_KEY,
+            streaming=streaming,
         )
-    return ChatOpenAI(model=OPENAI_LLM_MODEL, temperature=temperature)
+    return ChatOpenAI(model=OPENAI_LLM_MODEL, temperature=temperature, streaming=streaming)
 
 # 환경변수에 따라 임베딩 모델 및 api 호출 주소 교체하는 지역 함수 
 def _embedding_model() -> OpenAIEmbeddings:
@@ -27,8 +28,8 @@ def _embedding_model() -> OpenAIEmbeddings:
 
 # 채팅 / 임베딩 모델 결정에서 중간 라우팅을 위해 함수 호출형으로 교체 
 def get_llm() -> ChatOpenAI:
-    """ChatOpenAI 모델 반환 (답변 생성용)"""
-    return _chat_model(LLM_TEMPERATURE)
+    """ChatOpenAI 모델 반환 (답변 생성용 / streaming 활성화)"""
+    return _chat_model(LLM_TEMPERATURE, streaming=True)
 
 def get_classify_llm() -> ChatOpenAI:
     """ChatOpenAI 모델 반환 (분류 전용 - 결정론적)"""
