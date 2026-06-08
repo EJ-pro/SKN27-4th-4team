@@ -249,7 +249,7 @@ Step 8. 세션당 운동 시간
 
 ### Step 1. Recommendation Preset
 
-기존 `recommendation_service/survey_scenarios.py`의 테스트 시나리오를 사용자 선택용 추천 방향 프리셋으로 재사용한다.
+기존 [`backend/recommendation_service/survey_scenarios.py`](../backend/recommendation_service/survey_scenarios.py)의 테스트 시나리오를 사용자 선택용 추천 방향 프리셋으로 재사용한다.
 
 단, 프리셋에는 부상/통증 정보를 넣지 않는다. 부상/통증은 반드시 별도 설문 단계에서 사용자가 직접 입력한다.
 
@@ -660,13 +660,20 @@ volume_bias
 ### Backend
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover
+cd backend
+..\.venv\Scripts\python.exe -m unittest recommendation_service.tests -v
 ```
 
 ### Recommendation CLI
 
+[`backend/recommendation_service/`](../backend/recommendation_service/)는 **`backend/` CWD** 기준 패키지다. [에픽06 Step 7](에픽06-폴더-구조-및-경로-정리.md#step-7--cli-wrapper-선택) 참고.
+
 ```powershell
-.\.venv\Scripts\python.exe -m recommendation_service.cli --scenario 0
+cd backend
+..\.venv\Scripts\python.exe -m recommendation_service.cli --scenario 0
+
+# 또는 repo root
+..\.venv\Scripts\python.exe backend/scripts/run_recommendation_cli.py --scenario 0
 ```
 
 ### Django API
