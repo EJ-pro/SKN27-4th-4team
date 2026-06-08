@@ -913,11 +913,13 @@ const summarizeRoutineChanges = (beforeRoutine, afterRoutine, workDays, dayParts
 export default function RoutinePage() {
   const navigate = useNavigate()
   const [authUser, setAuthUser] = useState(null) // null = 게스트 또는 로딩 전
+  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
     getMe()
       .then((u) => setAuthUser(u))
       .catch(() => setAuthUser(null))
+      .finally(() => setAuthChecked(true))
   }, [])
 
   const [step, setStep] = useState(0)
@@ -1008,18 +1010,14 @@ export default function RoutinePage() {
       .finally(() => {
         setLoadingExercises(false)
       });
-
-    // 2. Fetch routines for this week
-    // 함수 하나로 묶어서 로직을 처리하는 것으로 변경 
-    loadWeeklyRoutine()
   }, [])
 
-  // 로그인 직후 같은 탭에 머문 경우 회원 루틴 재조회
+  // 유저 인증 여부 체크, 인증 안되면 리턴 
   useEffect(() => {
-    if (authUser) {
-      loadWeeklyRoutine()
-    }
-  }, [authUser])
+    if (!authChecked) return 
+    loadWeeklyRoutine()
+  }, [authChecked, authUser])
+
 
   useEffect(() => {
     if (!showApprovedNotice) return undefined
@@ -1042,7 +1040,7 @@ export default function RoutinePage() {
     place: 'gym',
     available_equipment: ALL_EQUIPMENT_KEYS,
     pain_parts: painParts,
-    split_style: 'bodybuilding',
+    split_style: splitStyle,
     work_days: workDays,
     day_parts: workDays.reduce((acc, day) => {
       acc[day] = dayParts[day]
@@ -1107,6 +1105,7 @@ export default function RoutinePage() {
       const res = await fetch(`${API_URL}/api/routines/recommend/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(buildSurveyPayload()),
       })
       const data = await res.json()
@@ -1129,6 +1128,7 @@ export default function RoutinePage() {
       const res = await fetch(`${API_URL}/api/routines/recommend/review/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           thread_id: recommendationThreadId,
           decision,
@@ -1205,7 +1205,7 @@ export default function RoutinePage() {
       onChangeDays={setWorkDays}
       dayParts={dayParts}
       onChangeDayParts={setDayParts}
-      splitStyle="bodybuilding"
+      splitStyle={splitStyle}
     />,
     <Step4 value={goal} onChange={setGoal} />,
     <Step5 value={sessionMin} onChange={setSessionMin} />,

@@ -476,12 +476,20 @@ class RoutineView(View):
 @method_decorator(csrf_exempt, name='dispatch')
 class RoutineRecommendView(View):
     def post(self, request):
+        # 전달된 데이터 파싱 
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
             return JsonResponse({'ok': False, 'status': 'failed', 'message': 'Invalid JSON'}, status=400)
+        # 사용자 정보 확인 
+        try:
+            actor = resolve_actor(request, data.get("device_uuid"))
+        except ActorError as exc:
+            return JsonResponse({"ok": False, "status": "failed", "message": str(exc)}, status=400)
 
-        result = start_recommendation(data, user_id=data.get('device_uuid'))
+        user_id = str(actor.user_id) if actor.mode == "user" else actor.device_uuid
+        result = start_recommendation(data, user_id=user_id)
+
         return JsonResponse(result, status=200 if result.get('ok') else 400)
 
 
