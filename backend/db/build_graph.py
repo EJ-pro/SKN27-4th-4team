@@ -18,18 +18,35 @@ Planfit 5분할 그래프 DB 구축 스크립트
 import json
 import re
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
 load_dotenv()
 
 # ── 설정 ────────────────────────────────────────────────────────────────────
-ENRICHED_PATH = "./backend/data/planfit_exercises_enriched.json"
-EDGES_PATH    = "./backend/data/exercise_edges.json"
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BACKEND_DIR / "data"
+ENRICHED_PATH = DATA_DIR / "planfit_exercises_enriched.json"
+EDGES_PATH = DATA_DIR / "exercise_edges.json"
 
 NEO4J_URI      = os.getenv("NEO4J_URI")
 NEO4J_USER     = os.getenv("NEO4J_USER")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+
+# 로컬(Docker 외부) 실행 시 neo4j 호스트가 조회되지 않으면 localhost로 자동 전환
+if NEO4J_URI:
+    from urllib.parse import urlparse
+    import socket
+    try:
+        parsed = urlparse(NEO4J_URI)
+        if parsed.hostname:
+            socket.getaddrinfo(parsed.hostname, parsed.port or 7687)
+    except socket.gaierror:
+        if parsed.hostname == "neo4j":
+            new_netloc = f"localhost:{parsed.port}" if parsed.port else "localhost"
+            NEO4J_URI = parsed._replace(netloc=new_netloc).geturl()
+
 
 # 5분할 카테고리 → split_day 매핑
 SPLIT_MAP = {
@@ -149,12 +166,12 @@ class GraphBuilder:
 
     def run(self, cypher, params=None):
         with self.driver.session() as s:
-            s.run(cypher, params or {})
+            s.run(cypher, params or {}).consume()
 
     def run_many(self, cypher, rows):
         with self.driver.session() as s:
             for row in rows:
-                s.run(cypher, row)
+                s.run(cypher, row).consume()
 
     # ── 0. 초기화 ─────────────────────────────────────────────────────────
     def clear_all(self):
@@ -471,7 +488,7 @@ def main():
         # builder.create_arm_superset_edges()                 # 팔 운동 슈퍼셋 엣지 생성(삭제)
 
         print("\n" + "=" * 55)
-        print("  ✅ 완료")
+        print("  [OK] 완료")
         print("=" * 55)
         _print_summary(builder)
     finally:

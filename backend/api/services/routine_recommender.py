@@ -7,9 +7,15 @@ from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
 
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 ROOT_DIR = Path(__file__).resolve().parents[3]
+DB_DIR = BACKEND_DIR / "db"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+if DB_DIR.exists() and str(DB_DIR) not in sys.path:
+    sys.path.insert(0, str(DB_DIR))
 QUERY_DIR = Path("/workspace")
 if QUERY_DIR.exists() and str(QUERY_DIR) not in sys.path:
     sys.path.insert(0, str(QUERY_DIR))
