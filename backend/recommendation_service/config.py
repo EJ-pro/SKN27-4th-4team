@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 import os
+from pathlib import Path
 
+# 환경변수 파일 경로 지정해서 로드하도록 수정 
 from dotenv import load_dotenv
-
-
-load_dotenv()
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(_REPO_ROOT / ".env")
 
 
 def require_env(name: str) -> str:

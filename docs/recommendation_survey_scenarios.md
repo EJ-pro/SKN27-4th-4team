@@ -1,7 +1,7 @@
 # Recommendation Survey Scenarios
 
 이 문서는 프론트 설문 값을 LangGraph `user_profile`로 넘길 때 사용할 예시입니다.
-테스트 fixture 원본은 `recommendation_service/survey_scenarios.py`에 있습니다.
+테스트 fixture 원본은 [`backend/recommendation_service/survey_scenarios.py`](../backend/recommendation_service/survey_scenarios.py)에 있습니다.
 
 ## 확정 입력 후보
 
@@ -32,5 +32,8 @@
 ## 테스트
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest tests.test_survey_scenarios
+cd backend
+..\.venv\Scripts\python.exe -m unittest recommendation_service.tests.test_survey_scenarios -v
 ```
+
+폴더 이동·테스트 복구 절차는 [에픽06-폴더-구조-및-경로-정리.md](에픽06-폴더-구조-및-경로-정리.md) Step 4 참고.

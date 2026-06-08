@@ -4,6 +4,10 @@ django-cors-headers
 psycopg2-binary
 python-dotenv
 openai
+
+# JWT 토큰 발급용 라이브러리
+djangorestframework-simplejwt==5.5.1
+
 langgraph>=1.0.0
 langchain-core>=1.0.0
 langchain-ollama>=1.0.0

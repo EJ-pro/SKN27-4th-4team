@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from api.auth_views import CsrfCookieView, RegisterView, LoginView, LogoutView, MeView
 from api.views import (
     ExerciseDetailView,
     ExerciseFeaturedView,
@@ -30,13 +31,26 @@ from api.views import (
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    # 운동 API
     path('api/exercises/', ExerciseListView.as_view()),
     path('api/exercises/featured/', ExerciseFeaturedView.as_view()),
     path('api/exercises/<int:exercise_id>/', ExerciseDetailView.as_view()),
+
+    # 상담 세션 API
     path('api/sessions/', SessionListView.as_view()),
     path('api/sessions/<int:session_id>/', SessionDetailView.as_view()),
     path('api/sessions/<int:session_id>/messages/', MessageListView.as_view()),
+
+    # 로그인, 인증/인가 API
+    path('api/auth/csrf/', CsrfCookieView.as_view()),
+    path('api/auth/register/', RegisterView.as_view()),
+    path('api/auth/login/', LoginView.as_view()),
+    path('api/auth/logout/', LogoutView.as_view()),
+    path('api/auth/me/', MeView.as_view()),
+
+    # 루틴 API
+    path('api/routines/', RoutineView.as_view()),
     path('api/routines/recommend/', RoutineRecommendView.as_view()),
     path('api/routines/recommend/review/', RoutineRecommendReviewView.as_view()),
-    path('api/routines/', RoutineView.as_view()),
 ]
