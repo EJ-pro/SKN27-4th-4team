@@ -1196,8 +1196,8 @@ export default function RoutinePage() {
     : isReviewing
       ? reviewAction === 'approve'
         ? {
-            title: '최종 승인 처리 중...',
-            message: '승인된 추천 루틴을 최종 확정하고 있습니다.',
+            title: '루틴 확정 처리 중...',
+            message: '현재 추천 루틴을 이번 주 루틴으로 반영하고 있습니다.',
           }
         : {
             title: '피드백 반영 중...',
@@ -1315,7 +1315,6 @@ export default function RoutinePage() {
             validation={reviewPayload.validation_result}
             feedback={reviewFeedback}
             onFeedbackChange={setReviewFeedback}
-            onApprove={() => handleReview('approve')}
             onRevise={() => handleReview('revise')}
             isSubmitting={isReviewing}
             error={recommendationError}
@@ -1359,7 +1358,7 @@ export default function RoutinePage() {
               <X size={14} />
             </button>
             <div style={{ paddingRight: 24, fontWeight: 800, color: '#FFF' }}>
-              최종 승인된 추천 루틴이 저장되었습니다.
+              추천 루틴이 자동 저장되었습니다.
             </div>
             <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.45)' }}>
               운동 목록과 상세 가이드는 현재 화면에서 확인할 수 있습니다.
@@ -2134,7 +2133,6 @@ function HumanReviewPanel({
   validation,
   feedback,
   onFeedbackChange,
-  onApprove,
   onRevise,
   isSubmitting,
   error,
@@ -2186,7 +2184,7 @@ function HumanReviewPanel({
         }}
       />
       {error && <div style={{ color: '#FF8A8A', fontSize: 12, marginBottom: 12 }}>{error}</div>}
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button
           type="button"
           disabled={isSubmitting || !feedback.trim()}
@@ -2203,23 +2201,6 @@ function HumanReviewPanel({
           }}
         >
           {isSubmitting ? '처리 중...' : '수정하기'}
-        </button>
-        <button
-          type="button"
-          disabled={isSubmitting}
-          onClick={onApprove}
-          style={{
-            padding: '12px 22px',
-            borderRadius: 4,
-            background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-            border: 'none',
-            color: '#000',
-            fontSize: 13,
-            fontWeight: 900,
-            cursor: isSubmitting ? 'default' : 'pointer',
-          }}
-        >
-          {isSubmitting ? '처리 중...' : '최종 승인'}
         </button>
       </div>
     </div>
