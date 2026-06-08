@@ -557,6 +557,13 @@ function Step5({ value, onChange }) {
 const AUTO_DEFAULTS = {
   painParts: ['none'],
   workDays: ['월', '화', '목', '금', '토'],
+  dayParts: {
+    '월': '가슴',
+    '화': '등',
+    '목': '하체',
+    '금': '어깨',
+    '토': '팔/코어',
+  },
   splitStyle: 'bodybuilding',
   goal: 'hypertrophy',
   sessionMin: 60,
@@ -823,7 +830,7 @@ const mapRecommendedRoutineToWorkoutRoutine = (routineDraft, workDays, dbExercis
   })
 
   workDays.forEach((day, index) => {
-    const target = normalizeDayTarget(dayParts[day])
+    const target = normalizeDayTarget(dayParts[day] || AUTO_DEFAULTS.dayParts[day] || DEFAULT_DAY_PARTS[day])
     const targetQueue = daysByTarget.get(target) || []
     const recommendedDay = targetQueue.shift() || days.find(item => String(item?.target || '').trim().toUpperCase() === target) || days[index] || {}
     mapped[day] = (recommendedDay.exercises || []).map((ex, exIndex) => {
@@ -1049,7 +1056,7 @@ export default function RoutinePage() {
     split_style: 'bodybuilding',
     work_days: workDays,
     day_parts: workDays.reduce((acc, day) => {
-      acc[day] = dayParts[day]
+      acc[day] = dayParts[day] || AUTO_DEFAULTS.dayParts[day] || DEFAULT_DAY_PARTS[day]
       return acc
     }, {}),
     goal,
@@ -1068,7 +1075,7 @@ export default function RoutinePage() {
       pain_parts: painParts,
       work_days: workDays,
       day_parts: workDays.reduce((acc, day) => {
-        acc[day] = dayParts[day]
+        acc[day] = dayParts[day] || AUTO_DEFAULTS.dayParts[day] || DEFAULT_DAY_PARTS[day]
         return acc
       }, {}),
       workout_routine: routine,
@@ -1708,6 +1715,7 @@ export default function RoutinePage() {
                 setGender(gender || 'male')
                 setLevel('intermediate')
                 setWorkDays(AUTO_DEFAULTS.workDays)
+                setDayParts(prev => ({ ...prev, ...AUTO_DEFAULTS.dayParts }))
                 setSplitStyle(AUTO_DEFAULTS.splitStyle)
                 setGoal(AUTO_DEFAULTS.goal)
                 setSessionMin(AUTO_DEFAULTS.sessionMin)
