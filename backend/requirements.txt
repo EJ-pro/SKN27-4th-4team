@@ -19,3 +19,6 @@ langchain-text-splitters
 typing_extensions
 langchain-community
 sentence-transformers
+# Graph Data Science (GDS) 라이브러리
+# Neo4j의 그래프 데이터 과학 알고리즘을 Python에서 사용할 수 있게 해주는 라이브러리
+graphdatascience==1.17

@@ -1,6 +1,11 @@
 from typing import Any
 
-from queries import GraphQuery
+try:
+    from db.queries import GraphQuery
+except ModuleNotFoundError as exc:
+    if exc.name not in {"db", "db.queries"}:
+        raise
+    from queries import GraphQuery
 
 from .config import settings
 from .policies import (

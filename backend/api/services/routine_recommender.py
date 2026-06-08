@@ -7,20 +7,39 @@ from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
 
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 ROOT_DIR = Path(__file__).resolve().parents[3]
+DB_DIR = BACKEND_DIR / "db"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+if DB_DIR.exists() and str(DB_DIR) not in sys.path:
+    sys.path.insert(0, str(DB_DIR))
 QUERY_DIR = Path("/workspace")
 if QUERY_DIR.exists() and str(QUERY_DIR) not in sys.path:
     sys.path.insert(0, str(QUERY_DIR))
 
-from recommendation_service.config import settings
-from recommendation_service.state import initial_state
-from recommendation_service.survey_scenarios import survey_to_user_profile
-from recommendation_service.workflow import build_recommendation_graph
+_GRAPH = None
+_SETTINGS = None
+_INITIAL_STATE = None
+_SURVEY_TO_USER_PROFILE = None
 
 
-_GRAPH = build_recommendation_graph(checkpointer=InMemorySaver())
+def _load_recommendation_service():
+    global _GRAPH, _SETTINGS, _INITIAL_STATE, _SURVEY_TO_USER_PROFILE
+    if _GRAPH is not None:
+        return
+
+    from recommendation_service.config import settings
+    from recommendation_service.state import initial_state
+    from recommendation_service.survey_scenarios import survey_to_user_profile
+    from recommendation_service.workflow import build_recommendation_graph
+
+    _SETTINGS = settings
+    _INITIAL_STATE = initial_state
+    _SURVEY_TO_USER_PROFILE = survey_to_user_profile
+    _GRAPH = build_recommendation_graph(checkpointer=InMemorySaver())
 
 
 def start_recommendation(survey: dict, user_id: str | None = None) -> dict:
@@ -40,8 +59,9 @@ def start_recommendation(survey: dict, user_id: str | None = None) -> dict:
         }
 
     thread_id = str(uuid4())
+    _load_recommendation_service()
     try:
-        user_profile = survey_to_user_profile(survey)
+        user_profile = _SURVEY_TO_USER_PROFILE(survey)
     except Exception as exc:
         return {
             "ok": False,
@@ -58,7 +78,7 @@ def start_recommendation(survey: dict, user_id: str | None = None) -> dict:
             "message": "요일별 운동 부위를 추천 대상 부위로 변환하지 못했습니다.",
         }
     return _invoke_graph(
-        initial_state(user_id=user_id, user_profile=user_profile),
+        _INITIAL_STATE(user_id=user_id, user_profile=user_profile),
         _graph_config(thread_id),
         thread_id,
     )
@@ -77,12 +97,13 @@ def review_recommendation(thread_id: str, decision: str, feedback: str = "") -> 
         "decision": "approve" if normalized in {"approve", "accept"} else "revise",
         "feedback": feedback or "",
     }
+    _load_recommendation_service()
     return _invoke_graph(Command(resume=review), _graph_config(thread_id), thread_id)
 
 
 def _graph_config(thread_id: str) -> dict:
     return {
-        "recursion_limit": max(80, settings.max_supervisor_steps * 3 + 10),
+        "recursion_limit": max(80, _SETTINGS.max_supervisor_steps * 3 + 10),
         "configurable": {"thread_id": thread_id},
     }
 
