@@ -170,3 +170,15 @@ def _missing_required_fields(survey: dict) -> list[str]:
         if value is None or value == "" or value == [] or value == {}:
             missing.append(field)
     return missing
+
+def verify_thread_belongs_to_owner(thread_id: str, owner_key: str) -> bool:
+    if not thread_id or not owner_key:
+        return False
+
+    _load_recommendation_service()
+    state = _state_values(_graph_config(thread_id))
+    state_user_id = state.get("user_id")
+    if state_user_id is None:
+        return False
+    
+    return str(state_user_id) == str(owner_key)

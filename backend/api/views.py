@@ -10,7 +10,7 @@ from django.db import transaction
 from .models import Exercise, ChatSession, ChatMessage, WeeklyScheduler, DailyRoutine
 from .services.actor_service import ActorError, resolve_actor, scheduler_filter_kwargs, scheduler_owner_filter, session_belongs_to_actor, session_owner_filter
 from .services.chatbot.llm_gate import stream_bot_content
-from .services.routine_recommender import review_recommendation, start_recommendation
+from .services.routine_recommender import review_recommendation, start_recommendation, verify_thread_belongs_to_owner
 
 DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
 
@@ -493,16 +493,37 @@ class RoutineRecommendView(View):
         return JsonResponse(result, status=200 if result.get('ok') else 400)
 
 
+# 유저 로그인 중이면 유저 id, 아니면 device_uuid 리턴 하는 유틸 함수 
+def _recommendation_user_id(actor):
+    if actor.mode == "user":
+        return str(actor.user_id)
+    return actor.device_uuid
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class RoutineRecommendReviewView(View):
     def post(self, request):
+        # 전달된 데이터 파싱 
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
             return JsonResponse({'ok': False, 'status': 'failed', 'message': 'Invalid JSON'}, status=400)
 
+        # 사용자 정보 확인
+        try:
+            actor = resolve_actor(request, data.get("device_uuid"))
+        except ActorError as exc:
+            return JsonResponse({'ok': False, 'status': 'failed', 'message': str(exc)}, status=400)
+
+        # 추천 세션 주인 확인
+        thread_id = data.get('thread_id', '')
+        owner_key = _recommendation_user_id(actor)
+        if not verify_thread_belongs_to_owner(thread_id, owner_key):
+            return JsonResponse({'ok': False, 'status': 'failed', 'message': '이 추천 세션에 접근할 수 없습니다'}, status=403)
+        
+        # 추천 세션 리뷰 저장
         result = review_recommendation(
-            thread_id=data.get('thread_id', ''),
+            thread_id=thread_id,
             decision=data.get('decision', 'revise'),
             feedback=data.get('feedback', ''),
         )
