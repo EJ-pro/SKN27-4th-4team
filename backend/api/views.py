@@ -489,7 +489,7 @@ class RoutineRecommendView(View):
             return JsonResponse({"ok": False, "status": "failed", "message": str(exc)}, status=400)
 
         # 추천 세션 생성 전 LLM 실행 여부 확인
-        if not should_run_llm(actor):
+        if not should_run_llm(request):
             return JsonResponse({"ok": False, "status": "failed", "message": AUTH_REQUIRED_MESSAGE}, status=400)
 
         # 추천 세션 생성 
@@ -526,6 +526,10 @@ class RoutineRecommendReviewView(View):
         owner_key = _recommendation_user_id(actor)
         if not verify_thread_belongs_to_owner(thread_id, owner_key):
             return JsonResponse({'ok': False, 'status': 'failed', 'message': '이 추천 세션에 접근할 수 없습니다'}, status=403)
+
+        # 추천 세션 리뷰 전 LLM 실행 여부 확인
+        if not should_run_llm(request):
+            return JsonResponse({"ok": False, "status": "failed", "message": AUTH_REQUIRED_MESSAGE}, status=400)
         
         # 추천 세션 리뷰 저장
         result = review_recommendation(
