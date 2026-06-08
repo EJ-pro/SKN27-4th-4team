@@ -1168,13 +1168,20 @@ export default function RoutinePage() {
       const routineChanges = summarizeRoutineChanges(previousRoutine, nextRoutine, workDays, dayParts)
       applyRecommendationResult(data)
       if (decision !== 'approve') {
+        setIsApproved(false)
+        setShowApprovedNotice(false)
+        setReviewPayload(prev => ({
+          ...(prev || {}),
+          ...data,
+          status: 'needs_review',
+        }))
         setReviewNotice({
           title: '수정 요청 반영 완료',
           message: '입력한 피드백을 바탕으로 추천 루틴을 다시 구성했습니다.',
           changes: routineChanges,
         })
       }
-      if (data.status === 'completed') {
+      if (decision === 'approve' && data.status === 'completed') {
         setIsApproved(true)
         setShowApprovedNotice(true)
       }
@@ -2222,10 +2229,10 @@ function RoutineCheckView({
 }) {
   const [activeDay, setActiveDay] = useState(workDays[0] || '월')
   const getSlotKey = (day, ex, index) => ex.slot_key || `${day}-${index}-${ex.id || ex.name}`
-  const [completedExercises, setCompletedExercises] = useState(() => {
+  const buildCompletedMap = (routine) => {
     const initial = {}
-    if (initialWorkoutRoutine) {
-      Object.entries(initialWorkoutRoutine).forEach(([day, exs]) => {
+    if (routine) {
+      Object.entries(routine).forEach(([day, exs]) => {
         exs.forEach((ex, index) => {
           if (ex.is_completed) {
             initial[getSlotKey(day, ex, index)] = true
@@ -2234,6 +2241,9 @@ function RoutineCheckView({
       })
     }
     return initial
+  }
+  const [completedExercises, setCompletedExercises] = useState(() => {
+    return buildCompletedMap(initialWorkoutRoutine)
   })
   const [dailyNotes, setDailyNotes] = useState(initialDailyNotes || {})
   const [isSavedModalOpen, setIsSavedModalOpen] = useState(false)
@@ -2317,6 +2327,22 @@ function RoutineCheckView({
   })
   const [isExerciseVideoPlaying, setIsExerciseVideoPlaying] = useState(true)
   const exerciseVideoRef = useRef(null)
+
+  useEffect(() => {
+    if (!initialWorkoutRoutine || Object.keys(initialWorkoutRoutine).length === 0) return
+
+    const nextRoutine = enrichPreloadedRoutine(initialWorkoutRoutine, dbExercises, painParts)
+    const nextActiveDay = workDays.includes(activeDay) ? activeDay : (workDays[0] || '월')
+    const nextDayExercises = nextRoutine[nextActiveDay] || []
+
+    setWorkoutRoutine(nextRoutine)
+    setCompletedExercises(buildCompletedMap(nextRoutine))
+    setDailyNotes(initialDailyNotes || {})
+    setActiveDay(nextActiveDay)
+    setSelectedSlotKey(nextDayExercises[0] ? getSlotKey(nextActiveDay, nextDayExercises[0], 0) : null)
+    setIsDirty(false)
+    setSaveError('')
+  }, [initialWorkoutRoutine, initialDailyNotes, dbExercises, painParts, workDays])
 
   // Safe reference to the active exercise object
   const activeEx = currentDayExercises.find((ex, index) => getSlotKey(currentDay, ex, index) === selectedSlotKey) || currentDayExercises[0]

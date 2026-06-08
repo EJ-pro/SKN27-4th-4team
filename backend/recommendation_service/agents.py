@@ -542,11 +542,27 @@ def routine_composition_agent(state: RecommendationState) -> dict[str, Any]:
         )
     else:
         guarded_routine, newly_excluded = repaired, []
+    scoped_revision_targets = _target_scoped_revision_targets(state)
+    next_candidates = state.get("exercise_candidates", {})
+    if scoped_revision_targets:
+        guarded_routine = _preserve_unfocused_previous_days(
+            guarded_routine,
+            state.get("previous_routine_draft"),
+            scoped_revision_targets,
+        )
+        next_candidates = _augment_candidates_with_preserved_previous_days(
+            next_candidates,
+            state.get("previous_routine_draft"),
+            scoped_revision_targets,
+        )
     if not newly_excluded:
-        return {
+        result = {
             "routine_draft": guarded_routine,
             "previous_routine_draft": None,
         }
+        if scoped_revision_targets:
+            result["exercise_candidates"] = next_candidates
+        return result
 
     next_exclusions = _merge_unique_list(
         state.get("revision_excluded_exercises", []),
@@ -556,6 +572,7 @@ def routine_composition_agent(state: RecommendationState) -> dict[str, Any]:
         "routine_draft": guarded_routine,
         "previous_routine_draft": None,
         "revision_excluded_exercises": next_exclusions,
+        "exercise_candidates": next_candidates,
         "recommendation_params": _apply_revision_exclusions_to_params(
             state.get("recommendation_params", {}),
             next_exclusions,
@@ -1076,6 +1093,115 @@ def _ensure_split_routine(
         "split_type": "5-day",
         "days": normalized_days,
     }
+
+
+def _target_scoped_revision_targets(state: RecommendationState) -> set[str]:
+    if not state.get("previous_routine_draft"):
+        return set()
+    constraints = state.get("revision_constraints") or {}
+    if not isinstance(constraints, dict):
+        return set()
+
+    global_keys = {
+        "spine",
+        "intensity_bias",
+        "available_equipment",
+        "avoid_conditions",
+        "session_min",
+        "goal",
+        "level",
+        "split_targets",
+        "candidate_limit_per_target",
+        "exclude_exercises",
+    }
+    if any(key in constraints for key in global_keys):
+        return set()
+
+    targets = set(_normalize_focus_targets(constraints.get("focus_targets")))
+    detail_terms = _normalize_detail_focus_terms(constraints.get("detail_focus_terms"))
+    targets.update(target for target in detail_terms if target in SPLIT_TARGETS)
+    if not targets and "ALL" in detail_terms:
+        targets.update(_normalize_focus_targets(constraints.get("focus_targets")))
+    return targets
+
+
+def _preserve_unfocused_previous_days(
+    routine: dict[str, Any],
+    previous_routine: dict[str, Any] | None,
+    scoped_targets: set[str],
+) -> dict[str, Any]:
+    if not scoped_targets or not isinstance(routine, dict) or not isinstance(previous_routine, dict):
+        return routine
+
+    previous_days = previous_routine.get("days") if isinstance(previous_routine, dict) else []
+    previous_by_target = {
+        str(day.get("target") or "").strip().upper(): day
+        for day in previous_days or []
+        if isinstance(day, dict) and day.get("target")
+    }
+    next_days = []
+    for day in routine.get("days") or []:
+        if not isinstance(day, dict):
+            continue
+        target = str(day.get("target") or "").strip().upper()
+        if target and target not in scoped_targets and target in previous_by_target:
+            next_days.append(previous_by_target[target])
+        else:
+            next_days.append(day)
+
+    return {
+        **routine,
+        "days": next_days,
+    }
+
+
+def _augment_candidates_with_preserved_previous_days(
+    candidates: dict[str, list[dict[str, Any]]],
+    previous_routine: dict[str, Any] | None,
+    scoped_targets: set[str],
+) -> dict[str, list[dict[str, Any]]]:
+    if not scoped_targets or not isinstance(previous_routine, dict):
+        return candidates
+
+    augmented = {
+        target: list(rows or [])
+        for target, rows in (candidates or {}).items()
+    }
+    for day in previous_routine.get("days") or []:
+        if not isinstance(day, dict):
+            continue
+        target = str(day.get("target") or "").strip().upper()
+        if not target or target in scoped_targets:
+            continue
+        rows = augmented.setdefault(target, [])
+        existing_names = {
+            str(row.get("name_kor") or row.get("name_eng") or row.get("id"))
+            for row in rows
+        }
+        existing_ids = {row.get("id") for row in rows if row.get("id") is not None}
+        for exercise in day.get("exercises") or []:
+            if not isinstance(exercise, dict):
+                continue
+            name = _exercise_name(exercise)
+            exercise_id = exercise.get("exercise_id") or exercise.get("id")
+            if not name:
+                continue
+            if name in existing_names or (exercise_id is not None and exercise_id in existing_ids):
+                continue
+            rows.append({
+                "id": exercise_id,
+                "name_kor": name,
+                "name_eng": name,
+                "equipment": exercise.get("equipment"),
+                "spine_loading": exercise.get("spine_loading"),
+                "movement_family": exercise.get("movement_family") or movement_family(exercise),
+                "target_primary": exercise.get("target_primary"),
+                "source": "preserved_previous_routine",
+            })
+            existing_names.add(name)
+            if exercise_id is not None:
+                existing_ids.add(exercise_id)
+    return augmented
 
 
 def _detail_focus_terms_for_target(value: Any, target: str) -> list[str]:
