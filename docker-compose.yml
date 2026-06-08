@@ -36,6 +36,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      neo4j:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -43,7 +45,7 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-      - ./docs/gifs:/docs/gifs
+      
     ports:
       - "5173:5173"
     environment:
