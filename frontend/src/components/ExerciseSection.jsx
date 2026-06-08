@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { X, Play } from 'lucide-react'
 
 const PART_FILTERS = ['전체', '가슴', '등', '하체', '어깨', '팔']
-const PLACE_FILTERS = ['헬스장', '홈']
 
 const CAT_COLOR = {
   등: '#FFD700', 가슴: '#FF6B35', 어깨: '#6C63FF', 하체: '#00D4A0',
@@ -20,8 +19,6 @@ const PART_TO_CATS = {
   '어깨': ['어깨'],
   '팔': ['이두', '삼두', '전완근'],
 }
-const HOME_EQUIPMENTS = ['body', 'band', 'dumbbell', 'kettlebell', '']
-
 function gifUrl(ex) {
   return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
 }
@@ -214,7 +211,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export default function ExerciseSection({ onNavigate }) {
   const [part, setPart] = useState('전체')
-  const [place, setPlace] = useState(null)
   const [selected, setSelected] = useState(null)
   const [visible, setVisible] = useState(false)
   const [exercises, setExercises] = useState([])
@@ -240,9 +236,8 @@ export default function ExerciseSection({ onNavigate }) {
     let list = exercises
     const cats = PART_TO_CATS[part]
     if (cats) list = list.filter(e => cats.includes(e.category))
-    if (place === '홈') list = list.filter(e => HOME_EQUIPMENTS.includes(e.equipment))
     return list.slice(0, 8)
-  }, [part, place, exercises])
+  }, [part, exercises])
 
   return (
     <section ref={ref} style={{
@@ -337,25 +332,6 @@ export default function ExerciseSection({ onNavigate }) {
             })}
           </div>
 
-          {/* Place divider */}
-          <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)' }} />
-
-          {/* Place filter */}
-          <div style={{ display: 'flex', gap: 7 }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 2, alignSelf: 'center' }}>장소</span>
-            {PLACE_FILTERS.map(p => {
-              const active = place === p
-              return (
-                <button key={p} onClick={() => setPlace(active ? null : p)} style={{
-                  padding: '6px 16px', borderRadius: 2, fontSize: 12, cursor: 'pointer',
-                  background: active ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: active ? '1px solid rgba(255,215,0,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                  color: active ? '#FFD700' : 'rgba(255,255,255,0.5)',
-                  fontWeight: active ? 700 : 400, transition: 'all 0.2s',
-                }}>{p}</button>
-              )
-            })}
-          </div>
         </div>
 
         {/* Grid */}

@@ -85,3 +85,6 @@ coverage/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Neo4j 데이터 (대용량 파일, 로컬 전용)
+database/

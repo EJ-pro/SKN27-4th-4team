@@ -1,5 +1,5 @@
 import { memo, useDeferredValue, useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Flame, Home, MapPin, Search, Target, X, RotateCcw, Filter } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Flame, MapPin, Search, Target, X, RotateCcw, Filter } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -586,7 +586,6 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises }) {
                 <InfoTile icon={Clock} label="권장 시간" value={ex.default_duration_min ? `${ex.default_duration_min}분` : ''} accentColor={accentColor} />
                 <InfoTile icon={Flame} label="예상 소모" value={ex.estimated_cal_per_min ? `${ex.estimated_cal_per_min} kcal/min` : ''} accentColor={accentColor} />
                 <InfoTile icon={MapPin} label="장소" value={ex.place_type === 'gym' ? '헬스장' : ex.place_type} accentColor={accentColor} />
-                <InfoTile icon={Home} label="홈트 가능" value={ex.home_friendly === 'Y' ? '가능' : ex.home_friendly === 'N' ? '비추천' : ''} accentColor={accentColor} />
                 <InfoTile icon={AlertTriangle} label="척추 부하" value={ex.spine_loading} accentColor={accentColor} />
               </div>
             </div>
