@@ -7,10 +7,10 @@ import { useNavigate } from 'react-router-dom'
 import { getMe } from '../api/auth'
 import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
 
-// 기존 uuid 셋팅을 유틸 함수로 보냄 + 기타 처리 추가 
+// 기존 uuid 셋팅을 유틸 함수로 보냄 + 기타 처리 추가
 const deviceUuid = getOrCreateDeviceUuid();
 
-// 주차 계산 함수 
+// 주차 계산 함수
 function getISOWeekAndYear(date) {
   const target = new Date(date.valueOf());
   const dayNr = (date.getDay() + 6) % 7;
@@ -949,8 +949,8 @@ export default function RoutinePage() {
 
   const loadingDb = loadingExercises || loadingRoutine
 
-  //아래 useEffect 처리 내용 중 루틴 처리 부분을 함수로 분리 
-  //로그인 후 회원 루틴을 다시 불러오는 경우가 있어 별도 함수로 뺴서 함수만 호출하기 위해 따로 분리함 
+  //아래 useEffect 처리 내용 중 루틴 처리 부분을 함수로 분리
+  //로그인 후 회원 루틴을 다시 불러오는 경우가 있어 별도 함수로 뺴서 함수만 호출하기 위해 따로 분리함
   const loadWeeklyRoutine = () => {
     setLoadingRoutine(true)
     const { year, weekNumber } = getISOWeekAndYear(new Date())
@@ -958,7 +958,7 @@ export default function RoutinePage() {
       `${API_URL}/api/routines/?device_uuid=${deviceUuid}&year=${year}&week_number=${weekNumber}`,
       { credentials: 'include' },
     )
-    .then(r => r.json())
+      .then(r => r.json())
       .then(data => {
         if (data.found) {
           // Existing routine found for this week! Load it and jump directly to check page.
@@ -994,7 +994,7 @@ export default function RoutinePage() {
 
   useEffect(() => {
     // 1. Fetch DB Exercises
-    fetch(`${API_URL}/api/exercises/`)
+    fetch(`${API_URL}/api/exercises/?full=1`)
       .then(r => {
         if (!r.ok) throw new Error('Failed to fetch exercises');
         return r.json();
@@ -1010,7 +1010,7 @@ export default function RoutinePage() {
       });
 
     // 2. Fetch routines for this week
-    // 함수 하나로 묶어서 로직을 처리하는 것으로 변경 
+    // 함수 하나로 묶어서 로직을 처리하는 것으로 변경
     loadWeeklyRoutine()
   }, [])
 
@@ -2522,7 +2522,7 @@ function RoutineCheckView({
               {authUser ? authUser.nickname : '게스트'}
             </span>
           </button>
-        
+
           <button
             onClick={() => setShowResetConfirm(true)}
             style={{
@@ -3102,5 +3102,3 @@ function RoutineCheckView({
     </div>
   )
 }
-
-
