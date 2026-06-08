@@ -3,10 +3,11 @@ from .constants import OPENAI_LLM_MODEL, OPENAI_EMBEDDING_MODEL, LLM_TEMPERATURE
 
 
 def get_llm() -> ChatOpenAI:
-    """ChatOpenAI 모델 반환 (답변 생성용)"""
+    """ChatOpenAI 모델 반환 (답변 생성용 / streaming 활성화)"""
     return ChatOpenAI(
         model=OPENAI_LLM_MODEL,
         temperature=LLM_TEMPERATURE,
+        streaming=True,
     )
 
 

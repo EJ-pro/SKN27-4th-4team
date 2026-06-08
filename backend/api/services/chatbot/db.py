@@ -83,7 +83,9 @@ def vector_search(query: str, limit: int = 5, where_clause: str = "", params: li
     sql = SELECT_COLUMNS
     if where_clause:
         sql += f" WHERE {where_clause}"
-    sql += " ORDER BY embedding <-> %s::vector LIMIT %s"
+    # HNSW 인덱스가 vector_cosine_ops로 생성되어 있으므로 cosine 연산자(<=>)를 사용해야
+    # 인덱스를 탄다. (L2 연산자 <-> 사용 시 인덱스 미적용 → full scan)
+    sql += " ORDER BY embedding <=> %s::vector LIMIT %s"
 
     with connection.cursor() as cursor:
         cursor.execute(sql, all_params)
@@ -91,12 +93,27 @@ def vector_search(query: str, limit: int = 5, where_clause: str = "", params: li
 
 
 def keyword_search(exercise_name: str, limit: int = 3) -> list:
+    # 양쪽 공백 제거 후 비교 (예: "벤치프레스" == "벤치 프레스")
     with connection.cursor() as cursor:
         cursor.execute(
-            SELECT_COLUMNS + " WHERE name_kor ILIKE %s LIMIT %s",
+            SELECT_COLUMNS + " WHERE REPLACE(name_kor, ' ', '') ILIKE REPLACE(%s, ' ', '') LIMIT %s",
             (f"%{exercise_name}%", limit),
         )
         return cursor.fetchall()
+
+
+def get_muscles_by_body_part(injury_part: str) -> list[str]:
+    """
+    부상 부위(신체 표현)에 해당하는 근육명 목록 반환
+    muscles 테이블의 muscle_group 또는 name_kor 기준으로 조회
+    예: "어깨" → ["삼각근", "전면 삼각근", "측면 삼각근", "후면 삼각근", "상부 승모근"]
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT name_kor FROM muscles WHERE muscle_group ILIKE %s OR name_kor ILIKE %s",
+            (f"%{injury_part}%", f"%{injury_part}%"),
+        )
+        return [row[0] for row in cursor.fetchall()]
 
 
 def load_history(session_id: int) -> list[dict]:

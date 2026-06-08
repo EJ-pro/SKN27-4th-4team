@@ -269,6 +269,7 @@ export default function ConsultPage() {
   const [renamingSession, setRenamingSession] = useState(null)
   const [deletingSession, setDeletingSession] = useState(null)
   const [isSending, setIsSending] = useState(false)
+  const [streamingText, setStreamingText] = useState('')
   const [scrollTargetId, setScrollTargetId] = useState(null)
   const uuid = useRef(getOrCreateUUID())
   const textareaRef = useRef(null)
@@ -402,29 +403,56 @@ export default function ConsultPage() {
         body: JSON.stringify({ device_uuid: uuid.current, sender: 'user', content: text }),
       })
       if (!res.ok) throw new Error('Failed to send message')
-      const data = await res.json()
-      const user = data.user_message
-      const bot = data.bot_message
+
+      // SSE 스트리밍 처리
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let accumulatedText = ''
+      let finalUserMsgId = null
+      let finalBotMsgId = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() // 불완전한 마지막 줄 보류
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+            if (event.type === 'token') {
+              accumulatedText += event.content
+              setStreamingText(accumulatedText)
+            } else if (event.type === 'done') {
+              finalUserMsgId = event.user_message_id
+              finalBotMsgId = event.bot_message_id
+            }
+          } catch { /* JSON 파싱 실패 무시 */ }
+        }
+      }
+
+      // 스트리밍 완료 → 메시지 목록 확정
+      const botTime = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+      setStreamingText('')
       setMessages(prev => {
-        const next = prev.map(m => (
-          m.id === tempId && user
-            ? {
-                id: user.message_id,
-                role: user.sender,
-                text: user.content,
-                time: new Date(user.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-              }
+        const next = prev.map(m =>
+          m.id === tempId
+            ? { ...m, id: finalUserMsgId || m.id }
             : m
-        ))
-        if (!bot) return next
+        )
         return [...next, {
-          id: bot.message_id,
-          role: bot.sender,
-          text: bot.content,
-          time: new Date(bot.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+          id: finalBotMsgId || `bot-${Date.now()}`,
+          role: 'bot',
+          text: accumulatedText || '답변을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+          time: botTime,
         }]
       })
     } catch {
+      setStreamingText('')
       setMessages(prev => [...prev, {
         id: `${tempId}-error`,
         role: 'bot',
@@ -562,7 +590,7 @@ export default function ConsultPage() {
                     <Message msg={msg} />
                   </div>
                 ))}
-                {isSending && (
+                {isSending && !streamingText && (
                   <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
                     <BotAvatar />
                     <div style={{
@@ -579,6 +607,16 @@ export default function ConsultPage() {
                           animation: `pulse-glow 1.2s ease-in-out ${delay}s infinite`,
                         }} />
                       ))}
+                    </div>
+                  </div>
+                )}
+                {streamingText && (
+                  <div style={{ display: 'flex', gap: 14, marginBottom: 56 }}>
+                    <BotAvatar />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, color: 'rgba(226,226,226,0.85)', lineHeight: 1.85 }} className="md-bot">
+                        <ReactMarkdown>{streamingText}</ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 )}

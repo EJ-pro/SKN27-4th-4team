@@ -6,7 +6,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import transaction
 from .models import Exercise, ChatSession, ChatMessage, WeeklyScheduler, DailyRoutine
-from .services.chatbot.chatbot import get_answer
+from django.http import StreamingHttpResponse
+from .services.chatbot.chatbot import stream_answer
 
 DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
 
@@ -131,37 +132,47 @@ class MessageListView(View):
         if not content:
             return JsonResponse({'error': 'content required'}, status=400)
 
-        try:
-            bot_content = get_answer(content, session_id)
-        except Exception as exc:
-            print(f'[chatbot] answer generation failed: {exc}')
-            bot_content = '답변을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
-
+        # 사용자 메시지 먼저 저장 (스트리밍 시작 전)
         user_msg = ChatMessage.objects.create(
             session_id=session_id,
             sender='user',
             content=content,
         )
-        bot_msg = ChatMessage.objects.create(
-            session_id=session_id,
-            sender='bot',
-            content=bot_content,
-        )
 
-        return JsonResponse({
-            'user_message': {
-                'message_id': user_msg.message_id,
-                'sender': user_msg.sender,
-                'content': user_msg.content,
-                'created_at': user_msg.created_at.isoformat(),
-            },
-            'bot_message': {
-                'message_id': bot_msg.message_id,
-                'sender': bot_msg.sender,
-                'content': bot_msg.content,
-                'created_at': bot_msg.created_at.isoformat(),
-            },
-        }, status=201)
+        def event_stream():
+            full_answer = ""
+
+            try:
+                for token_type, token_content in stream_answer(content, session_id):
+                    if token_type == "token":
+                        # SSE 형식: data: {"type": "token", "content": "..."}\n\n
+                        yield f"data: {json.dumps({'type': 'token', 'content': token_content}, ensure_ascii=False)}\n\n"
+                    elif token_type == "done":
+                        full_answer = token_content
+
+            except Exception as exc:
+                print(f'[streaming] 오류: {exc}')
+                fallback = '답변을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+                full_answer = full_answer or fallback
+                yield f"data: {json.dumps({'type': 'token', 'content': fallback}, ensure_ascii=False)}\n\n"
+
+            # 봇 메시지 DB 저장 (스트리밍 완료 후)
+            bot_msg = ChatMessage.objects.create(
+                session_id=session_id,
+                sender='bot',
+                content=full_answer or '답변을 생성할 수 없습니다.',
+            )
+
+            # 완료 이벤트: 프론트엔드에 message_id 전달
+            yield f"data: {json.dumps({'type': 'done', 'user_message_id': user_msg.message_id, 'bot_message_id': bot_msg.message_id}, ensure_ascii=False)}\n\n"
+
+        response = StreamingHttpResponse(
+            event_stream(),
+            content_type='text/event-stream; charset=utf-8',
+        )
+        response['Cache-Control'] = 'no-cache'
+        response['X-Accel-Buffering'] = 'no'  # nginx 버퍼링 방지
+        return response
 
 
 def get_date_for_dow(year, week_number, dow_kor):
