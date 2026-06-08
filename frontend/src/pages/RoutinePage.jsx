@@ -1074,6 +1074,7 @@ export default function RoutinePage() {
     const res = await fetch(`${API_URL}/api/routines/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(payload),
     })
     if (!res.ok) throw new Error('추천 루틴 저장에 실패했습니다.')
