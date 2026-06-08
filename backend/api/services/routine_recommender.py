@@ -40,7 +40,16 @@ def start_recommendation(survey: dict, user_id: str | None = None) -> dict:
         }
 
     thread_id = str(uuid4())
-    user_profile = survey_to_user_profile(survey)
+    try:
+        user_profile = survey_to_user_profile(survey)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "thread_id": thread_id,
+            "status": "failed",
+            "message": "설문 입력값을 추천 프로필로 변환하지 못했습니다.",
+            "error": str(exc),
+        }
     if not user_profile.get("split_targets"):
         return {
             "ok": False,
@@ -144,6 +153,8 @@ def _missing_required_fields(survey: dict) -> list[str]:
     missing = []
     for field in required:
         value = survey.get(field)
+        if field == "pain_parts" and value == []:
+            continue
         if value is None or value == "" or value == [] or value == {}:
             missing.append(field)
     return missing

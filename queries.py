@@ -43,7 +43,6 @@ class GraphQuery:
         spine: str = "all",
         equip: list[str] = None,
         level: str = "intermediate",
-        home_only: bool = False,
         limit: int = 5,
     ) -> list[dict]:
         """
@@ -54,7 +53,6 @@ class GraphQuery:
             spine     : 'all'|'mid'|'low'
             equip     : ['barbell','dumbbell',...] — None이면 전체
             level     : 'beginner'|'intermediate'|'advanced'
-            home_only : True면 home_friendly='Y'만
             limit     : 반환 개수
         """
         equip = equip or ["barbell", "dumbbell", "machine", "body", "pull_up_bar", "band", "kettlebell"]
@@ -63,7 +61,6 @@ class GraphQuery:
             WHERE e.spine_loading    IN $spine
               AND e.equipment        IN $equip
               AND e.difficulty_label IN $diff
-              AND (NOT $home_only OR e.home_friendly = 'Y')
             OPTIONAL MATCH (e)-[:TARGETS_PRIMARY]->(primary:BodyPart)
             OPTIONAL MATCH (e)-[:TARGETS_SECONDARY]->(secondary:BodyPart)
             RETURN
@@ -91,7 +88,6 @@ class GraphQuery:
             "spine":     SPINE_MAP.get(spine, ["상", "중", "하"]),
             "equip":     equip,
             "diff":      DIFFICULTY_MAP.get(level, ["beginner", "intermediate"]),
-            "home_only": home_only,
             "limit":     limit,
         })
 
@@ -318,46 +314,7 @@ class GraphQuery:
             "spine":     SPINE_MAP.get(spine, ["하"]),
         })
 
-    # ── Q8. 홈트 가능 운동 ────────────────────────────────────────────────
-    def get_home_workouts(self, split_day: str, limit: int = 10) -> list[dict]:
-        """home_friendly=Y 운동만 반환"""
-        return self._run("""
-            MATCH (e:Exercise {split_day: $split_day, home_friendly: 'Y'})
-            RETURN
-                e.id               AS id,
-                e.name_kor         AS name_kor,
-                e.equipment        AS equipment,
-                e.spine_loading    AS spine_loading,
-                e.difficulty_label AS difficulty_label,
-                e.cal_per_min      AS cal_per_min
-            ORDER BY e.difficulty ASC
-            LIMIT $limit
-        """, {"split_day": split_day, "limit": limit})
-
-    # ── Q9. 헬스장 → 집 대체 운동 (SUBSTITUTE_FOR + place 필터) ──────────
-    def get_gym_to_home(self, exercise_id: int, spine: str = "all") -> list[dict]:
-        """
-        헬스장 운동 → 집에서 가능한 대체 운동
-        SUBSTITUTE_FOR 엣지의 to_place 기반 필터
-        """
-        return self._run("""
-            MATCH (:Exercise {id: $id})-[r:SUBSTITUTE_FOR]->(sub:Exercise)
-            WHERE sub.home_friendly = 'Y'
-              AND sub.spine_loading IN $spine
-            RETURN
-                sub.id            AS id,
-                sub.name_kor      AS name_kor,
-                sub.equipment     AS equipment,
-                sub.spine_loading AS spine_loading,
-                r.to_place        AS to_place
-            ORDER BY sub.spine_loading ASC
-            LIMIT 5
-        """, {
-            "id":    exercise_id,
-            "spine": SPINE_MAP.get(spine, ["상", "중", "하"]),
-        })
-
-    # ── Q10. 분할 통계 ────────────────────────────────────────────────────
+    # ── Q8. 분할 통계 ────────────────────────────────────────────────────
     def get_split_stats(self) -> list[dict]:
         """분할별 운동 수, 평균 칼로리, 척추 부하 분포"""
         return self._run("""
@@ -369,7 +326,6 @@ class GraphQuery:
                 round(avg(e.cal_per_min) * 10) / 10 AS avg_cal,
                 sum(CASE WHEN e.spine_loading = '상' THEN 1 ELSE 0 END) AS spine_high,
                 sum(CASE WHEN e.spine_loading = '중' THEN 1 ELSE 0 END) AS spine_mid,
-                sum(CASE WHEN e.spine_loading = '하' THEN 1 ELSE 0 END) AS spine_low,
-                sum(CASE WHEN e.home_friendly = 'Y'  THEN 1 ELSE 0 END) AS home_count
+                sum(CASE WHEN e.spine_loading = '하' THEN 1 ELSE 0 END) AS spine_low
             ORDER BY split
         """)

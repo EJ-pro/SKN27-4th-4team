@@ -180,13 +180,19 @@ def survey_to_user_profile(survey: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _split_targets_from_day_parts(work_days: list[str], day_parts: dict[str, str]) -> list[str]:
+def _split_targets_from_day_parts(work_days: list[str], day_parts: dict[str, Any]) -> list[str]:
     targets = []
     for day in work_days:
-        target = PART_TO_SPLIT.get(day_parts.get(day, ""))
-        if target and target not in targets:
+        target = PART_TO_SPLIT.get(_normalize_day_part_value(day_parts.get(day, "")))
+        if target:
             targets.append(target)
     return targets
+
+
+def _normalize_day_part_value(value: Any) -> str:
+    if isinstance(value, (list, tuple)):
+        value = next((item for item in value if item), "")
+    return str(value or "").strip()
 
 
 def _initial_intensity_bias(survey: dict[str, Any]) -> str:

@@ -150,7 +150,6 @@ def search_exercises(params: dict[str, Any]) -> tuple[dict[str, list[dict[str, A
                 spine=spine,
                 equip=equipment,
                 level=level,
-                home_only=False,
                 limit=pool_limit,
             )
             rows = [
@@ -226,7 +225,6 @@ def search_exercises(params: dict[str, Any]) -> tuple[dict[str, list[dict[str, A
                     spine=spine,
                     equip=["body"],
                     level=level,
-                    home_only=False,
                     limit=1,
                 )
                 rows = [

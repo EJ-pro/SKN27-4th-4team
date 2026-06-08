@@ -67,8 +67,25 @@ def supervisor_agent(state: RecommendationState) -> dict[str, Any]:
         )
 
     action = _fallback_next_action(state)
-    if action == "CALL_REVISION_AGENT" and _needs_supervisor_revision_decision(state):
-        return _supervisor_revision_decision(state, current_step)
+    if action == "CALL_REVISION_AGENT":
+        local_removed = _local_exercise_removal_names(
+            str((state.get("human_review_result") or {}).get("feedback") or ""),
+            state.get("routine_draft"),
+        )
+        if local_removed:
+            return {
+                "next_action": action,
+                "action_reason": "local exercise removal detected from human feedback",
+                "action_history": _history(state, action),
+                "supervisor_step_count": current_step + 1,
+                "revision_request": {
+                    "revision_type": "local_exercise_removal",
+                    "revision_reason": "사용자 피드백에서 특정 운동 제거 의도를 감지했습니다.",
+                    "removed_exercises": local_removed,
+                },
+            }
+        if _needs_supervisor_revision_decision(state):
+            return _supervisor_revision_decision(state, current_step)
 
     return {
         "next_action": action,
@@ -209,6 +226,9 @@ def _supervisor_recovery_decision(
 def _needs_supervisor_revision_decision(state: RecommendationState) -> bool:
     review = state.get("human_review_result") or {}
     if review.get("decision") == "revise":
+        feedback = str(review.get("feedback") or "")
+        if _local_exercise_removal_names(feedback, state.get("routine_draft"), allow_llm=False):
+            return False
         return True
     validation = state.get("validation_result") or {}
     return len(validation.get("issues") or []) >= 2
@@ -423,9 +443,7 @@ def build_recommendation_params_from_profile(
     if not available_equipment:
         raise ValueError(f"운동 목표 '{goal}'에 사용할 수 있는 장비가 없습니다.")
 
-    split_targets = normalize_split_targets(
-        parsed.get("split_targets") or profile_split_targets,
-    )
+    split_targets = _normalize_profile_split_targets(profile_split_targets)
 
     spine = normalize_spine(parsed.get("spine") or profile.get("spine") or "all")
     if _needs_low_spine_load(profile):
@@ -453,6 +471,20 @@ def build_recommendation_params_from_profile(
         "required_exercises": MANDATORY_EXERCISES_BY_GOAL.get(goal, {}),
         "load_guidance": GOAL_LOAD_GUIDANCE.get(goal, ""),
     }
+
+
+def _normalize_profile_split_targets(values: Any) -> list[str]:
+    if not values:
+        return SPLIT_TARGETS
+    if isinstance(values, str):
+        values = [values]
+
+    normalized = []
+    for value in values:
+        text = str(value or "").strip().upper()
+        if text in SPLIT_TARGETS:
+            normalized.append(text)
+    return normalized or normalize_split_targets(values)
 
 
 def graph_search_tool(state: RecommendationState) -> dict[str, Any]:
@@ -552,6 +584,47 @@ def routine_revision_agent(state: RecommendationState) -> dict[str, Any]:
     feedback = str(human_review.get("feedback") or "").strip()
     supervisor_request = state.get("revision_request") or {}
     handled_by_supervisor = bool(supervisor_request.get("handled_by_supervisor"))
+    requested_removed = _match_routine_exercise_names(
+        supervisor_request.get("removed_exercises"),
+        state.get("routine_draft"),
+    )
+    explicit_removed = requested_removed or _local_exercise_removal_names(
+        feedback,
+        state.get("routine_draft"),
+    )
+    if explicit_removed:
+        next_params = _apply_revision_exclusions_to_params(
+            _clear_initial_required_exercises(
+                state.get("recommendation_params", {}),
+            ),
+            _merge_unique_list(
+                state.get("revision_excluded_exercises", []),
+                explicit_removed,
+            ),
+        )
+        revised_routine = _replace_excluded_exercises_in_routine(
+            state.get("routine_draft"),
+            state.get("exercise_candidates", {}),
+            next_params,
+            explicit_removed,
+        )
+        return {
+            "revision_request": {
+                "revision_type": "local_exercise_removal",
+                "revision_reason": "사용자가 명시한 운동만 현재 후보 안에서 교체했습니다.",
+                "removed_exercises": explicit_removed,
+            },
+            "revision_constraints": None,
+            "recommendation_params": next_params,
+            "routine_draft": revised_routine,
+            "previous_routine_draft": None,
+            "revision_excluded_exercises": _merge_unique_list(
+                state.get("revision_excluded_exercises", []),
+                explicit_removed,
+            ),
+            "validation_result": None,
+            "human_review_result": None,
+        }
     if feedback and not handled_by_supervisor:
         constraint_request = _extract_human_revision_constraints(state, feedback)
         updated_params = (
@@ -1437,6 +1510,194 @@ def _apply_revision_removal_guard(
         **routine,
         "days": guarded_days,
     }, removed_names
+
+
+def _explicit_removed_exercise_names(
+    feedback: str,
+    routine: dict[str, Any] | None,
+) -> list[str]:
+    text = _compact_text(feedback)
+    if not text:
+        return []
+    remove_terms = [
+        "빼",
+        "빼줘",
+        "빼달",
+        "제외",
+        "삭제",
+        "하지마",
+        "하지말",
+        "하지않",
+        "하지 말",
+        "안할",
+        "안 할",
+    ]
+    if not any(_compact_text(term) in text for term in remove_terms):
+        return []
+
+    removed: list[str] = []
+    for exercise in _routine_exercises(routine):
+        name = _exercise_name(exercise)
+        if name and _compact_text(name) in text and name not in removed:
+            removed.append(name)
+    return removed
+
+
+def _local_exercise_removal_names(
+    feedback: str,
+    routine: dict[str, Any] | None,
+    *,
+    allow_llm: bool = True,
+) -> list[str]:
+    explicit = _explicit_removed_exercise_names(feedback, routine)
+    if explicit or not allow_llm:
+        return explicit
+    if not _feedback_mentions_routine_exercise(feedback, routine):
+        return []
+
+    system = (
+        "당신은 운동 루틴 수정 피드백의 의도를 분류하는 에이전트입니다. "
+        "사용자가 현재 루틴 안의 특정 운동을 빼거나 다른 운동으로 대체하라는 뜻인지 판단하세요. "
+        "강도, 통증, 부상, 목표, 장비, 시간 변경처럼 루틴 전체 조건을 바꾸는 요청이면 false입니다. "
+        "운동명이 축약되어 있어도 current_exercises 중 가장 가까운 실제 운동명으로 반환하세요. "
+        "대명사만 있고 특정 운동을 알 수 없으면 false입니다. "
+        "응답은 JSON만 반환하세요: "
+        "{\"is_local_removal\":true,\"removed_exercises\":[\"...\"],\"confidence\":0.0,\"reason\":\"...\"}"
+    )
+    parsed = invoke_json(system, compact_json({
+        "feedback": feedback,
+        "current_exercises": [
+            _exercise_name(exercise)
+            for exercise in _routine_exercises(routine)
+            if _exercise_name(exercise)
+        ],
+    }))
+    if not parsed.get("is_local_removal"):
+        return []
+    try:
+        confidence = float(parsed.get("confidence", 0))
+    except (TypeError, ValueError):
+        confidence = 0
+    if confidence < 0.65:
+        return []
+    return _match_routine_exercise_names(parsed.get("removed_exercises"), routine)
+
+
+def _feedback_mentions_routine_exercise(
+    feedback: str,
+    routine: dict[str, Any] | None,
+) -> bool:
+    text = _compact_text(feedback)
+    if not text:
+        return False
+    for exercise in _routine_exercises(routine):
+        name = _exercise_name(exercise)
+        if not name:
+            continue
+        compact_name = _compact_text(name)
+        if compact_name and compact_name in text:
+            return True
+        for token in str(name).replace("/", " ").split():
+            token = _compact_text(token)
+            if len(token) >= 2 and token in text:
+                return True
+    return False
+
+
+def _match_routine_exercise_names(
+    values: Any,
+    routine: dict[str, Any] | None,
+) -> list[str]:
+    if isinstance(values, str):
+        candidates = [values]
+    elif isinstance(values, list):
+        candidates = values
+    else:
+        return []
+
+    matched: list[str] = []
+    routine_names = [
+        _exercise_name(exercise)
+        for exercise in _routine_exercises(routine)
+        if _exercise_name(exercise)
+    ]
+    for value in candidates:
+        compact_value = _compact_text(value)
+        if not compact_value:
+            continue
+        for name in routine_names:
+            compact_name = _compact_text(name)
+            if compact_value == compact_name or compact_value in compact_name or compact_name in compact_value:
+                if name not in matched:
+                    matched.append(name)
+                break
+    return matched
+
+
+def _replace_excluded_exercises_in_routine(
+    routine: dict[str, Any] | None,
+    candidates: dict[str, list[dict[str, Any]]],
+    params: dict[str, Any],
+    removed_names: list[str],
+) -> dict[str, Any]:
+    if not isinstance(routine, dict):
+        return {}
+    blacklist = _merge_unique_list(params.get("exclude_exercises", []), removed_names)
+    days = routine.get("days") if isinstance(routine.get("days"), list) else []
+    used_names = {
+        _exercise_name(exercise)
+        for exercise in _routine_exercises(routine)
+        if not _is_exercise_name_excluded(_exercise_name(exercise), blacklist)
+    }
+    next_days = []
+    for day in days:
+        if not isinstance(day, dict):
+            next_days.append(day)
+            continue
+        target = str(day.get("target") or "").strip().upper()
+        next_exercises = []
+        for exercise in day.get("exercises", []) or []:
+            if not isinstance(exercise, dict):
+                continue
+            name = _exercise_name(exercise)
+            if not _is_exercise_name_excluded(name, blacklist):
+                next_exercises.append(exercise)
+                continue
+            replacement = _replacement_candidate_for_removed_exercise(
+                target,
+                candidates,
+                blacklist,
+                used_names,
+                next_exercises,
+            )
+            if replacement:
+                replacement_exercise = _exercise_from_candidate_row(replacement, exercise)
+                next_exercises.append(replacement_exercise)
+                used_names.add(replacement_exercise["name"])
+        next_days.append({
+            **day,
+            "exercises": next_exercises,
+        })
+    return {
+        **routine,
+        "days": next_days,
+    }
+
+
+def _routine_exercises(routine: dict[str, Any] | None) -> list[dict[str, Any]]:
+    days = routine.get("days") if isinstance(routine, dict) else []
+    days = days if isinstance(days, list) else []
+    return [
+        exercise
+        for day in days
+        if isinstance(day, dict)
+        for exercise in (day.get("exercises") or [])
+        if isinstance(exercise, dict)
+    ]
+
+
+def _compact_text(value: Any) -> str:
+    return str(value or "").strip().lower().replace(" ", "")
 
 
 def _revision_removed_exercise_names(

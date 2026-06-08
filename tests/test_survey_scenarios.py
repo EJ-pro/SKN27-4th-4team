@@ -277,6 +277,50 @@ class SurveyScenarioTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed")
         self.assertIn("체육관 운동만 지원", result["message"])
 
+    def test_survey_day_parts_accept_frontend_array_values(self):
+        survey = {
+            **SURVEY_SCENARIOS[0]["survey"],
+            "day_parts": {
+                "월": ["가슴"],
+                "화": ["등"],
+                "수": ["하체"],
+                "목": ["어깨"],
+                "금": ["팔/코어"],
+            },
+        }
+        profile = survey_to_user_profile(survey)
+
+        self.assertEqual(
+            profile["split_targets"],
+            ["CHEST", "BACK", "LEG", "SHOULDER", "ARM"],
+        )
+
+    def test_repeated_day_parts_preserve_workday_sequence(self):
+        survey = SURVEY_SCENARIOS[3]["survey"]
+        profile = survey_to_user_profile(survey)
+        params = build_recommendation_params_from_profile(profile, parsed={})
+
+        self.assertEqual(
+            profile["split_targets"],
+            ["LEG", "CHEST", "BACK", "SHOULDER", "LEG"],
+        )
+        self.assertEqual(params["split_targets"], profile["split_targets"])
+
+    def test_recommendation_api_allows_empty_pain_parts(self):
+        survey = {
+            **SURVEY_SCENARIOS[0]["survey"],
+            "pain_parts": [],
+        }
+        with patch("backend.api.services.routine_recommender._invoke_graph", return_value={
+            "ok": True,
+            "status": "interrupted",
+            "thread_id": "test-thread",
+        }):
+            result = start_recommendation(survey)
+
+        self.assertTrue(result["ok"])
+        self.assertNotIn("missing_fields", result)
+
     def test_strength_and_hypertrophy_require_compound_lifts(self):
         profile = survey_to_user_profile(SURVEY_SCENARIOS[0]["survey"])
         expected_ids = {
@@ -444,6 +488,123 @@ class SurveyScenarioTests(unittest.TestCase):
         self.assertNotIn("데드리프트", names)
         self.assertIn("데드리프트", result["revision_excluded_exercises"])
         self.assertIn("데드리프트", result["recommendation_params"]["exclude_exercises"])
+
+    def test_explicit_exercise_removal_only_replaces_that_slot(self):
+        state = initial_state(user_profile=survey_to_user_profile(SURVEY_SCENARIOS[0]["survey"]))
+        state.update({
+            "profile_normalized": True,
+            "recommendation_params": {
+                "split_targets": ["CHEST"],
+                "goal": "hypertrophy",
+                "level": "intermediate",
+                "available_equipment": ["barbell", "machine"],
+                "exclude_exercises": [],
+                "home_only": False,
+                "session_min": 60,
+                "spine": "all",
+                "required_exercises": {},
+            },
+            "exercise_candidates": {
+                "CHEST": [
+                    {"id": 2001, "name_kor": "벤치 프레스", "equipment": "barbell"},
+                    {"id": 2031, "name_kor": "바벨 풀오버", "equipment": "barbell"},
+                    {"id": 2009, "name_kor": "체스트 프레스 머신", "equipment": "machine"},
+                    {"id": 2004, "name_kor": "펙덱 플라이", "equipment": "machine"},
+                ],
+            },
+            "routine_draft": {
+                "days": [{
+                    "target": "CHEST",
+                    "exercises": [
+                        {"exercise_id": 2001, "name": "벤치 프레스", "sets": 4},
+                        {"exercise_id": 2031, "name": "바벨 풀오버", "sets": 4},
+                        {"exercise_id": 2004, "name": "펙덱 플라이", "sets": 4},
+                    ],
+                }],
+            },
+            "validation_result": {"is_valid": True, "issues": []},
+            "human_review_result": {
+                "decision": "revise",
+                "feedback": "바벨 풀오버 빼줘",
+            },
+        })
+
+        with patch("recommendation_service.agents.invoke_json") as invoke_json:
+            route = supervisor_agent(state)
+            result = routine_revision_agent(state)
+
+        invoke_json.assert_not_called()
+        self.assertEqual(route["next_action"], "CALL_REVISION_AGENT")
+        names = [
+            exercise["name"]
+            for day in result["routine_draft"]["days"]
+            for exercise in day["exercises"]
+        ]
+        self.assertEqual(names[0], "벤치 프레스")
+        self.assertEqual(names[2], "펙덱 플라이")
+        self.assertNotIn("바벨 풀오버", names)
+        self.assertIn("체스트 프레스 머신", names)
+        self.assertIn("바벨 풀오버", result["recommendation_params"]["exclude_exercises"])
+
+    def test_llm_detected_exercise_removal_only_replaces_that_slot(self):
+        state = initial_state(user_profile=survey_to_user_profile(SURVEY_SCENARIOS[0]["survey"]))
+        state.update({
+            "profile_normalized": True,
+            "recommendation_params": {
+                "split_targets": ["CHEST"],
+                "goal": "hypertrophy",
+                "level": "intermediate",
+                "available_equipment": ["barbell", "machine"],
+                "exclude_exercises": [],
+                "home_only": False,
+                "session_min": 60,
+                "spine": "all",
+                "required_exercises": {},
+            },
+            "exercise_candidates": {
+                "CHEST": [
+                    {"id": 2001, "name_kor": "벤치 프레스", "equipment": "barbell"},
+                    {"id": 2031, "name_kor": "바벨 풀오버", "equipment": "barbell"},
+                    {"id": 2009, "name_kor": "체스트 프레스 머신", "equipment": "machine"},
+                    {"id": 2004, "name_kor": "펙덱 플라이", "equipment": "machine"},
+                ],
+            },
+            "routine_draft": {
+                "days": [{
+                    "target": "CHEST",
+                    "exercises": [
+                        {"exercise_id": 2001, "name": "벤치 프레스", "sets": 4},
+                        {"exercise_id": 2031, "name": "바벨 풀오버", "sets": 4},
+                        {"exercise_id": 2004, "name": "펙덱 플라이", "sets": 4},
+                    ],
+                }],
+            },
+            "validation_result": {"is_valid": True, "issues": []},
+            "human_review_result": {
+                "decision": "revise",
+                "feedback": "풀오버는 다른 걸로 가자",
+            },
+        })
+
+        with patch("recommendation_service.agents.invoke_json", return_value={
+            "is_local_removal": True,
+            "removed_exercises": ["풀오버"],
+            "confidence": 0.92,
+            "reason": "풀오버를 다른 운동으로 대체하려는 요청입니다.",
+        }) as invoke_json:
+            result = routine_revision_agent(state)
+
+        invoke_json.assert_called_once()
+        names = [
+            exercise["name"]
+            for day in result["routine_draft"]["days"]
+            for exercise in day["exercises"]
+        ]
+        self.assertEqual(names[0], "벤치 프레스")
+        self.assertEqual(names[2], "펙덱 플라이")
+        self.assertNotIn("바벨 풀오버", names)
+        self.assertIn("체스트 프레스 머신", names)
+        self.assertIn("바벨 풀오버", result["recommendation_params"]["exclude_exercises"])
 
     def test_graph_search_uses_substitute_relations_for_revision_seeds(self):
         regular_rows = [

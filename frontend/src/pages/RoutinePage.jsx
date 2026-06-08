@@ -794,14 +794,42 @@ const normalizeRepsForSave = (reps) => {
   return match ? Number(match[0]) : 10
 }
 
-const mapRecommendedRoutineToWorkoutRoutine = (routineDraft, workDays, dbExercises) => {
+const DAY_PART_TO_TARGET = {
+  '가슴': 'CHEST',
+  '등': 'BACK',
+  '하체': 'LEG',
+  '어깨': 'SHOULDER',
+  '팔': 'ARM',
+  '팔/코어': 'ARM',
+  '이두': 'ARM',
+  '삼두': 'ARM',
+  '전완근': 'ARM',
+}
+
+const normalizeDayTarget = (value) => {
+  const raw = Array.isArray(value) ? value.find(Boolean) : value
+  const text = String(raw || '').trim()
+  return DAY_PART_TO_TARGET[text] || text.toUpperCase()
+}
+
+const mapRecommendedRoutineToWorkoutRoutine = (routineDraft, workDays, dbExercises, dayParts = {}) => {
   const exerciseMap = new Map((dbExercises || []).map(ex => [Number(ex.id), ex]))
   const exerciseNameMap = new Map((dbExercises || []).map(ex => [ex.name_kor, ex]))
   const mapped = {}
   const days = routineDraft?.days || []
+  const daysByTarget = new Map()
+  days.forEach(day => {
+    const target = String(day?.target || '').trim().toUpperCase()
+    if (!target) return
+    const queue = daysByTarget.get(target) || []
+    queue.push(day)
+    daysByTarget.set(target, queue)
+  })
 
   workDays.forEach((day, index) => {
-    const recommendedDay = days[index] || {}
+    const target = normalizeDayTarget(dayParts[day])
+    const targetQueue = daysByTarget.get(target) || []
+    const recommendedDay = targetQueue.shift() || days.find(item => String(item?.target || '').trim().toUpperCase() === target) || days[index] || {}
     mapped[day] = (recommendedDay.exercises || []).map((ex, exIndex) => {
       const dbEx = exerciseMap.get(Number(ex.exercise_id)) || exerciseNameMap.get(ex.name)
       const exerciseId = ex.exercise_id || dbEx?.id || null
@@ -1038,7 +1066,7 @@ export default function RoutinePage() {
       setRecommendationError(data.message || '추천 루틴 생성에 실패했습니다.')
       return false
     }
-    const mappedRoutine = mapRecommendedRoutineToWorkoutRoutine(data.routine_draft, workDays, dbExercises)
+    const mappedRoutine = mapRecommendedRoutineToWorkoutRoutine(data.routine_draft, workDays, dbExercises, dayParts)
     setRecommendationThreadId(data.thread_id || '')
     setReviewPayload(data)
     setPreloadedWorkoutRoutine(mappedRoutine)
@@ -1093,7 +1121,7 @@ export default function RoutinePage() {
         return
       }
       const previousRoutine = preloadedWorkoutRoutine
-      const nextRoutine = mapRecommendedRoutineToWorkoutRoutine(data.routine_draft, workDays, dbExercises)
+      const nextRoutine = mapRecommendedRoutineToWorkoutRoutine(data.routine_draft, workDays, dbExercises, dayParts)
       const routineChanges = summarizeRoutineChanges(previousRoutine, nextRoutine, workDays, dayParts)
       applyRecommendationResult(data)
       if (decision !== 'approve') {
