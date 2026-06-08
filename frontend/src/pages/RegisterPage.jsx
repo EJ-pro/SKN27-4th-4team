@@ -1,12 +1,15 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Dumbbell, Lock, Mail, User, UserPlus } from 'lucide-react'
 import { register } from '../api/auth'
+import './Auth.css'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
   const [userId, setUserId] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -16,7 +19,7 @@ export default function RegisterPage() {
     setLoading(true)
     try {
       await register({
-        nickname: userId,   // 아이디 → nickname
+        nickname: userId,
         email,
         password,
       })
@@ -28,100 +31,110 @@ export default function RegisterPage() {
     }
   }
 
-  const inputStyle = {
-    width: '100%',
-    padding: '10px 14px',
-    borderRadius: 8,
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(255,215,0,0.2)',
-    color: '#fff',
-    fontSize: 13,
-    outline: 'none',
-    boxSizing: 'border-box',
-  }
-
-  const labelStyle = {
-    display: 'block',
-    textAlign: 'left',
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 13,
-    marginBottom: 6,
-  }
-
-  const buttonStyle = {
-    width: '100%',
-    padding: '10px 24px',
-    borderRadius: 8,
-    background: 'rgba(255,215,0,0.1)',
-    border: '1px solid rgba(255,215,0,0.2)',
-    color: '#FFD700',
-    fontSize: 13,
-    cursor: 'pointer',
-  }
-
   return (
-    <div style={{
-      height: '100vh', background: '#0F0F0F',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <div style={{ width: 320, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>
-        <div style={{ fontFamily: 'Bebas Neue', fontSize: 32, color: '#FFD700', letterSpacing: 4, marginBottom: 24 }}>
-          회원가입
+    <main className="auth-page">
+      <Link className="auth-brand" to="/" aria-label="HELBOTIN 홈으로 이동">
+        <span className="auth-brand-mark">
+          <Dumbbell size={18} color="#000" strokeWidth={2.8} />
+        </span>
+        <span>HELBOTIN</span>
+      </Link>
+
+      <section className="auth-shell" aria-labelledby="register-title">
+        <div className="auth-copy">
+          <span className="auth-kicker">WELCOME HELBOTIN</span>
+          <h1 id="register-title">회원가입</h1>
+          <p>새로운 시작을 함께해요</p>
+          <div className="auth-rule" />
         </div>
 
-        <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {error && (
-            <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0}}>{error}</p>
-          )}
-          <div>
-            <label htmlFor="user_id" style={labelStyle}>아이디</label>
-            <input
-              id="user_id"
-              type="text"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              style={inputStyle}
-              autoComplete="username"
-            />
-          </div>
+        <form className="auth-panel" onSubmit={handleRegister}>
+          {error && <p className="auth-error">{error}</p>}
 
-          <div>
-            <label htmlFor="email" style={labelStyle}>이메일</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={inputStyle}
-              autoComplete="email"
-            />
-          </div>
+          <label className="auth-field" htmlFor="user_id">
+            <span>아이디</span>
+            <div className="auth-input-wrap auth-input-wrap-action">
+              <User size={16} />
+              <input
+                id="user_id"
+                type="text"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                placeholder="아이디 입력"
+                autoComplete="username"
+                required
+              />
+              <button className="auth-check-button" type="button">
+                중복체크
+              </button>
+            </div>
+          </label>
 
-          <div>
-            <label htmlFor="password" style={labelStyle}>비밀번호</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
-              autoComplete="new-password"
-            />
-          </div>
+          <label className="auth-field" htmlFor="email">
+            <span>이메일</span>
+            <div className="auth-input-wrap auth-input-wrap-action">
+              <Mail size={16} />
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="이메일 입력"
+                autoComplete="email"
+                required
+              />
+              <button className="auth-check-button" type="button">
+                중복체크
+              </button>
+            </div>
+          </label>
 
-          <button type="submit" style={buttonStyle} disabled={loading}>
-            {loading ? '진행 중...' : '가입'}
+          <label className="auth-field" htmlFor="password">
+            <span>비밀번호</span>
+            <div className="auth-input-wrap">
+              <Lock size={16} />
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="비밀번호 입력"
+                autoComplete="new-password"
+                required
+              />
+            </div>
+          </label>
+
+          <label className="auth-field" htmlFor="password_confirm">
+            <div className="auth-input-wrap">
+              <Lock size={16} />
+              <input
+                id="password_confirm"
+                type="password"
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                placeholder="비밀번호 다시 입력"
+                autoComplete="new-password"
+              />
+            </div>
+          </label>
+
+          <button className="auth-submit" type="submit" disabled={loading}>
+            <UserPlus size={17} />
+            {loading ? '진행 중...' : '가입하기'}
           </button>
 
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            style={buttonStyle}
-          >
-            돌아가기
-          </button>
+          <div className="auth-actions">
+            <button type="button" onClick={() => navigate('/login')}>
+              로그인으로 이동
+            </button>
+            <button type="button" onClick={() => navigate('/')}>
+              <ArrowLeft size={14} />
+              돌아가기
+            </button>
+          </div>
         </form>
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }

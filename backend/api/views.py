@@ -18,7 +18,84 @@ DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
 
 # ─── Exercise ────────────────────────────────────────────────────────────────
 
+EXERCISE_LIST_FIELDS = (
+    'exercise_id', 'name_kor', 'name_eng', 'category',
+    'slug', 'tag', 'equipment', 'difficulty', 'difficulty_label',
+)
+
+EXERCISE_FULL_FIELDS = (
+    'exercise_id', 'name_kor', 'name_eng', 'category',
+    'slug', 'tag', 'description', 'target_primary', 'target_secondary',
+    'equipment', 'difficulty', 'difficulty_label', 'default_duration_min',
+    'estimated_cal_per_min', 'place_type', 'home_friendly', 'spine_loading',
+    'video_url', 'image_url', 'guide', 'starting_position', 'movement',
+    'breathing', 'caution', 'related_exercises',
+)
+
+
+def serialize_exercise(ex, full=False):
+    data = {
+        'id': ex['exercise_id'],
+        'name_kor': ex['name_kor'],
+        'name_eng': ex['name_eng'] or '',
+        'category': ex['category'],
+        'slug': ex['slug'] or '',
+        'tag': ex['tag'] or '',
+        'equipment': ex['equipment'] or '',
+        'difficulty': DIFF_NUM.get(ex['difficulty'], 1),
+        'difficulty_label': ex['difficulty_label'] or '',
+    }
+    if not full:
+        return data
+    data.update({
+        'description': ex['description'] or '',
+        'target_primary': ex['target_primary'],
+        'target_secondary': ex['target_secondary'] or [],
+        'default_duration_min': ex['default_duration_min'],
+        'estimated_cal_per_min': ex['estimated_cal_per_min'],
+        'place_type': ex['place_type'] or '',
+        'home_friendly': ex['home_friendly'] or '',
+        'spine_loading': ex['spine_loading'] or '',
+        'video_url': ex['video_url'] or '',
+        'image_url': ex['image_url'] or '',
+        'guide': ex['guide'],
+        'starting_position': ex['starting_position'] or '',
+        'movement': ex['movement'] or '',
+        'breathing': ex['breathing'] or '',
+        'caution': ex['caution'],
+        'related_exercises': ex['related_exercises'] or '',
+    })
+    return data
+
+
 class ExerciseListView(View):
+    def get(self, request):
+        full = request.GET.get('full') == '1'
+        fields = EXERCISE_FULL_FIELDS if full else EXERCISE_LIST_FIELDS
+        qs = Exercise.objects.values(*fields)
+        return JsonResponse([serialize_exercise(ex, full=full) for ex in qs], safe=False)
+
+
+class ExerciseFeaturedView(View):
+    def get(self, request):
+        try:
+            limit = min(max(int(request.GET.get('limit', 8)), 1), 24)
+        except ValueError:
+            limit = 8
+        qs = Exercise.objects.values(*EXERCISE_LIST_FIELDS).order_by('exercise_id')[:limit]
+        return JsonResponse([serialize_exercise(ex) for ex in qs], safe=False)
+
+
+class ExerciseDetailView(View):
+    def get(self, request, exercise_id):
+        try:
+            ex = Exercise.objects.values(*EXERCISE_FULL_FIELDS).get(exercise_id=exercise_id)
+        except Exercise.DoesNotExist:
+            return JsonResponse({'error': 'not found'}, status=404)
+        return JsonResponse(serialize_exercise(ex, full=True))
+
+
+class LegacyExerciseListView(View):
     def get(self, request):
         qs = Exercise.objects.values(
             'exercise_id', 'name_kor', 'name_eng', 'category',
