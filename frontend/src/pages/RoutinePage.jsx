@@ -557,6 +557,13 @@ function Step5({ value, onChange }) {
 const AUTO_DEFAULTS = {
   painParts: ['none'],
   workDays: ['월', '화', '목', '금', '토'],
+  dayParts: {
+    '월': '가슴',
+    '화': '등',
+    '목': '하체',
+    '금': '어깨',
+    '토': '팔/코어',
+  },
   splitStyle: 'bodybuilding',
   goal: 'hypertrophy',
   sessionMin: 60,
@@ -767,6 +774,10 @@ const enrichPreloadedRoutine = (preloaded, dbExercises, painParts) => {
         detail,
         targetPain,
         gif,
+        video_url: item.video_url || dbEx?.video_url || '',
+        image_url: item.image_url || dbEx?.image_url || '',
+        caution: item.caution || dbEx?.caution || '',
+        spine_loading: item.spine_loading || dbEx?.spine_loading || '',
         alternatives
       };
     });
@@ -819,7 +830,7 @@ const mapRecommendedRoutineToWorkoutRoutine = (routineDraft, workDays, dbExercis
   })
 
   workDays.forEach((day, index) => {
-    const target = normalizeDayTarget(dayParts[day])
+    const target = normalizeDayTarget(dayParts[day] || AUTO_DEFAULTS.dayParts[day] || DEFAULT_DAY_PARTS[day])
     const targetQueue = daysByTarget.get(target) || []
     const recommendedDay = targetQueue.shift() || days.find(item => String(item?.target || '').trim().toUpperCase() === target) || days[index] || {}
     mapped[day] = (recommendedDay.exercises || []).map((ex, exIndex) => {
@@ -1043,7 +1054,7 @@ export default function RoutinePage() {
     split_style: splitStyle,
     work_days: workDays,
     day_parts: workDays.reduce((acc, day) => {
-      acc[day] = dayParts[day]
+      acc[day] = dayParts[day] || AUTO_DEFAULTS.dayParts[day] || DEFAULT_DAY_PARTS[day]
       return acc
     }, {}),
     goal,
@@ -1062,7 +1073,7 @@ export default function RoutinePage() {
       pain_parts: painParts,
       work_days: workDays,
       day_parts: workDays.reduce((acc, day) => {
-        acc[day] = dayParts[day]
+        acc[day] = dayParts[day] || AUTO_DEFAULTS.dayParts[day] || DEFAULT_DAY_PARTS[day]
         return acc
       }, {}),
       workout_routine: routine,
@@ -1079,6 +1090,14 @@ export default function RoutinePage() {
     return res.json()
   }
 
+  const persistRecommendationRoutine = (routine) => {
+    if (!routine || Object.keys(routine).length === 0) return
+    saveRoutineToDb(routine, {})
+      .catch(err => {
+        setRecommendationError(err.message || '추천 루틴 자동 저장에 실패했습니다.')
+      })
+  }
+
   const applyRecommendationResult = (data) => {
     if (!data.ok) {
       setRecommendationError(data.message || '추천 루틴 생성에 실패했습니다.')
@@ -1090,6 +1109,7 @@ export default function RoutinePage() {
     setPreloadedWorkoutRoutine(mappedRoutine)
     setPreloadedDailyNotes({})
     setStep(TOTAL)
+    persistRecommendationRoutine(mappedRoutine)
     return true
   }
 
@@ -1146,16 +1166,22 @@ export default function RoutinePage() {
       const routineChanges = summarizeRoutineChanges(previousRoutine, nextRoutine, workDays, dayParts)
       applyRecommendationResult(data)
       if (decision !== 'approve') {
+        setIsApproved(false)
+        setShowApprovedNotice(false)
+        setReviewPayload(prev => ({
+          ...(prev || {}),
+          ...data,
+          status: 'needs_review',
+        }))
         setReviewNotice({
           title: '수정 요청 반영 완료',
           message: '입력한 피드백을 바탕으로 추천 루틴을 다시 구성했습니다.',
           changes: routineChanges,
         })
       }
-      if (data.status === 'completed') {
+      if (decision === 'approve' && data.status === 'completed') {
         setIsApproved(true)
         setShowApprovedNotice(true)
-        await saveRoutineToDb(nextRoutine, {})
       }
       setReviewFeedback('')
     } catch (err) {
@@ -1182,8 +1208,8 @@ export default function RoutinePage() {
     : isReviewing
       ? reviewAction === 'approve'
         ? {
-            title: '최종 승인 저장 중...',
-            message: '승인된 추천 루틴을 이번 주 루틴으로 저장하고 있습니다.',
+            title: '루틴 확정 처리 중...',
+            message: '현재 추천 루틴을 이번 주 루틴으로 반영하고 있습니다.',
           }
         : {
             title: '피드백 반영 중...',
@@ -1281,17 +1307,6 @@ export default function RoutinePage() {
         justifyContent: 'center',
         boxSizing: 'border-box',
       }}>
-        {!isApproved && reviewPayload?.status === 'needs_review' && (
-          <HumanReviewPanel
-            validation={reviewPayload.validation_result}
-            feedback={reviewFeedback}
-            onFeedbackChange={setReviewFeedback}
-            onApprove={() => handleReview('approve')}
-            onRevise={() => handleReview('revise')}
-            isSubmitting={isReviewing}
-            error={recommendationError}
-          />
-        )}
         <RoutineCheckView
           workDays={workDays}
           goal={goal}
@@ -1307,6 +1322,16 @@ export default function RoutinePage() {
           onLoginClick={() => navigate('/login')}
           disableAutoSave={!isApproved}
         />
+        {!isApproved && reviewPayload?.status === 'needs_review' && (
+          <HumanReviewPanel
+            validation={reviewPayload.validation_result}
+            feedback={reviewFeedback}
+            onFeedbackChange={setReviewFeedback}
+            onRevise={() => handleReview('revise')}
+            isSubmitting={isReviewing}
+            error={recommendationError}
+          />
+        )}
         {isApproved && showApprovedNotice && (
           <div style={{
             position: 'fixed',
@@ -1345,7 +1370,7 @@ export default function RoutinePage() {
               <X size={14} />
             </button>
             <div style={{ paddingRight: 24, fontWeight: 800, color: '#FFF' }}>
-              최종 승인된 추천 루틴이 저장되었습니다.
+              추천 루틴이 자동 저장되었습니다.
             </div>
             <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.45)' }}>
               운동 목록과 상세 가이드는 현재 화면에서 확인할 수 있습니다.
@@ -1695,6 +1720,7 @@ export default function RoutinePage() {
                 setGender(gender || 'male')
                 setLevel('intermediate')
                 setWorkDays(AUTO_DEFAULTS.workDays)
+                setDayParts(prev => ({ ...prev, ...AUTO_DEFAULTS.dayParts }))
                 setSplitStyle(AUTO_DEFAULTS.splitStyle)
                 setGoal(AUTO_DEFAULTS.goal)
                 setSessionMin(AUTO_DEFAULTS.sessionMin)
@@ -2120,7 +2146,6 @@ function HumanReviewPanel({
   validation,
   feedback,
   onFeedbackChange,
-  onApprove,
   onRevise,
   isSubmitting,
   error,
@@ -2129,7 +2154,8 @@ function HumanReviewPanel({
     <div style={{
       width: '100%',
       maxWidth: 1200,
-      marginTop: 24,
+      marginTop: 28,
+      marginBottom: 24,
       padding: '24px 28px',
       borderRadius: 4,
       background: '#111',
@@ -2139,9 +2165,9 @@ function HumanReviewPanel({
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 10, letterSpacing: 2, color: '#FFD700', fontWeight: 800, marginBottom: 6 }}>
-            HUMAN REVIEW REQUIRED
+            HUMAN REVIEW
           </div>
-          <div style={{ fontSize: 18, color: '#FFF', fontWeight: 900 }}>추천 루틴 최종 검토</div>
+          <div style={{ fontSize: 18, color: '#FFF', fontWeight: 900 }}>추천 루틴 검토 및 수정</div>
         </div>
         {validation && (
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.48)', lineHeight: 1.6, textAlign: 'right' }}>
@@ -2153,7 +2179,7 @@ function HumanReviewPanel({
       <textarea
         value={feedback}
         onChange={e => onFeedbackChange(e.target.value)}
-        placeholder="수정 요청이 있으면 입력하세요. 예: 허리에 부담이 적게 해주세요."
+        placeholder="수정이 필요하면 요청 내용을 입력하세요. 예: 허리에 부담이 적게 해주세요."
         style={{
           width: '100%',
           minHeight: 86,
@@ -2171,7 +2197,7 @@ function HumanReviewPanel({
         }}
       />
       {error && <div style={{ color: '#FF8A8A', fontSize: 12, marginBottom: 12 }}>{error}</div>}
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button
           type="button"
           disabled={isSubmitting || !feedback.trim()}
@@ -2187,24 +2213,7 @@ function HumanReviewPanel({
             cursor: feedback.trim() && !isSubmitting ? 'pointer' : 'default',
           }}
         >
-          {isSubmitting ? '처리 중...' : '수정 요청 보내기'}
-        </button>
-        <button
-          type="button"
-          disabled={isSubmitting}
-          onClick={onApprove}
-          style={{
-            padding: '12px 22px',
-            borderRadius: 4,
-            background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-            border: 'none',
-            color: '#000',
-            fontSize: 13,
-            fontWeight: 900,
-            cursor: isSubmitting ? 'default' : 'pointer',
-          }}
-        >
-          {isSubmitting ? '저장 중...' : '승인하고 저장하기'}
+          {isSubmitting ? '처리 중...' : '수정하기'}
         </button>
       </div>
     </div>
@@ -2218,10 +2227,10 @@ function RoutineCheckView({
 }) {
   const [activeDay, setActiveDay] = useState(workDays[0] || '월')
   const getSlotKey = (day, ex, index) => ex.slot_key || `${day}-${index}-${ex.id || ex.name}`
-  const [completedExercises, setCompletedExercises] = useState(() => {
+  const buildCompletedMap = (routine) => {
     const initial = {}
-    if (initialWorkoutRoutine) {
-      Object.entries(initialWorkoutRoutine).forEach(([day, exs]) => {
+    if (routine) {
+      Object.entries(routine).forEach(([day, exs]) => {
         exs.forEach((ex, index) => {
           if (ex.is_completed) {
             initial[getSlotKey(day, ex, index)] = true
@@ -2230,6 +2239,9 @@ function RoutineCheckView({
       })
     }
     return initial
+  }
+  const [completedExercises, setCompletedExercises] = useState(() => {
+    return buildCompletedMap(initialWorkoutRoutine)
   })
   const [dailyNotes, setDailyNotes] = useState(initialDailyNotes || {})
   const [isSavedModalOpen, setIsSavedModalOpen] = useState(false)
@@ -2313,6 +2325,22 @@ function RoutineCheckView({
   })
   const [isExerciseVideoPlaying, setIsExerciseVideoPlaying] = useState(true)
   const exerciseVideoRef = useRef(null)
+
+  useEffect(() => {
+    if (!initialWorkoutRoutine || Object.keys(initialWorkoutRoutine).length === 0) return
+
+    const nextRoutine = enrichPreloadedRoutine(initialWorkoutRoutine, dbExercises, painParts)
+    const nextActiveDay = workDays.includes(activeDay) ? activeDay : (workDays[0] || '월')
+    const nextDayExercises = nextRoutine[nextActiveDay] || []
+
+    setWorkoutRoutine(nextRoutine)
+    setCompletedExercises(buildCompletedMap(nextRoutine))
+    setDailyNotes(initialDailyNotes || {})
+    setActiveDay(nextActiveDay)
+    setSelectedSlotKey(nextDayExercises[0] ? getSlotKey(nextActiveDay, nextDayExercises[0], 0) : null)
+    setIsDirty(false)
+    setSaveError('')
+  }, [initialWorkoutRoutine, initialDailyNotes, dbExercises, painParts, workDays])
 
   // Safe reference to the active exercise object
   const activeEx = currentDayExercises.find((ex, index) => getSlotKey(currentDay, ex, index) === selectedSlotKey) || currentDayExercises[0]

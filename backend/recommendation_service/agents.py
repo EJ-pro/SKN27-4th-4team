@@ -107,14 +107,15 @@ def _supervisor_revision_decision(
         "당신은 5분할 루틴 추천의 예외·수정 전략을 결정하는 Supervisor Agent입니다. "
         "정상 작업 순서는 코드가 처리하므로 지금은 실제 판단이 필요한 수정 분기만 결정하세요. "
         "strategy는 research 또는 local_revision 중 하나입니다. "
-        "사용자 피드백이 통증, 부상, 강도, 특정 부위 집중, 장비, 제외 운동, 목표, 레벨, 시간처럼 "
+        "사용자 피드백이 통증, 부상, 강도, 특정 부위 집중, 부위 안 세부 자극 다양성, 장비, 제외 운동, 목표, 레벨, 시간처럼 "
         "검색 또는 추천 조건을 바꾸면 research를 선택하고 updated_params에 변경값을 넣으세요. "
+        "세부 자극 다양성 요청은 GraphDB 후보의 target_primary, movement_family, tag를 다시 활용해야 하므로 research를 선택하세요. "
         "운동 순서 변경이나 현재 후보 안의 단순 교체처럼 검색 조건이 그대로면 local_revision을 선택하세요. "
         "검증 문제가 여러 개이고 현재 후보만으로 해결하기 어렵다면 research를 선택하세요. "
         "이 서비스는 체육관 전용이므로 장소와 home_only는 변경하지 마세요. "
         "updated_params에는 split_targets, goal, level, available_equipment, exclude_exercises, "
         "avoid_conditions, session_min, spine, intensity_bias, candidate_limit_per_target, "
-        "focus_targets, volume_bias 중 필요한 키만 넣으세요. "
+        "focus_targets, volume_bias, detail_focus_terms 중 필요한 키만 넣으세요. "
         "응답은 JSON만 반환하세요: "
         "{\"strategy\":\"research|local_revision\",\"reason\":\"...\",\"updated_params\":{}}"
     )
@@ -226,10 +227,7 @@ def _supervisor_recovery_decision(
 def _needs_supervisor_revision_decision(state: RecommendationState) -> bool:
     review = state.get("human_review_result") or {}
     if review.get("decision") == "revise":
-        feedback = str(review.get("feedback") or "")
-        if _local_exercise_removal_names(feedback, state.get("routine_draft"), allow_llm=False):
-            return False
-        return True
+        return False
     validation = state.get("validation_result") or {}
     return len(validation.get("issues") or []) >= 2
 
@@ -248,6 +246,7 @@ def _sanitize_supervisor_updates(updates: dict[str, Any]) -> dict[str, Any]:
         "candidate_limit_per_target",
         "focus_targets",
         "volume_bias",
+        "detail_focus_terms",
     }
     return {
         key: value
@@ -513,13 +512,19 @@ def routine_composition_agent(state: RecommendationState) -> dict[str, Any]:
     system = (
         "당신은 Routine Composition Agent입니다. 제공된 Neo4j 운동 후보 안에서만 5분할 루틴을 구성하세요. "
         "후보에 없는 운동을 만들면 안 됩니다. session_min에 맞춰 각 분할의 운동 개수를 조절하고 sets/reps/rest_seconds/reason을 포함하세요. "
+        "revision_request가 있으면 그 수정 의도를 우선 반영하세요. "
         "같은 분할 안에서는 movement_family와 target_primary가 가능한 한 겹치지 않게 구성하고, "
         "프레스·컬·레이즈처럼 동일한 움직임 계열만 반복하지 마세요. "
+        "focus_targets가 있고 volume_bias가 higher/lower가 아니면 해당 분할은 볼륨 증가가 아니라 "
+        "GraphDB 후보의 target_primary, tag, movement_family를 활용한 세부 자극 다양성을 우선하세요. "
+        "detail_focus_terms가 있으면 해당 자연어 요구와 후보의 name_kor, name_eng, tag, target_primary가 가장 잘 맞는 운동을 우선하세요. "
         "응답은 JSON만 반환하세요: {\"split_type\":\"5-day\",\"days\":[...]}"
     )
     parsed = invoke_json(system, compact_json({
         "profile": state.get("user_profile", {}),
         "params": state.get("recommendation_params", {}),
+        "revision_request": state.get("revision_request"),
+        "revision_constraints": state.get("revision_constraints"),
         "exercise_count_per_split": _exercise_count_for_session(state.get("user_profile", {})),
         "exercise_candidates": _slim_candidates(state.get("exercise_candidates", {})),
     }))
@@ -528,17 +533,36 @@ def routine_composition_agent(state: RecommendationState) -> dict[str, Any]:
         state.get("exercise_candidates", {}),
         state.get("recommendation_params", {}),
     )
-    guarded_routine, newly_excluded = _apply_revision_removal_guard(
-        repaired,
-        state.get("exercise_candidates", {}),
-        state.get("recommendation_params", {}),
-        state.get("previous_routine_draft"),
-    )
+    if _should_apply_revision_removal_guard(state):
+        guarded_routine, newly_excluded = _apply_revision_removal_guard(
+            repaired,
+            state.get("exercise_candidates", {}),
+            state.get("recommendation_params", {}),
+            state.get("previous_routine_draft"),
+        )
+    else:
+        guarded_routine, newly_excluded = repaired, []
+    scoped_revision_targets = _target_scoped_revision_targets(state)
+    next_candidates = state.get("exercise_candidates", {})
+    if scoped_revision_targets:
+        guarded_routine = _preserve_unfocused_previous_days(
+            guarded_routine,
+            state.get("previous_routine_draft"),
+            scoped_revision_targets,
+        )
+        next_candidates = _augment_candidates_with_preserved_previous_days(
+            next_candidates,
+            state.get("previous_routine_draft"),
+            scoped_revision_targets,
+        )
     if not newly_excluded:
-        return {
+        result = {
             "routine_draft": guarded_routine,
             "previous_routine_draft": None,
         }
+        if scoped_revision_targets:
+            result["exercise_candidates"] = next_candidates
+        return result
 
     next_exclusions = _merge_unique_list(
         state.get("revision_excluded_exercises", []),
@@ -548,6 +572,7 @@ def routine_composition_agent(state: RecommendationState) -> dict[str, Any]:
         "routine_draft": guarded_routine,
         "previous_routine_draft": None,
         "revision_excluded_exercises": next_exclusions,
+        "exercise_candidates": next_candidates,
         "recommendation_params": _apply_revision_exclusions_to_params(
             state.get("recommendation_params", {}),
             next_exclusions,
@@ -682,12 +707,15 @@ def routine_revision_agent(state: RecommendationState) -> dict[str, Any]:
         state.get("exercise_candidates", {}),
         next_params,
     )
-    guarded_routine, newly_excluded = _apply_revision_removal_guard(
-        revised_routine,
-        state.get("exercise_candidates", {}),
-        next_params,
-        state.get("previous_routine_draft") or state.get("routine_draft"),
-    )
+    if _should_apply_revision_removal_guard(state):
+        guarded_routine, newly_excluded = _apply_revision_removal_guard(
+            revised_routine,
+            state.get("exercise_candidates", {}),
+            next_params,
+            state.get("previous_routine_draft") or state.get("routine_draft"),
+        )
+    else:
+        guarded_routine, newly_excluded = revised_routine, []
     if newly_excluded:
         next_params = _apply_revision_exclusions_to_params(next_params, newly_excluded)
 
@@ -725,9 +753,14 @@ def _extract_human_revision_constraints(
         "사용자가 더 고강도를 요청하면 intensity_bias를 higher로, 더 낮은 강도를 요청하면 lower로 설정하세요. "
         "사용자가 특정 부위에 더 집중하거나 볼륨을 늘리고 싶다고 하면 split_targets를 바꾸지 말고 "
         "focus_targets와 volume_bias를 사용하세요. 예: 가슴 집중 -> {\"focus_targets\":[\"CHEST\"],\"volume_bias\":\"higher\"}. "
+        "사용자가 특정 부위 안에서 자극을 나누거나 다양하게 해달라고 하면 split_targets를 바꾸지 말고 "
+        "해당 부위를 focus_targets에 넣으세요. 이 경우 볼륨 증가 요청이 아니면 volume_bias를 넣지 마세요. "
+        "사용자가 예시로 든 세부 자극 표현은 detail_focus_terms에 보존하세요. "
+        "세부 자극 예시가 있으면 detail_focus_terms는 필수이며, 사용자가 쓴 표현을 원문 그대로 배열에 복사하세요. "
+        "예: 특정 부위 안에서 사용자가 'A, B'라고 예시를 쓰면 {\"detail_focus_terms\":{\"CHEST\":[\"A\",\"B\"]}}. "
         "updated_params에는 split_targets, goal, level, available_equipment, exclude_exercises, "
         "avoid_conditions, session_min, spine, intensity_bias, candidate_limit_per_target, "
-        "focus_targets, volume_bias 중 필요한 키만 넣으세요. "
+        "focus_targets, volume_bias, detail_focus_terms 중 필요한 키만 넣으세요. "
         "updated_params가 하나라도 있으면 requires_research=true입니다. 기존 후보 안에서 순서나 세트만 바꾸면 false입니다. "
         "응답은 JSON만 반환하세요: "
         "{\"requires_research\":true,\"revision_reason\":\"...\",\"updated_params\":{}}"
@@ -856,9 +889,10 @@ def _slim_candidates(candidates: dict[str, list[dict[str, Any]]]) -> dict[str, l
                 "spine_loading": row.get("spine_loading"),
                 "target_primary": row.get("target_primary"),
                 "movement_family": movement_family(row),
+                "tag": row.get("tag"),
                 "expert_policy_required": bool(row.get("expert_policy_required")),
             }
-            for row in rows[:8]
+            for row in rows
         ]
     return slim
 
@@ -1038,6 +1072,16 @@ def _ensure_split_routine(
                 else:
                     existing.append(bodyweight_exercise)
 
+        detail_terms = _detail_focus_terms_for_target(params.get("detail_focus_terms"), target)
+        if detail_terms:
+            existing = _apply_detail_focus_terms(
+                existing,
+                candidates.get(target, []),
+                detail_terms,
+                prescription,
+                target_count,
+            )
+
         normalized_days.append({
             "day": source_day.get("day") or f"Day {index + 1}",
             "target": target,
@@ -1049,6 +1093,208 @@ def _ensure_split_routine(
         "split_type": "5-day",
         "days": normalized_days,
     }
+
+
+def _target_scoped_revision_targets(state: RecommendationState) -> set[str]:
+    if not state.get("previous_routine_draft"):
+        return set()
+    constraints = state.get("revision_constraints") or {}
+    if not isinstance(constraints, dict):
+        return set()
+
+    global_keys = {
+        "spine",
+        "intensity_bias",
+        "available_equipment",
+        "avoid_conditions",
+        "session_min",
+        "goal",
+        "level",
+        "split_targets",
+        "candidate_limit_per_target",
+        "exclude_exercises",
+    }
+    if any(key in constraints for key in global_keys):
+        return set()
+
+    targets = set(_normalize_focus_targets(constraints.get("focus_targets")))
+    detail_terms = _normalize_detail_focus_terms(constraints.get("detail_focus_terms"))
+    targets.update(target for target in detail_terms if target in SPLIT_TARGETS)
+    if not targets and "ALL" in detail_terms:
+        targets.update(_normalize_focus_targets(constraints.get("focus_targets")))
+    return targets
+
+
+def _preserve_unfocused_previous_days(
+    routine: dict[str, Any],
+    previous_routine: dict[str, Any] | None,
+    scoped_targets: set[str],
+) -> dict[str, Any]:
+    if not scoped_targets or not isinstance(routine, dict) or not isinstance(previous_routine, dict):
+        return routine
+
+    previous_days = previous_routine.get("days") if isinstance(previous_routine, dict) else []
+    previous_by_target = {
+        str(day.get("target") or "").strip().upper(): day
+        for day in previous_days or []
+        if isinstance(day, dict) and day.get("target")
+    }
+    next_days = []
+    for day in routine.get("days") or []:
+        if not isinstance(day, dict):
+            continue
+        target = str(day.get("target") or "").strip().upper()
+        if target and target not in scoped_targets and target in previous_by_target:
+            next_days.append(previous_by_target[target])
+        else:
+            next_days.append(day)
+
+    return {
+        **routine,
+        "days": next_days,
+    }
+
+
+def _augment_candidates_with_preserved_previous_days(
+    candidates: dict[str, list[dict[str, Any]]],
+    previous_routine: dict[str, Any] | None,
+    scoped_targets: set[str],
+) -> dict[str, list[dict[str, Any]]]:
+    if not scoped_targets or not isinstance(previous_routine, dict):
+        return candidates
+
+    augmented = {
+        target: list(rows or [])
+        for target, rows in (candidates or {}).items()
+    }
+    for day in previous_routine.get("days") or []:
+        if not isinstance(day, dict):
+            continue
+        target = str(day.get("target") or "").strip().upper()
+        if not target or target in scoped_targets:
+            continue
+        rows = augmented.setdefault(target, [])
+        existing_names = {
+            str(row.get("name_kor") or row.get("name_eng") or row.get("id"))
+            for row in rows
+        }
+        existing_ids = {row.get("id") for row in rows if row.get("id") is not None}
+        for exercise in day.get("exercises") or []:
+            if not isinstance(exercise, dict):
+                continue
+            name = _exercise_name(exercise)
+            exercise_id = exercise.get("exercise_id") or exercise.get("id")
+            if not name:
+                continue
+            if name in existing_names or (exercise_id is not None and exercise_id in existing_ids):
+                continue
+            rows.append({
+                "id": exercise_id,
+                "name_kor": name,
+                "name_eng": name,
+                "equipment": exercise.get("equipment"),
+                "spine_loading": exercise.get("spine_loading"),
+                "movement_family": exercise.get("movement_family") or movement_family(exercise),
+                "target_primary": exercise.get("target_primary"),
+                "source": "preserved_previous_routine",
+            })
+            existing_names.add(name)
+            if exercise_id is not None:
+                existing_ids.add(exercise_id)
+    return augmented
+
+
+def _detail_focus_terms_for_target(value: Any, target: str) -> list[str]:
+    normalized = _normalize_detail_focus_terms(value)
+    return [
+        *normalized.get(str(target or "").upper(), []),
+        *normalized.get("ALL", []),
+    ]
+
+
+def _apply_detail_focus_terms(
+    exercises: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+    terms: list[str],
+    prescription: dict[str, Any],
+    target_count: int,
+) -> list[dict[str, Any]]:
+    selected = list(exercises[:target_count])
+    if not selected or not candidates:
+        return selected
+
+    for term in terms:
+        if any(_exercise_matches_detail_term(exercise, term) for exercise in selected):
+            continue
+        candidate = _candidate_matching_detail_term(candidates, selected, term)
+        if not candidate:
+            continue
+        replace_index = _replaceable_detail_index(selected, terms)
+        if replace_index is None:
+            break
+        replacement = _exercise_from_candidate_row(
+            candidate,
+            {
+                "sets": prescription["sets"],
+                "reps": prescription["reps"],
+                "rest_seconds": prescription["rest_seconds"],
+                "intensity_note": prescription["note"],
+            },
+        )
+        replacement["reason"] = "사람 피드백의 세부 자극 요청과 GraphDB 후보 메타데이터가 일치합니다."
+        selected[replace_index] = replacement
+    return selected[:target_count]
+
+
+def _candidate_matching_detail_term(
+    candidates: list[dict[str, Any]],
+    selected: list[dict[str, Any]],
+    term: str,
+) -> dict[str, Any] | None:
+    compact_term = _compact_text(term)
+    if not compact_term:
+        return None
+    selected_ids = {
+        exercise.get("exercise_id") or exercise.get("id")
+        for exercise in selected
+        if exercise.get("exercise_id") is not None or exercise.get("id") is not None
+    }
+    selected_names = {_compact_text(_exercise_name(exercise)) for exercise in selected}
+    for row in candidates:
+        name = str(row.get("name_kor") or row.get("name_eng") or row.get("id"))
+        if row.get("id") in selected_ids or _compact_text(name) in selected_names:
+            continue
+        searchable = _compact_text(" ".join(
+            str(row.get(key) or "")
+            for key in ("name_kor", "name_eng", "tag", "target_primary")
+        ))
+        if compact_term and (compact_term in searchable or searchable in compact_term):
+            return row
+    return None
+
+
+def _replaceable_detail_index(exercises: list[dict[str, Any]], protected_terms: list[str]) -> int | None:
+    for index in range(len(exercises) - 1, -1, -1):
+        if exercises[index].get("expert_policy_required"):
+            continue
+        if any(_exercise_matches_detail_term(exercises[index], term) for term in protected_terms):
+            continue
+        return index
+    for index in range(len(exercises) - 1, -1, -1):
+        if not exercises[index].get("expert_policy_required"):
+            return index
+    return None
+
+
+def _exercise_matches_detail_term(exercise: dict[str, Any], term: str) -> bool:
+    compact_term = _compact_text(term)
+    if not compact_term:
+        return False
+    searchable = _compact_text(" ".join(
+        str(exercise.get(key) or "")
+        for key in ("name", "name_kor", "name_eng", "tag", "target_primary")
+    ))
+    return compact_term in searchable or searchable in compact_term
 
 
 def _validation_profile(profile: dict[str, Any]) -> dict[str, Any]:
@@ -1067,6 +1313,7 @@ def _validation_params(params: dict[str, Any]) -> dict[str, Any]:
         "intensity_bias",
         "focus_targets",
         "volume_bias",
+        "detail_focus_terms",
     )
     return {key: params.get(key) for key in keys if params.get(key) not in (None, [], "")}
 
@@ -1106,6 +1353,7 @@ def _slim_selected_candidates(
                 "spine_loading": row.get("spine_loading"),
                 "target_primary": row.get("target_primary"),
                 "movement_family": movement_family(row),
+                "tag": row.get("tag"),
             }
             for row in rows
             if row.get("id") in ids
@@ -1330,6 +1578,33 @@ def _normalize_focus_targets(value: Any) -> list[str]:
     return normalize_split_targets(value)
 
 
+def _normalize_detail_focus_terms(value: Any) -> dict[str, list[str]]:
+    if not value:
+        return {}
+    if isinstance(value, str):
+        return {"ALL": [value.strip()]} if value.strip() else {}
+    if isinstance(value, (list, tuple, set)):
+        terms = [str(item).strip() for item in value if str(item).strip()]
+        return {"ALL": terms} if terms else {}
+    if not isinstance(value, dict):
+        return {}
+
+    normalized: dict[str, list[str]] = {}
+    for raw_target, raw_terms in value.items():
+        targets = normalize_split_targets([raw_target])
+        target = targets[0] if targets else str(raw_target or "").strip().upper()
+        if isinstance(raw_terms, str):
+            terms = [raw_terms]
+        elif isinstance(raw_terms, (list, tuple, set)):
+            terms = list(raw_terms)
+        else:
+            terms = [raw_terms] if raw_terms else []
+        cleaned = [str(term).strip() for term in terms if str(term).strip()]
+        if cleaned:
+            normalized[target] = cleaned
+    return normalized
+
+
 def _insufficient_candidates_message(
     params: dict[str, Any],
     candidates: dict[str, list[dict[str, Any]]],
@@ -1362,6 +1637,11 @@ def _condition_summary(state: RecommendationState) -> list[str]:
     focus_targets = _normalize_focus_targets(constraints.get("focus_targets"))
     if focus_targets and _normalize_volume_bias(constraints.get("volume_bias")) == "higher":
         summary.append(f"사람 피드백을 반영해 {', '.join(focus_targets)} 부위의 볼륨을 높였습니다.")
+    elif focus_targets:
+        summary.append(f"사람 피드백을 반영해 {', '.join(focus_targets)} 부위의 세부 자극 구성을 다양화했습니다.")
+    detail_focus_terms = _normalize_detail_focus_terms(constraints.get("detail_focus_terms"))
+    if detail_focus_terms:
+        summary.append("사람 피드백의 세부 자극 요청을 GraphDB 후보 태그와 타깃 정보에 반영했습니다.")
     avoid_conditions = constraints.get("avoid_conditions") or []
     if avoid_conditions:
         summary.append(f"주의 조건으로 {', '.join(str(item) for item in avoid_conditions)}을 반영했습니다.")
@@ -1510,6 +1790,28 @@ def _apply_revision_removal_guard(
         **routine,
         "days": guarded_days,
     }, removed_names
+
+
+def _should_apply_revision_removal_guard(state: RecommendationState) -> bool:
+    request = state.get("revision_request") or {}
+    if request.get("removed_exercises") or request.get("revision_type") == "local_exercise_removal":
+        return True
+    if state.get("revision_excluded_exercises"):
+        return True
+    params = state.get("recommendation_params") or {}
+    if params.get("exclude_exercises"):
+        return True
+    if state.get("previous_routine_draft") and normalize_spine(params.get("spine")) in {"low", "mid"}:
+        return True
+    validation = state.get("validation_result") or {}
+    guarded_issue_types = {
+        "excluded_exercise_reused",
+        "non_low_spine_loading",
+    }
+    return any(
+        isinstance(issue, dict) and issue.get("type") in guarded_issue_types
+        for issue in validation.get("issues") or []
+    )
 
 
 def _explicit_removed_exercise_names(
@@ -1770,6 +2072,7 @@ def _exercise_from_candidate_row(
         "equipment": row.get("equipment"),
         "movement_family": movement_family(row),
         "target_primary": row.get("target_primary"),
+        "tag": row.get("tag"),
         "reason": "이전 revision에서 제외된 운동을 재추천하지 않도록 대체했습니다.",
     }
 
@@ -1818,6 +2121,8 @@ def _merge_recommendation_params(
             merged[key] = _normalize_focus_targets(value)
         elif key == "volume_bias":
             merged[key] = _normalize_volume_bias(value)
+        elif key == "detail_focus_terms":
+            merged[key] = _normalize_detail_focus_terms(value)
         else:
             merged[key] = value
 

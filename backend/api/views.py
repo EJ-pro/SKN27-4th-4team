@@ -383,6 +383,10 @@ class RoutineView(View):
                     'eq': r.exercise.equipment if r.exercise else 'body',
                     'detail': r.exercise.guide if r.exercise else '',
                     'category': r.exercise.category if r.exercise else '',
+                    'video_url': r.exercise.video_url if r.exercise else '',
+                    'image_url': r.exercise.image_url if r.exercise else '',
+                    'caution': r.exercise.caution if r.exercise else '',
+                    'spine_loading': r.exercise.spine_loading if r.exercise else '',
                     'is_completed': r.is_completed
                 }
                 workout_routine[day].append(ex_data)
@@ -569,10 +573,8 @@ class RoutineRecommendView(View):
         if not should_run_llm(request):
             return JsonResponse({"ok": False, "status": "failed", "message": AUTH_REQUIRED_MESSAGE}, status=400)
 
-        # 추천 세션 생성 
-        user_id = str(actor.user_id) if actor.mode == "user" else actor.device_uuid
-        result = start_recommendation(data, user_id=user_id)
-
+        # 추천 세션 생성
+        result = start_recommendation(data, user_id=_recommendation_user_id(actor))
         return JsonResponse(result, status=200 if result.get('ok') else 400)
 
 
@@ -580,7 +582,7 @@ class RoutineRecommendView(View):
 def _recommendation_user_id(actor):
     if actor.mode == "user":
         return str(actor.user_id)
-    return actor.device_uuid
+    return str(actor.device_uuid)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
