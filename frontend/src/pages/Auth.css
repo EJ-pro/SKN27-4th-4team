@@ -177,6 +177,18 @@
   font-size: 14px;
 }
 
+/* Chrome/Safari 자동완성 시 기본 흰/파란 배경 덮어쓰기 방지 */
+.auth-input-wrap input:-webkit-autofill,
+.auth-input-wrap input:-webkit-autofill:hover,
+.auth-input-wrap input:-webkit-autofill:focus,
+.auth-input-wrap input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #1A1A1A inset;
+  box-shadow: 0 0 0 1000px #1A1A1A inset;
+  -webkit-text-fill-color: #E2E2E2;
+  caret-color: #E2E2E2;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 .auth-submit {
   width: 100%;
   min-height: 48px;
