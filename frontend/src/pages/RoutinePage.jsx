@@ -1130,6 +1130,7 @@ export default function RoutinePage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          device_uuid: deviceUuid,
           thread_id: recommendationThreadId,
           decision,
           feedback: decision === 'approve' ? '' : reviewFeedback,
