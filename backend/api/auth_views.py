@@ -29,7 +29,7 @@ def _parse_json(request) -> dict:
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class CsrfCookieView(View):
-    """SPA가 CSRF 토큰 쿠키를 받기 위한 엔드포인트 """
+    """SPA가 CSRF 토큰 쿠키를 받기 위한 엔드포인트."""
 
     def get(self, request):
         # SPA(다른 포트)는 document.cookie로 csrftoken을 읽을 수 없어 body로도 내려준다.

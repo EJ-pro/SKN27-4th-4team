@@ -33,7 +33,7 @@ export default function RegisterPage() {
       setNicknameCheck(CHECK.idle)
     }
   }
-  
+
   const handleCheckEmail = async () => {
     setError('')
     setEmailCheck(CHECK.checking)
@@ -56,10 +56,6 @@ export default function RegisterPage() {
   const handleRegister = async (e) => {
     e.preventDefault()
     setError('')
-    if (!passwordsMatch) {
-      setError('비밀번호가 일치하지 않습니다.')
-      return
-    }
     if (nicknameCheck !== CHECK.available || emailCheck !== CHECK.available) {
       setError('닉네임과 이메일 중복체크를 완료해주세요.')
       return

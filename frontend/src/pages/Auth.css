@@ -257,10 +257,6 @@
   color: #FF6B6B;
 }
 
-.auth-field-msg--success {
-  color: #4ADE80;
-}
-
 /* 중복체크 버튼 + 호버 말풍선 */
 .auth-check-wrap {
   position: relative;
