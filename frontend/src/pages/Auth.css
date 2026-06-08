@@ -177,6 +177,18 @@
   font-size: 14px;
 }
 
+/* Chrome/Safari 자동완성 시 기본 흰/파란 배경 덮어쓰기 방지 */
+.auth-input-wrap input:-webkit-autofill,
+.auth-input-wrap input:-webkit-autofill:hover,
+.auth-input-wrap input:-webkit-autofill:focus,
+.auth-input-wrap input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #1A1A1A inset;
+  box-shadow: 0 0 0 1000px #1A1A1A inset;
+  -webkit-text-fill-color: #E2E2E2;
+  caret-color: #E2E2E2;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 .auth-submit {
   width: 100%;
   min-height: 48px;
@@ -243,6 +255,42 @@
   color: #FF9D9D;
   font-size: 13px;
   line-height: 1.5;
+}
+
+/* 필드 하단 인라인 메시지 */
+.auth-field-msg {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.auth-field-msg--error {
+  color: #FF6B6B;
+}
+
+.auth-field-msg--success {
+  color: #4ADE80;
+}
+
+/* 중복체크 버튼 */
+.auth-check-wrap {
+  margin-left: auto;
+  align-self: stretch;
+  display: flex;
+}
+
+.auth-input-wrap--success {
+  border-color: rgba(74, 222, 128, 0.45);
+}
+
+.auth-input-wrap--error {
+  border-color: rgba(255, 107, 107, 0.45);
+}
+
+.auth-check-button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 @media (max-width: 760px) {

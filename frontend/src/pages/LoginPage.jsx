@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Dumbbell, Lock, LogIn, User } from 'lucide-react'
+import { ArrowLeft, Dumbbell, Lock, LogIn, Mail } from 'lucide-react'
 import { login } from '../api/auth'
 import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
 import './Auth.css'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const [userId, setUserId] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login({
-        nickname: userId,
+        email,
         password,
         device_uuid: getOrCreateDeviceUuid(),
       })
@@ -50,17 +50,17 @@ export default function LoginPage() {
         <form className="auth-panel" onSubmit={handleLogin}>
           {error && <p className="auth-error">{error}</p>}
 
-          <label className="auth-field" htmlFor="user_id">
-            <span>아이디</span>
+          <label className="auth-field" htmlFor="email">
+            <span>이메일</span>
             <div className="auth-input-wrap">
-              <User size={16} />
+              <Mail size={16} />
               <input
-                id="user_id"
-                type="text"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="아이디 입력"
-                autoComplete="username"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="이메일 입력"
+                autoComplete="email"
                 required
               />
             </div>

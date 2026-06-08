@@ -16,17 +16,15 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from api.auth_views import CsrfCookieView, RegisterView, LoginView, LogoutView, MeView
+
+from api.auth_views import (
+    CsrfCookieView, RegisterView, LoginView,
+    LogoutView, MeView, CheckNicknameView, CheckEmailView,
+)
 from api.views import (
-    ExerciseDetailView,
-    ExerciseFeaturedView,
-    ExerciseListView,
-    MessageListView,
-    RoutineRecommendReviewView,
-    RoutineRecommendView,
-    RoutineView,
-    SessionDetailView,
-    SessionListView,
+    ExerciseDetailView, ExerciseFeaturedView, ExerciseListView,
+    MessageListView, RoutineRecommendReviewView, RoutineRecommendView,
+    RoutineView, SessionDetailView, SessionListView,
 )
 
 urlpatterns = [
@@ -48,6 +46,8 @@ urlpatterns = [
     path('api/auth/login/', LoginView.as_view()),
     path('api/auth/logout/', LogoutView.as_view()),
     path('api/auth/me/', MeView.as_view()),
+    path('api/auth/check-nickname/', CheckNicknameView.as_view()),
+    path('api/auth/check-email/', CheckEmailView.as_view()),
 
     # 루틴 API
     path('api/routines/', RoutineView.as_view()),
