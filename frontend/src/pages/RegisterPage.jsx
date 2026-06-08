@@ -19,30 +19,40 @@ export default function RegisterPage() {
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [nicknameCheck, setNicknameCheck] = useState(CHECK.idle)
   const [emailCheck, setEmailCheck] = useState(CHECK.idle)
+  const [nicknameMessage, setNicknameMessage] = useState('')
+  const [emailMessage, setEmailMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleCheckNickname = async () => {
     setError('')
     setNicknameCheck(CHECK.checking)
+    setNicknameMessage('')
     try {
       const { available } = await checkNickname(nickname)
       setNicknameCheck(available ? CHECK.available : CHECK.unavailable)
+      setNicknameMessage(
+        available ? '사용 가능한 닉네임입니다.' : '이미 사용 중인 닉네임입니다.',
+      )
     } catch (err) {
-      setError(err.message)
-      setNicknameCheck(CHECK.idle)
+      setNicknameCheck(CHECK.unavailable)
+      setNicknameMessage(err.message)
     }
   }
 
   const handleCheckEmail = async () => {
     setError('')
     setEmailCheck(CHECK.checking)
+    setEmailMessage('')
     try {
       const { available } = await checkEmail(email)
       setEmailCheck(available ? CHECK.available : CHECK.unavailable)
+      setEmailMessage(
+        available ? '사용 가능한 이메일입니다.' : '이미 사용 중인 이메일입니다.',
+      )
     } catch (err) {
-      setError(err.message)
-      setEmailCheck(CHECK.idle)
+      setEmailCheck(CHECK.unavailable)
+      setEmailMessage(err.message)
     }
   }
 
@@ -93,38 +103,30 @@ export default function RegisterPage() {
 
           <label className="auth-field" htmlFor="nickname">
             <span>닉네임</span>
-            <div className="auth-input-wrap auth-input-wrap-action">
+            <div
+              className={`auth-input-wrap auth-input-wrap-action${
+                nicknameCheck === CHECK.available
+                  ? ' auth-input-wrap--success'
+                  : nicknameCheck === CHECK.unavailable
+                    ? ' auth-input-wrap--error'
+                    : ''
+              }`}
+            >
               <User size={16} />
               <input
                 id="nickname"
                 type="text"
                 value={nickname}
-                onChange={(e) => { setNickname(e.target.value); setNicknameCheck(CHECK.idle) }}
+                onChange={(e) => {
+                  setNickname(e.target.value)
+                  setNicknameCheck(CHECK.idle)
+                  setNicknameMessage('')
+                }}
                 placeholder="닉네임 입력"
                 autoComplete="username"
                 required
               />
-              <div
-                className={`auth-check-wrap${
-                  nicknameCheck === CHECK.available || nicknameCheck === CHECK.unavailable
-                    ? ' auth-check-wrap--has-result'
-                    : ''
-                }`}
-              >
-                {(nicknameCheck === CHECK.available || nicknameCheck === CHECK.unavailable) && (
-                  <span
-                    className={`auth-check-tooltip ${
-                      nicknameCheck === CHECK.available
-                        ? 'auth-check-tooltip--success'
-                        : 'auth-check-tooltip--error'
-                    }`}
-                    role="tooltip"
-                  >
-                    {nicknameCheck === CHECK.available
-                      ? '사용 가능한 닉네임입니다'
-                      : '이미 사용 중인 닉네임입니다'}
-                  </span>
-                )}
+              <div className="auth-check-wrap">
                 <button
                   className="auth-check-button"
                   type="button"
@@ -135,11 +137,30 @@ export default function RegisterPage() {
                 </button>
               </div>
             </div>
+            {nicknameMessage && (
+              <p
+                className={`auth-field-msg ${
+                  nicknameCheck === CHECK.available
+                    ? 'auth-field-msg--success'
+                    : 'auth-field-msg--error'
+                }`}
+              >
+                {nicknameMessage}
+              </p>
+            )}
           </label>
 
           <label className="auth-field" htmlFor="email">
             <span>이메일</span>
-            <div className="auth-input-wrap auth-input-wrap-action">
+            <div
+              className={`auth-input-wrap auth-input-wrap-action${
+                emailCheck === CHECK.available
+                  ? ' auth-input-wrap--success'
+                  : emailCheck === CHECK.unavailable
+                    ? ' auth-input-wrap--error'
+                    : ''
+              }`}
+            >
               <Mail size={16} />
               <input
                 id="email"
@@ -148,32 +169,13 @@ export default function RegisterPage() {
                 onChange={(e) => {
                   setEmail(e.target.value)
                   setEmailCheck(CHECK.idle)
+                  setEmailMessage('')
                 }}
                 placeholder="이메일 입력"
                 autoComplete="email"
                 required
               />
-              <div
-                className={`auth-check-wrap${
-                  emailCheck === CHECK.available || emailCheck === CHECK.unavailable
-                    ? ' auth-check-wrap--has-result'
-                    : ''
-                }`}
-              >
-                {(emailCheck === CHECK.available || emailCheck === CHECK.unavailable) && (
-                  <span
-                    className={`auth-check-tooltip ${
-                      emailCheck === CHECK.available
-                        ? 'auth-check-tooltip--success'
-                        : 'auth-check-tooltip--error'
-                    }`}
-                    role="tooltip"
-                  >
-                    {emailCheck === CHECK.available
-                      ? '사용 가능한 이메일입니다'
-                      : '이미 사용 중인 이메일입니다'}
-                  </span>
-                )}
+              <div className="auth-check-wrap">
                 <button
                   className="auth-check-button"
                   type="button"
@@ -184,6 +186,17 @@ export default function RegisterPage() {
                 </button>
               </div>
             </div>
+            {emailMessage && (
+              <p
+                className={`auth-field-msg ${
+                  emailCheck === CHECK.available
+                    ? 'auth-field-msg--success'
+                    : 'auth-field-msg--error'
+                }`}
+              >
+                {emailMessage}
+              </p>
+            )}
           </label>
 
           <label className="auth-field" htmlFor="password">
