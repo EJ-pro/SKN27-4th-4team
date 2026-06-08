@@ -4,6 +4,8 @@
 
 **선행:** [에픽03-JWT-LLM-게이트.md](에픽03-JWT-LLM-게이트.md), [에픽04-로컬-LLM-연동.md](에픽04-로컬-LLM-연동.md)
 
+**다음 에픽:** [에픽06-폴더-구조-및-경로-정리.md](에픽06-폴더-구조-및-경로-정리.md) (폴더 이동·import·env·Docker — **타이핑 가이드**)
+
 **관련 커밋:** merge `88f3439`, 후속 `042ff20` (RoutinePage credentials)
 
 ---
@@ -16,6 +18,7 @@
 | conflict 4파일 | `views.py`, `llm.py`, `embedding.py`, `RoutinePage.jsx` |
 | 핵심 조치 | JWT gate를 **SSE** 경로(`stream_bot_content`)에 연결, provider + streaming 병합, RoutinePage 양쪽 기능 병합 |
 | 문서 갱신 | 본 문서 신규, [에픽03](에픽03-JWT-LLM-게이트.md) `stream_bot_content` 기준 delta |
+| 구조·경로 | dev 머지 후 `backend/` 재배치 잔재 → [에픽06](에픽06-폴더-구조-및-경로-정리.md) |
 
 ---
 
@@ -242,7 +245,7 @@ cd backend
 python manage.py test api.tests.test_llm_gate -v 2
 ```
 
-> **주의:** `views.py`가 `routine_recommender`를 import하므로 `NEO4J_*` env 없으면 Django check 자체가 실패할 수 있다. §7 P0 참고.
+> **주의:** `routine_recommender`의 Neo4j 설정(`recommendation_service.config`)은 **추천 API 호출 시** lazy 로드된다. Django `check` 실패는 주로 `cd backend` 실행 시 **루트 `.env` 미로드**(DB env) 때문일 수 있다. → [에픽06 Step 3](에픽06-폴더-구조-및-경로-정리.md#step-3--루트-env-명시-로드)
 
 ---
 
@@ -294,17 +297,18 @@ sequenceDiagram
 
 ---
 
-## 7. 후속 작업 (다음 PR)
+## 7. 후속 작업 — 에픽06·07로 이관
 
-| 우선순위 | 항목 | 권장 조치 |
-|----------|------|-----------|
-| **P0** | `NEO4J_URI` import 시 Django 기동 실패 | `.env`에 Neo4j/Groq 추가 **또는** `routine_recommender` lazy import |
-| **P0** | `.env.sample` DB/Django 누락 | DB·Django·Neo4j·OpenAI·CHATBOT 통합, `LLM_PROVIDER` 키 중복 제거 |
-| **P1** | docker `backend` → `neo4j` depends_on | compose healthcheck 연동 |
-| **P2** | `buildSurveyPayload` `split_style: 'bodybuilding'` | `splitStyle` state 사용 |
-| **P2** | 추천 API `user_id=device_uuid` | `resolve_actor(request)` 연동 |
-| **P2** | recommend/review fetch | 필요 시 `credentials: 'include'` |
-| **P3** | `loadWeeklyRoutine` 2회 호출 | `getMe` 완료 후 1회 로드 등 최적화 |
+본 §7 항목은 **코드 미적용 backlog**였다. 아래 표처럼 에픽06(구조·infra 가이드)과 07 예정(기능)으로 나눈다.
+
+| 원 §7 | 이관 | 문서 |
+|-------|------|------|
+| P0 `.env` / NEO4J / import | 에픽06 Step 3, 6 | [에픽06 §3](에픽06-폴더-구조-및-경로-정리.md#3-step-by-step-구현-가이드) |
+| P1 docker `neo4j` depends_on | 에픽06 Step 5 | 동일 |
+| P2 `split_style` 하드코딩 | **07 예정** | [에픽06 §5](에픽06-폴더-구조-및-경로-정리.md#5-다음-에픽07-예정) |
+| P2 추천 API `resolve_actor` | **07 예정** | 동일 |
+| P2 recommend/review `credentials` | **07 예정** | 동일 |
+| P3 `loadWeeklyRoutine` 2회 | **07 예정** | 동일 |
 
 Neo4j env 예시는 [실행가이드.md](실행가이드.md) § Neo4j 참고.
 
@@ -322,6 +326,10 @@ Neo4j env 예시는 [실행가이드.md](실행가이드.md) § Neo4j 참고.
 | Routine UI | [`frontend/src/pages/RoutinePage.jsx`](../frontend/src/pages/RoutinePage.jsx) |
 | Consult SSE | [`frontend/src/pages/ConsultPage.jsx`](../frontend/src/pages/ConsultPage.jsx) |
 | AI 추천 bridge | [`backend/api/services/routine_recommender.py`](../backend/api/services/routine_recommender.py) |
+| LangGraph 추천 | [`backend/recommendation_service/`](../backend/recommendation_service/) |
+| Neo4j GraphQuery | [`backend/db/queries.py`](../backend/db/queries.py) |
+| Neo4j 구축 스크립트 | [`backend/db/build_graph.py`](../backend/db/build_graph.py) |
+| 구조·경로 정리 가이드 | [에픽06-폴더-구조-및-경로-정리.md](에픽06-폴더-구조-및-경로-정리.md) |
 | 에픽03 (gate 상세) | [에픽03-JWT-LLM-게이트.md](에픽03-JWT-LLM-게이트.md) |
 
 ---

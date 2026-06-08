@@ -5,7 +5,7 @@ remote 시 LangChain `ChatOpenAI` / `OpenAIEmbeddings`의 **`base_url`** 로 Run
 
 **선행 조건:** [에픽00](에픽00-로그인-인증구현.md) 완료, [에픽03](에픽03-JWT-LLM-게이트.md) 권장 — 본 에픽과 **병행 구현 가능**
 
-**다음 에픽:** [에픽05-dev-머지-및-동작-수정.md](에픽05-dev-머지-및-동작-수정.md) (dev SSE 머지·provider+streaming 통합)
+**다음 에픽:** [에픽05-dev-머지-및-동작-수정.md](에픽05-dev-머지-및-동작-수정.md) (dev SSE 머지·provider+streaming 통합) · [에픽06-폴더-구조-및-경로-정리.md](에픽06-폴더-구조-및-경로-정리.md) (폴더·경로 정리)
 
 **다음 작업:** RunPod OpenAI 호환 API는 **별도 프로젝트**에서 구축 → 완료 후 본 프로젝트 `llm.py` 분기 + **최종 E2E 1회**
 
