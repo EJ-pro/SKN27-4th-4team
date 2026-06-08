@@ -7,7 +7,7 @@ Planfit 5분할 그래프 DB 구축 스크립트
 
 실행:
   pip install neo4j python-dotenv
-  python build_graph.py
+  cd backend/db && python build_graph.py
 
 .env:
   NEO4J_URI=your-neo4j-bolt-uri
