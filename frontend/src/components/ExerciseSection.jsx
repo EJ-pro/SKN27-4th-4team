@@ -195,7 +195,7 @@ function DetailModal({ ex, onClose }) {
               playsInline
               controls
               onError={() => setVideoOk(false)}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 480, display: 'block' }}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', maxHeight: 480, display: 'block', background: '#050505' }}
             />
           ) : (
             <StaticExerciseThumb ex={ex} hovered={false} color={color} />

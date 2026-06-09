@@ -58,7 +58,7 @@ const TIME_OPTIONS = [
   { value: 30,  label: '30분', desc: '압축 세션 · 핵심 복합 운동 위주' },
   { value: 45,  label: '45분', desc: '표준 세션 · 주요 운동 + 보조 운동' },
   { value: 60,  label: '60분', desc: '완성형 세션 · 충분한 볼륨 확보', tag: '추천' },
-  { value: 90,  label: '90분', desc: '고볼륨 세션 · 풀 루틴 + 유산소' },
+  { value: 90,  label: '90분', desc: '고볼륨 세션 · 풀 루틴' },
 ]
 
 const SPLIT_OPTIONS = [

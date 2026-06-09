@@ -299,7 +299,7 @@ function DetailModal({ ex, onClose, onNavigate, exercises }) {
             muted
             autoPlay
             playsInline
-            style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 520, display: 'block' }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', maxHeight: 520, display: 'block', background: '#050505' }}
           />
           <div style={{
             position: 'absolute', top: 16, left: 16,
@@ -574,7 +574,7 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading
           <section style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 0.92fr) minmax(420px, 1.08fr)', gap: 32, alignItems: 'start', marginBottom: 28 }}>
             <div style={{ position: 'sticky', top: 96, background: '#101010', border: `1px solid ${accentColor}22`, borderRadius: 4, overflow: 'hidden', boxShadow: `0 30px 90px rgba(0,0,0,0.5), 0 0 70px ${accentColor}08` }}>
               <div style={{ width: '100%', aspectRatio: '4 / 3', background: '#050505', position: 'relative' }}>
-                <video src={videoUrl(ex)} loop muted autoPlay playsInline controls style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <video src={videoUrl(ex)} loop muted autoPlay playsInline controls style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', background: '#050505' }} />
                 <div style={{ position: 'absolute', left: 18, top: 18, background: accentColor, color: '#000', fontSize: 12, fontWeight: 900, padding: '6px 14px', borderRadius: 2 }}>
                   {ex.category}
                 </div>
