@@ -93,11 +93,20 @@ def vector_search(query: str, limit: int = 5, where_clause: str = "", params: li
 
 
 def keyword_search(exercise_name: str, limit: int = 3) -> list:
-    # 양쪽 공백 제거 후 비교 (예: "벤치프레스" == "벤치 프레스")
+    # 공백 제거 후 비교 (예: "벤치프레스" == "벤치 프레스")
+    # 정확히 일치하는 이름을 1순위, 그다음 짧은(기본형) 이름 우선 →
+    # "데드리프트" 검색 시 "스태거드/트랩바 데드리프트" 같은 변형보다 정확한 운동을 먼저 반환
     with connection.cursor() as cursor:
         cursor.execute(
-            SELECT_COLUMNS + " WHERE REPLACE(name_kor, ' ', '') ILIKE REPLACE(%s, ' ', '') LIMIT %s",
-            (f"%{exercise_name}%", limit),
+            SELECT_COLUMNS
+            + """
+             WHERE REPLACE(name_kor, ' ', '') ILIKE REPLACE(%s, ' ', '')
+             ORDER BY
+                 CASE WHEN REPLACE(name_kor, ' ', '') ILIKE REPLACE(%s, ' ', '') THEN 0 ELSE 1 END,
+                 LENGTH(name_kor)
+             LIMIT %s
+            """,
+            (f"%{exercise_name}%", exercise_name, limit),
         )
         return cursor.fetchall()
 

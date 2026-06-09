@@ -3003,7 +3003,7 @@ function RoutineCheckView({
                           display: 'flex',
                           alignItems: 'center',
                           gap: 12,
-                          padding: '10px 14px',
+                          padding: '11px 14px',
                           borderRadius: 10,
                           background: 'rgba(255,255,255,0.02)',
                           border: '1px solid rgba(255,255,255,0.06)',
@@ -3017,9 +3017,6 @@ function RoutineCheckView({
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12.5, fontWeight: 700, color: '#FFD700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {alt.name}
-                          </div>
-                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, whiteSpace: 'pre-line', wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
-                            {alt.detail}
                           </div>
                         </div>
                       </button>

@@ -47,7 +47,7 @@ RERANK_MAX_LENGTH = 512                    # 입력 텍스트 최대 토큰 길�
 RERANK_DEVICE = "cpu"                      # GPU 사용 시 "cuda"로 변경
 RERANK_CACHE_FOLDER = os.getenv("RERANK_CACHE_FOLDER", "/tmp/routinegraph-models")
 RERANK_TOP_N = 5                           # rerank 후 최종 사용할 문서 수
-MAX_HISTORY_TURNS = 5       # 대화 히스토리 최대 유지 턴 수
+MAX_HISTORY_TURNS = 15       # 대화 히스토리 최대 유지 턴 수
 
 # ────────────────────────────────────────────
 # 질문 분류 설정
@@ -55,8 +55,9 @@ MAX_HISTORY_TURNS = 5       # 대화 히스토리 최대 유지 턴 수
 # 카테고리 추가/수정 시 이 딕셔너리만 변경하면 classify 프롬프트에 자동 반영됨
 QUERY_TYPES: dict[str, str] = {
     "specific": "특정 운동 이름이 포함된 질문 (뭐야, 방법, 자세, 호흡법 등 모두 포함)",
-    "general":  "특정 운동명 없이 추천·루틴·식단 등을 묻는 일반 운동 질문, 또는 이전 대화에서 언급된 운동을 참조하는 질문 (예: '내가 물어본 운동이 뭐야?', '방금 그 운동 다시 설명해줘')",
+    "general":  "특정 운동명 없이 추천·루틴 등을 묻는 일반 운동 질문, 또는 이전 대화에서 언급된 운동의 정보(방법·자세·호흡법·주의사항 등)를 묻는 참조 질문 (예: '그거 호흡법은?', '방금 그 운동 다시 설명해줘', '처음 물어본 운동의 자세 알려줘')",
     "injury":   "통증·부상·재활 관련 질문 또는 특정 부위를 못 쓸 때 대체 운동 질문",
+    "recall":   "운동 정보가 아니라 '대화 내용 자체'를 묻는 질문. 어떤 운동을 물었는지·몇 번째로 물었는지·방금 무슨 말을 했는지 등 (예: '내가 처음 물어본 운동이 뭐야?', '방금 뭐라고 했어?', '내 첫 질문이 뭐야?'). 단, 운동의 방법·자세·호흡법 같은 정보를 함께 물으면 recall이 아니라 general 또는 specific.",
     "out_of_scope": "운동과 전혀 무관한 질문 (날씨·요리·일상 대화 등)",
 }
 
@@ -68,6 +69,7 @@ QUERY_TYPE_ROUTES: dict[str, str] = {
     "specific":     "retrieve_specific",
     "general":      "retrieve_general",
     "injury":       "retrieve_injury",
+    "recall":       "recall",
     "out_of_scope": "out_of_scope",
 }
 

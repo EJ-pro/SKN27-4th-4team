@@ -6,6 +6,7 @@ from langgraph.graph.message import add_messages
 
 class RAGChatState(TypedDict):
     messages: Annotated[list, add_messages]  # 대화 히스토리 (MemorySaver가 자동 관리)
+    session_id: int                          # 현재 세션 ID (recall이 전체 히스토리 조회용)
     question: str                            # 현재 사용자 질문(원문)
     search_query: str                        # 히스토리 반영해 재작성한 검색용 질문(멀티턴)
     query_type: str                          # general / specific / injury / out_of_scope

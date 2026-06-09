@@ -5,6 +5,7 @@ from .constants import QUERY_TYPE_ROUTES
 from .nodes import (
     classify,
     out_of_scope,
+    recall,
     retrieve_general,
     retrieve_specific,
     retrieve_injury,
@@ -28,6 +29,7 @@ def create_rag_graph():
 
     workflow.add_node("classify", classify)
     workflow.add_node("out_of_scope", out_of_scope)
+    workflow.add_node("recall", recall)
     workflow.add_node("retrieve_general", retrieve_general)
     workflow.add_node("retrieve_specific", retrieve_specific)
     workflow.add_node("retrieve_injury", retrieve_injury)
@@ -40,6 +42,7 @@ def create_rag_graph():
         {node: node for node in QUERY_TYPE_ROUTES.values()},
     )
     workflow.add_edge("out_of_scope", END)
+    workflow.add_edge("recall", END)
     workflow.add_edge("retrieve_general", "generate")
     workflow.add_edge("retrieve_specific", "generate")
     workflow.add_edge("retrieve_injury", "generate")
