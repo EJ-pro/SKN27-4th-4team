@@ -46,8 +46,8 @@ MANDATORY_EXERCISES_BY_GOAL = {
 }
 
 SESSION_EXERCISE_COUNT_POLICY = {
-    30: 3,
-    45: 3,
+    30: 4,
+    45: 4,
     60: 4,
     90: 5,
 }
