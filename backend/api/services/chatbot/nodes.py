@@ -407,3 +407,63 @@ def generate(state: RAGChatState) -> RAGChatState:
         "answer": answer,
         "messages": [AIMessage(content=answer)],
     }
+
+
+def stream_recall_answer(state: RAGChatState):
+    question = state["question"]
+    session_id = state.get("session_id")
+    history = load_history(session_id) if session_id else []
+    lines = []
+    for h in history:
+        role = "사용자" if h["sender"] == "user" else "AI"
+        lines.append(f"{role}: {h['content']}")
+    history_text = "\n".join(lines) if lines else "(이전 대화 없음)"
+
+    prompt = ChatPromptTemplate.from_template(
+        "당신은 AI 운동 챗봇입니다. 아래 [대화 내용]만 근거로 사용자의 질문에 답하세요.\n"
+        "- 운동 데이터를 새로 검색하지 마세요.\n"
+        "- 대화에 근거가 없으면 모른다고 답하세요.\n\n"
+        "[대화 내용]\n{history}\n\n"
+        "질문: {question}"
+    )
+    yield from (prompt | llm | StrOutputParser()).stream({
+        "history": history_text,
+        "question": question,
+    })
+
+
+def stream_generate_answer(state: RAGChatState):
+    question = state["question"]
+    docs = state.get("retrieved_docs", [])
+    context = "\n\n".join([doc.page_content for doc in docs])
+    history_text = _get_history_text(state)
+    history_block = f"[이전 대화]\n{history_text}\n\n" if history_text else ""
+
+    query_type = state.get("query_type", "")
+    injury_block = ""
+    if query_type == "injury":
+        injury_block = (
+            "[부상 주의]\n"
+            "- 사용자가 통증이나 부상을 언급했습니다. 검색된 운동 데이터 안에서만 안전하게 답하세요.\n"
+            "- 의학적 진단처럼 단정하지 말고, 통증이 있으면 전문가 상담을 권하세요.\n\n"
+        )
+
+    prompt = ChatPromptTemplate.from_template(
+        "당신은 AI 운동 전문가 챗봇입니다.\n\n"
+        "[답변 규칙]\n"
+        "1. 운동 동작, 자세, 호흡, 주의사항은 반드시 아래 [운동 데이터]를 기반으로 답하세요.\n"
+        "2. 데이터에 없는 운동이나 검증되지 않은 효과는 단정하지 마세요.\n"
+        "3. 질문의 핵심부터 간결하게 답하고, 필요한 경우 항목별로 정리하세요.\n"
+        "4. 운동과 직접 관련 없는 주제는 다루지 마세요.\n\n"
+        "{injury_block}"
+        "{history_block}"
+        "[운동 데이터]\n"
+        "{context}\n\n"
+        "질문: {question}"
+    )
+    yield from (prompt | llm | StrOutputParser()).stream({
+        "injury_block": injury_block,
+        "history_block": history_block,
+        "context": context,
+        "question": question,
+    })
