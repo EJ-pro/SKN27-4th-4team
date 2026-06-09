@@ -45,6 +45,8 @@ Set at least these values:
 - `NEO4J_PASSWORD` and the same password inside `NEO4J_AUTH`
 - `OPENAI_API_KEY` or your selected LLM provider variables
 
+The production Neo4j container installs APOC only. Do not add `graph-data-science` to `NEO4J_PLUGINS` unless you pin a Neo4j image version that has a compatible GDS release.
+
 Keep `VITE_API_URL` empty for this Nginx setup. The frontend will call `/api/...` on the same domain.
 
 For IP-only HTTP testing before HTTPS, use:
