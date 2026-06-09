@@ -12,6 +12,12 @@ const socials = [
   { Icon: X,      label: 'Twitter' },
 ]
 
+const policyLinks = [
+  { label: '개인정보처리방침', href: 'https://www.notion.so/379baef6b101802da6f1f572a71ee159?source=copy_link' },
+  { label: '이용약관', href: 'https://www.notion.so/379baef6b10180d6a39bf599d97121cb?source=copy_link' },
+  { label: '쿠키 정책', href: 'https://www.notion.so/379baef6b10180d3a9a7e76cddf9e73f?source=copy_link' },
+]
+
 export default function Footer() {
   return (
     <footer style={{
@@ -134,11 +140,11 @@ export default function Footer() {
             © 2025 HELBOTIN. All rights reserved.
           </span>
           <div style={{ display: 'flex', gap: 28 }}>
-            {['개인정보처리방침', '이용약관', '쿠키 정책'].map(t => (
-              <a key={t} href="#" style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.2)', transition: 'color 0.2s' }}
+            {policyLinks.map(({ label, href }) => (
+              <a key={label} href={href} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.2)', transition: 'color 0.2s' }}
               onMouseEnter={e => e.target.style.color = '#FFD700'}
               onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.2)'}
-              >{t}</a>
+              >{label}</a>
             ))}
           </div>
         </div>
