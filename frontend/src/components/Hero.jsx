@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Zap, ArrowRight } from 'lucide-react'
 
 export default function Hero() {
+  const navigate = useNavigate()
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -104,6 +106,7 @@ export default function Hero() {
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
             {/* Primary CTA */}
             <button
+              onClick={() => navigate('/routine')}
               style={{
                 background: 'linear-gradient(135deg, #FFD700, #C8A200)',
                 color: '#000', fontWeight: 800, fontSize: 15,
@@ -125,27 +128,6 @@ export default function Hero() {
               HELBOTIN 시작하기
             </button>
 
-            {/* Secondary CTA */}
-            <button
-              style={{
-                background: '#111111',
-                color: '#F1F3F5', fontWeight: 600, fontSize: 15,
-                padding: '16px 32px', borderRadius: 2,
-                border: '2px solid #F1F3F5',
-                transition: 'all 0.25s ease',
-                letterSpacing: 0.4,
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = '#F1F3F5'
-                e.currentTarget.style.borderColor = '#F1F3F5'
-                e.currentTarget.style.color = '#111111'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = '#111111'
-                e.currentTarget.style.borderColor = '#F1F3F5'
-                e.currentTarget.style.color = '#F1F3F5'
-              }}
-            >운동 백과</button>
           </div>
         </div>
       </div>

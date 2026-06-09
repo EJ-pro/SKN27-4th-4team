@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Sparkles, Send, MessageSquare, SlidersHorizontal, MousePointerClick } from 'lucide-react'
 
 const QUICK_BTNS = ['초보자 시작 방법', '어깨 통증 대체 운동', '허리 안 아픈 스쿼트', '손목 보호 운동']
@@ -74,6 +75,7 @@ function TypingDots() {
 }
 
 export default function ChatSection() {
+  const navigate = useNavigate()
   const [messages, setMessages] = useState([])
   const [typing, setTyping] = useState(false)
   const [msgIdx, setMsgIdx] = useState(0)
@@ -261,7 +263,9 @@ export default function ChatSection() {
             ))}
           </div>
 
-          <button style={{
+          <button
+            onClick={() => navigate('/consult')}
+            style={{
             background: 'linear-gradient(135deg, #FFD700, #C8A200)',
             color: '#000', fontWeight: 800, fontSize: 13,
             padding: '14px 36px', borderRadius: 3, letterSpacing: 1.5,
@@ -271,7 +275,7 @@ export default function ChatSection() {
             onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 36px rgba(255,215,0,0.4)' }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(255,215,0,0.25)' }}
           >
-            운동 백과사전 검색하기
+            운동 상담 받으러 가기
           </button>
         </div>
 

@@ -93,7 +93,7 @@ services:
     healthcheck:
       test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7474" ]
       interval: 10s # 10초마다 체크
-      timeout: 5s # 5초 내에 응답이 없으면 타임아웃
+      timeout: 10s # 10초 내에 응답이 없으면 타임아웃
       retries: 5 # 5번 실패하면 비정상으로 판단
 
 

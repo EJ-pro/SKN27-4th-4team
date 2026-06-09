@@ -2668,25 +2668,27 @@ function RoutineCheckView({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 20,
+                    position: 'relative',
+                    zIndex: isSelected ? 1 : 0,
+                    width: '100%',
+                    boxSizing: 'border-box',
                     padding: '20px 16px',
                     borderRadius: 4,
-                    border: `1px solid ${
-                      isSelected
-                        ? 'rgba(255,215,0,0.45)'
-                        : isDone
-                          ? 'rgba(55, 210, 145, 0.28)'
-                          : 'transparent'
-                    }`,
+                    border: `1px solid ${isDone ? 'rgba(55, 210, 145, 0.28)' : 'transparent'}`,
                     background: isSelected
                       ? 'rgba(255,215,0,0.035)'
                       : isDone
                         ? 'rgba(55, 210, 145, 0.075)'
                         : 'transparent',
                     borderBottom: !isSelected && !isDone ? '1px solid rgba(255,255,255,0.04)' : undefined,
-                    boxShadow: isDone ? 'inset 3px 0 0 rgba(55, 210, 145, 0.75)' : 'none',
+                    boxShadow: isSelected
+                      ? 'inset 0 0 0 1px rgba(255,215,0,0.65)'
+                      : isDone
+                        ? 'inset 3px 0 0 rgba(55, 210, 145, 0.75)'
+                        : 'none',
                     transition: 'all 0.25s',
                     cursor: 'pointer',
-                    marginBottom: 4,
+                    marginBottom: isSelected ? 12 : 6,
                   }}
                   onMouseEnter={e => {
                     if (!isSelected) e.currentTarget.style.background = isDone ? 'rgba(55, 210, 145, 0.11)' : 'rgba(255,255,255,0.01)'
@@ -2722,7 +2724,7 @@ function RoutineCheckView({
                     {isDone && <Check size={16} color="#050505" strokeWidth={3.5} />}
                   </button>
 
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                       <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', padding: '2px 8px', borderRadius: 4 }}>
                         {EQUIPMENT_LABEL[ex.eq] || '기타'}
@@ -2770,7 +2772,7 @@ function RoutineCheckView({
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.32)', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.32)', lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
                       {ex.detail}
                     </div>
                   </div>
