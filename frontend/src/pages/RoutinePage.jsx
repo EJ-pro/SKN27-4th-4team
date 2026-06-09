@@ -152,11 +152,11 @@ function StepProfile({ age, gender, level, onAgeChange, onGenderChange, onLevelC
       </p>
       <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 8 }}>나이</label>
       <input
-        type="number"
-        min="14"
-        max="90"
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
         value={age}
-        onChange={e => onAgeChange(e.target.value)}
+        onChange={e => onAgeChange(e.target.value.replace(/\D/g, '').slice(0, 2))}
         placeholder="예: 28"
         style={{
           width: '100%',
@@ -2779,11 +2779,11 @@ function RoutineCheckView({
 
                   {/* 세트 / 횟수 표시 */}
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: isDone ? '#6EF0B5' : '#FFD700' }}>
-                      {sets} <span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.3)' }}>Set</span>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#FFD700' }}>
+                      {sets} <span style={{ fontSize: 11, fontWeight: 400, color: '#FFD700' }}>Set</span>
                     </div>
-                    <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-                      {reps} <span style={{ fontSize: 9.5 }}>Reps</span>
+                    <div style={{ fontSize: 11.5, color: '#FFFFFF', marginTop: 2 }}>
+                      {reps} <span style={{ fontSize: 9.5, color: '#FFFFFF' }}>Reps</span>
                     </div>
                   </div>
                 </div>
