@@ -322,8 +322,8 @@ export default function AlgorithmSection() {
             <span style={{ width: 24, height: 2, background: 'linear-gradient(90deg, #FFD700, transparent)', borderRadius: 2 }} />
           </div>
           <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(42px, 5.5vw, 70px)', color: '#FFF', lineHeight: 1, marginBottom: 16 }}>
-            불편한 곳이 있다면,<br />
-            <span className="gold-text">루틴도 다르게.</span>
+            운동은 박창제처럼 해야한다<br />
+            <span className="gold-text">박창제 루틴.</span>
           </h2>
         </div>
 
