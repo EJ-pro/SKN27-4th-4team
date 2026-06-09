@@ -11,6 +11,14 @@ llm = get_llm()
 classify_llm = get_classify_llm()
 cross_encoder = None
 
+
+def _stream_text(chain, values: dict) -> str:
+    chunks = []
+    for chunk in chain.stream(values):
+        if chunk:
+            chunks.append(str(chunk))
+    return "".join(chunks)
+
 # muscles 테이블에 직접 없는 관절·부위 → 대표 근육 키워드 매핑
 # (get_muscles_by_body_part가 빈 결과일 때 정밀 제외(브릿지 테이블)를 쓰기 위함)
 JOINT_TO_MUSCLE_HINTS: dict[str, list[str]] = {
@@ -175,7 +183,7 @@ def recall(state: RAGChatState) -> RAGChatState:
         "[대화 내용]\n{history}\n\n"
         "질문: {question}"
     )
-    answer = (prompt | llm | StrOutputParser()).invoke({
+    answer = _stream_text(prompt | llm | StrOutputParser(), {
         "history": history_text,
         "question": question,
     })
@@ -385,7 +393,7 @@ def generate(state: RAGChatState) -> RAGChatState:
         "{context}\n\n"
         "질문: {question}"
     )
-    answer = (prompt | llm | StrOutputParser()).invoke({
+    answer = _stream_text(prompt | llm | StrOutputParser(), {
         "injury_block": injury_block,
         "history_block": history_block,
         "context": context,
