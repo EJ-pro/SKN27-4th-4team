@@ -47,6 +47,8 @@ Set at least these values:
 
 The production Neo4j container installs APOC only. Do not add `graph-data-science` to `NEO4J_PLUGINS` unless you pin a Neo4j image version that has a compatible GDS release.
 
+`CHATBOT_ENABLE_RERANK` should stay `False` on the single-EC2 deployment. Enabling rerank requires `sentence-transformers`/PyTorch and can make the backend image too large for a small EC2 root disk.
+
 Keep `VITE_API_URL` empty for this Nginx setup. The frontend will call `/api/...` on the same domain.
 
 For IP-only HTTP testing before HTTPS, use:
