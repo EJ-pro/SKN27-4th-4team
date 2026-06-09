@@ -11,10 +11,7 @@ export default function BrandIcon({ size = 36, style = {}, ...props }) {
         justifyContent: 'center',
         flexShrink: 0,
         overflow: 'hidden',
-        padding: Math.max(3, Math.round(size * 0.1)),
-        boxSizing: 'border-box',
-        background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-        boxShadow: '0 0 18px rgba(255,215,0,0.2)',
+        background: 'transparent',
         ...style,
       }}
     >
