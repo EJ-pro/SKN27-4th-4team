@@ -1,5 +1,6 @@
 import json
 import datetime
+import logging
 
 from django.http import JsonResponse, StreamingHttpResponse
 from django.views import View
@@ -14,6 +15,21 @@ from .services.chatbot.constants import AUTH_REQUIRED_MESSAGE
 from .services.routine_recommender import review_recommendation, start_recommendation, verify_thread_belongs_to_owner
 
 DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
+logger = logging.getLogger(__name__)
+
+
+def json_safe(value):
+    if isinstance(value, dict):
+        return {str(k): json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [json_safe(v) for v in value]
+    if isinstance(value, tuple):
+        return [json_safe(v) for v in value]
+    try:
+        json.dumps(value, ensure_ascii=False)
+        return value
+    except TypeError:
+        return str(value)
 
 
 # ─── Exercise ────────────────────────────────────────────────────────────────
@@ -319,6 +335,8 @@ class MessageListView(View):
             content_type='text/event-stream; charset=utf-8',
         )
         response['Cache-Control'] = 'no-cache'
+        response['Pragma'] = 'no-cache'
+        response['Content-Encoding'] = 'identity'
         response['X-Accel-Buffering'] = 'no'  # nginx 버퍼링 방지
         return response
 
@@ -577,8 +595,17 @@ class RoutineRecommendView(View):
             return JsonResponse({"ok": False, "status": "failed", "message": AUTH_REQUIRED_MESSAGE}, status=400)
 
         # 추천 세션 생성
-        result = start_recommendation(data, user_id=_recommendation_user_id(actor))
-        return JsonResponse(result, status=200 if result.get('ok') else 400)
+        try:
+            result = start_recommendation(data, user_id=_recommendation_user_id(actor))
+        except Exception as exc:
+            logger.exception('routine recommendation failed')
+            return JsonResponse({
+                'ok': False,
+                'status': 'failed',
+                'message': '추천 루틴 생성 중 서버 오류가 발생했습니다.',
+                'error': str(exc),
+            }, status=500)
+        return JsonResponse(json_safe(result), status=200 if result.get('ok') else 400)
 
 
 # 유저 로그인 중이면 유저 id, 아니면 device_uuid 리턴 하는 유틸 함수 
@@ -606,7 +633,17 @@ class RoutineRecommendReviewView(View):
         # 추천 세션 주인 확인
         thread_id = data.get('thread_id', '')
         owner_key = _recommendation_user_id(actor)
-        if not verify_thread_belongs_to_owner(thread_id, owner_key):
+        try:
+            belongs_to_owner = verify_thread_belongs_to_owner(thread_id, owner_key)
+        except Exception as exc:
+            logger.exception('routine recommendation owner check failed')
+            return JsonResponse({
+                'ok': False,
+                'status': 'failed',
+                'message': '추천 세션 확인 중 서버 오류가 발생했습니다.',
+                'error': str(exc),
+            }, status=500)
+        if not belongs_to_owner:
             return JsonResponse({'ok': False, 'status': 'failed', 'message': '이 추천 세션에 접근할 수 없습니다'}, status=403)
 
         # 추천 세션 리뷰 전 LLM 실행 여부 확인
@@ -614,9 +651,18 @@ class RoutineRecommendReviewView(View):
             return JsonResponse({"ok": False, "status": "failed", "message": AUTH_REQUIRED_MESSAGE}, status=400)
         
         # 추천 세션 리뷰 저장
-        result = review_recommendation(
-            thread_id=thread_id,
-            decision=data.get('decision', 'revise'),
-            feedback=data.get('feedback', ''),
-        )
-        return JsonResponse(result, status=200 if result.get('ok') else 400)
+        try:
+            result = review_recommendation(
+                thread_id=thread_id,
+                decision=data.get('decision', 'revise'),
+                feedback=data.get('feedback', ''),
+            )
+        except Exception as exc:
+            logger.exception('routine recommendation review failed')
+            return JsonResponse({
+                'ok': False,
+                'status': 'failed',
+                'message': '수정 요청 처리 중 서버 오류가 발생했습니다.',
+                'error': str(exc),
+            }, status=500)
+        return JsonResponse(json_safe(result), status=200 if result.get('ok') else 400)

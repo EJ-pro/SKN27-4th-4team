@@ -3,6 +3,23 @@ import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw, X } from 'l
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
+async function readApiJson(res, fallbackMessage) {
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    const plain = text
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 180)
+    throw new Error(`${fallbackMessage} 서버가 JSON이 아닌 응답을 반환했습니다. (${res.status})${plain ? ` ${plain}` : ''}`)
+  }
+}
+
 import { useNavigate } from 'react-router-dom'
 import { getMe } from '../api/auth'
 import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
@@ -1087,7 +1104,7 @@ export default function RoutinePage() {
       body: JSON.stringify(payload),
     })
     if (!res.ok) throw new Error('추천 루틴 저장에 실패했습니다.')
-    return res.json()
+    return readApiJson(res, '추천 루틴 저장 중 오류가 발생했습니다.')
   }
 
   const persistRecommendationRoutine = (routine) => {
@@ -1128,7 +1145,7 @@ export default function RoutinePage() {
         credentials: 'include',
         body: JSON.stringify(buildSurveyPayload()),
       })
-      const data = await res.json()
+      const data = await readApiJson(res, '추천 루틴 생성 중 오류가 발생했습니다.')
       if (!res.ok || !applyRecommendationResult(data)) {
         setRecommendationError(data.message || '추천 루틴 생성에 실패했습니다.')
       }
@@ -1156,7 +1173,7 @@ export default function RoutinePage() {
           feedback: decision === 'approve' ? '' : reviewFeedback,
         }),
       })
-      const data = await res.json()
+      const data = await readApiJson(res, '검토 요청 처리 중 오류가 발생했습니다.')
       if (!res.ok || !data.ok) {
         setRecommendationError(data.message || '검토 요청 처리에 실패했습니다.')
         return

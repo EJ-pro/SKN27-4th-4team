@@ -47,10 +47,20 @@ def _chat_model(*, temperature: float, streaming: bool = False) -> None:
         )
 
     elif provider == "groq":
-        return ChatGroq(model=GROQ_MODEL, api_key=GROQ_API_KEY, temperature=temperature)
+        return ChatGroq(
+            model=GROQ_MODEL,
+            api_key=GROQ_API_KEY,
+            temperature=temperature,
+            streaming=streaming,
+        )
 
     elif provider == "ollama":
-        return ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL, temperature=temperature)
+        return ChatOllama(
+            model=OLLAMA_MODEL,
+            base_url=OLLAMA_BASE_URL,
+            temperature=temperature,
+            streaming=streaming,
+        )
     
     return ChatOpenAI(model=OPENAI_LLM_MODEL, temperature=temperature, streaming=streaming)
 
