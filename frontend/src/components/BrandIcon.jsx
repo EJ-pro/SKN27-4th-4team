@@ -11,7 +11,9 @@ export default function BrandIcon({ size = 36, style = {}, ...props }) {
         justifyContent: 'center',
         flexShrink: 0,
         overflow: 'hidden',
-        background: '#050505',
+        padding: Math.max(3, Math.round(size * 0.1)),
+        boxSizing: 'border-box',
+        background: 'linear-gradient(135deg, #FFD700, #C8A200)',
         boxShadow: '0 0 18px rgba(255,215,0,0.2)',
         ...style,
       }}
@@ -23,7 +25,7 @@ export default function BrandIcon({ size = 36, style = {}, ...props }) {
         style={{
           width: '100%',
           height: '100%',
-          objectFit: 'cover',
+          objectFit: 'contain',
           display: 'block',
         }}
       />
