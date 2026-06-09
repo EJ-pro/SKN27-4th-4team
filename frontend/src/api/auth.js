@@ -6,7 +6,7 @@
  * 모든 요청에 credentials: 'include'가 필요하다.
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 /** @type {string} CSRF 엔드포인트 응답에서 받은 토큰 (크로스 오리진용) */
 let cachedCsrfToken = ''

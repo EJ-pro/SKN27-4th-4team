@@ -2,7 +2,7 @@ import { memo, useDeferredValue, useState, useEffect, useRef, useCallback, useMe
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Flame, MapPin, Search, Target, X, RotateCcw, Filter } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
