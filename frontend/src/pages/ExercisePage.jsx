@@ -500,7 +500,7 @@ function InfoTile({ icon: Icon, label, value, accentColor }) {
   )
 }
 
-function ExerciseDetailModal({ ex, onClose, onNavigate, exercises }) {
+function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading }) {
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
   const currentIndex = exercises.findIndex(item => item.id === ex.id)
   const prevEx = currentIndex > 0 ? exercises[currentIndex - 1] : null
@@ -601,11 +601,15 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises }) {
           <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.12fr) minmax(360px, 0.88fr)', gap: 22, alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <DetailBlock title="운동 방법" accentColor={accentColor}>
-                <ol style={{ margin: 0, paddingLeft: 22, color: 'rgba(255,255,255,0.7)', fontSize: 15, lineHeight: 1.9 }}>
-                  {(guideLines.length ? guideLines : ['운동 가이드 정보가 없습니다.']).map((line, index) => (
-                    <li key={index} style={{ marginBottom: 8 }}>{line.replace(/^\d+\.\s*/, '')}</li>
-                  ))}
-                </ol>
+                {detailLoading ? (
+                  <p style={{ margin: 0, color: 'rgba(255,255,255,0.42)', fontSize: 14, lineHeight: 1.8 }}>상세 정보를 불러오는 중입니다...</p>
+                ) : (
+                  <ol style={{ margin: 0, paddingLeft: 22, color: 'rgba(255,255,255,0.7)', fontSize: 15, lineHeight: 1.9 }}>
+                    {(guideLines.length ? guideLines : ['운동 가이드 정보가 없습니다.']).map((line, index) => (
+                      <li key={index} style={{ marginBottom: 8 }}>{line.replace(/^\d+\.\s*/, '')}</li>
+                    ))}
+                  </ol>
+                )}
               </DetailBlock>
 
               {startLines.length > 0 && (
@@ -625,11 +629,15 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises }) {
               )}
 
               <DetailBlock title="주의 사항" accentColor={accentColor}>
-                <ul style={{ margin: 0, paddingLeft: 20, color: 'rgba(255,255,255,0.62)', fontSize: 14, lineHeight: 1.85 }}>
-                  {(cautionLines.length ? cautionLines : ['주의사항 정보가 없습니다.']).map((line, index) => (
-                    <li key={index} style={{ marginBottom: 7 }}>{line.replace(/^\d+\.\s*/, '')}</li>
-                  ))}
-                </ul>
+                {detailLoading ? (
+                  <p style={{ margin: 0, color: 'rgba(255,255,255,0.42)', fontSize: 14, lineHeight: 1.8 }}>주의사항을 불러오는 중입니다...</p>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: 20, color: 'rgba(255,255,255,0.62)', fontSize: 14, lineHeight: 1.85 }}>
+                    {(cautionLines.length ? cautionLines : ['주의사항 정보가 없습니다.']).map((line, index) => (
+                      <li key={index} style={{ marginBottom: 7 }}>{line.replace(/^\d+\.\s*/, '')}</li>
+                    ))}
+                  </ul>
+                )}
               </DetailBlock>
             </div>
 
@@ -792,7 +800,10 @@ export default function ExercisePage() {
   const [equipment, setEquipment] = useState('전체')
   const [difficulty, setDifficulty] = useState(0)
   const [selected, setSelected] = useState(null)
+  const [selectedDetail, setSelectedDetail] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const detailCacheRef = useRef(new Map())
   const listRef = useRef(null)
   const lastPageRef = useRef(null)
   const deferredSearch = useDeferredValue(search)
@@ -804,6 +815,47 @@ export default function ExercisePage() {
       .then(data => setExercises(data))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!selected?.id) {
+      setSelectedDetail(null)
+      setDetailLoading(false)
+      return
+    }
+
+    const cached = detailCacheRef.current.get(selected.id)
+    if (cached) {
+      setSelectedDetail({ ...selected, ...cached })
+      setDetailLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setSelectedDetail(null)
+    setDetailLoading(true)
+
+    fetch(`${API_URL}/api/exercises/${selected.id}/`, { signal: controller.signal })
+      .then(response => {
+        if (!response.ok) throw new Error(`exercise detail ${response.status}`)
+        return response.json()
+      })
+      .then(detail => {
+        detailCacheRef.current.set(selected.id, detail)
+        setSelectedDetail({ ...selected, ...detail })
+      })
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          setSelectedDetail(selected)
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setDetailLoading(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [selected])
 
   const filtered = useMemo(() => {
     let list = exercises.filter(e => CATEGORIES.includes(e.category))
@@ -1262,8 +1314,9 @@ export default function ExercisePage() {
       {selected && (
         <ExerciseDetailModal
           key={selected.id}
-          ex={selected}
+          ex={selectedDetail || selected}
           exercises={exercises}
+          detailLoading={detailLoading}
           onClose={() => setSelected(null)}
           onNavigate={setSelected}
         />
