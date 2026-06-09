@@ -1,4 +1,5 @@
-import { Dumbbell, Camera, Play, X } from 'lucide-react'
+import { Camera, Play, X } from 'lucide-react'
+import BrandIcon from './BrandIcon'
 
 const footerLinks = {
   '프로그램': ['전체 프로그램', '근력 훈련', '체지방 감량', 'HIIT & 유산소'],
@@ -38,18 +39,7 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <div style={{
-                width: 36,
-                height: 36,
-                background: 'linear-gradient(135deg, #FFD700, #C8A200)',
-                borderRadius: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 0 16px rgba(255,215,0,0.2)',
-              }}>
-                <Dumbbell size={19} color="#000" strokeWidth={2.8} />
-              </div>
+              <BrandIcon size={36} style={{ boxShadow: '0 0 16px rgba(255,215,0,0.2)' }} />
               <span style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
             </div>
             <p style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.3)', lineHeight: 1.9, marginBottom: 22, maxWidth: 220 }}>

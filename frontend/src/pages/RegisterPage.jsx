@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Dumbbell, Lock, Mail, User, UserPlus } from 'lucide-react'
+import { ArrowLeft, Lock, Mail, User, UserPlus } from 'lucide-react'
+import BrandIcon from '../components/BrandIcon'
 import { register, checkNickname, checkEmail } from '../api/auth'
 import './Auth.css'
 
@@ -84,9 +85,7 @@ export default function RegisterPage() {
   return (
     <main className="auth-page">
       <Link className="auth-brand" to="/" aria-label="HELBOTIN 홈으로 이동">
-        <span className="auth-brand-mark">
-          <Dumbbell size={18} color="#000" strokeWidth={2.8} />
-        </span>
+        <BrandIcon size={36} style={{ boxShadow: '0 0 22px rgba(255, 215, 0, 0.22)' }} />
         <span>HELBOTIN</span>
       </Link>
 
