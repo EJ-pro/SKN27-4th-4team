@@ -2772,7 +2772,7 @@ function RoutineCheckView({
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.32)', lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.32)', lineHeight: 1.5, whiteSpace: 'pre-line', wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
                       {ex.detail}
                     </div>
                   </div>
@@ -2983,7 +2983,7 @@ function RoutineCheckView({
               </div>
 
               {/* 운동 디테일 텍스트 */}
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: '0 0 24px 0', background: 'rgba(0,0,0,0.15)', padding: '12px 14px', borderRadius: 12 }}>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: '0 0 24px 0', background: 'rgba(0,0,0,0.15)', padding: '12px 14px', borderRadius: 12, whiteSpace: 'pre-line', wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
                 {activeEx.detail}
               </p>
 
@@ -3018,7 +3018,7 @@ function RoutineCheckView({
                           <div style={{ fontSize: 12.5, fontWeight: 700, color: '#FFD700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {alt.name}
                           </div>
-                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, whiteSpace: 'pre-line', wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>
                             {alt.detail}
                           </div>
                         </div>
