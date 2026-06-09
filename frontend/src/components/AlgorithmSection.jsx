@@ -322,8 +322,8 @@ export default function AlgorithmSection() {
             <span style={{ width: 24, height: 2, background: 'linear-gradient(90deg, #FFD700, transparent)', borderRadius: 2 }} />
           </div>
           <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(42px, 5.5vw, 70px)', color: '#FFF', lineHeight: 1, marginBottom: 16 }}>
-            운동은 박창제처럼 해야한다<br />
-            <span className="gold-text">박창제 루틴.</span>
+            루틴의 편견 & 자극의 한계를 부수다<br />
+            <span className="gold-text">HELBOTIN</span>
           </h2>
         </div>
 
