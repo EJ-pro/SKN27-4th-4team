@@ -1257,6 +1257,17 @@ export default function RoutinePage() {
 
   const TOTAL = steps.length
 
+  if (!authChecked || loadingDb) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#080808' }}>
+        <LoadingOverlay
+          title="주간 루틴 불러오는 중..."
+          message="로그인 상태와 이번 주 루틴 정보를 확인하고 있습니다."
+        />
+      </div>
+    )
+  }
+
   const handleReset = () => {
     setStep(0)
     setAge('')
