@@ -2194,10 +2194,24 @@ def _apply_deterministic_validation(
     state: RecommendationState,
     validation: dict[str, Any],
 ) -> dict[str, Any]:
+    model_issues = list(validation.get("issues") or [])
+    blocking_model_issues = [
+        issue
+        for issue in model_issues
+        if isinstance(issue, dict) and issue.get("type") == "invalid_validation_output"
+    ]
+    model_warnings = [
+        str(issue.get("message") or issue) if isinstance(issue, dict) else str(issue)
+        for issue in model_issues
+        if issue not in blocking_model_issues
+    ]
     result = {
         **validation,
-        "issues": list(validation.get("issues") or []),
-        "safety_warnings": [],
+        "issues": blocking_model_issues,
+        "safety_warnings": [
+            *list(validation.get("safety_warnings") or []),
+            *model_warnings,
+        ],
         "revision_instructions": list(validation.get("revision_instructions") or []),
     }
     params = state.get("recommendation_params", {})
@@ -2335,7 +2349,7 @@ def _apply_deterministic_validation(
             risk_level="medium",
         )
 
-    result["is_valid"] = bool(result.get("is_valid", True)) and not result["issues"]
+    result["is_valid"] = not result["issues"]
     if not result["issues"]:
         result["revision_instructions"] = []
     if not result["issues"]:

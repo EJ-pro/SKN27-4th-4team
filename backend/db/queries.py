@@ -12,9 +12,9 @@ Planfit Graph DB — Cypher 쿼리 모음
 from neo4j import GraphDatabase
 
 DIFFICULTY_MAP = {
-    "beginner":     ["beginner"],
-    "intermediate": ["beginner", "intermediate"],
-    "advanced":     ["beginner", "intermediate", "advanced"],
+    "beginner":     ["beginner", "intermediate"],
+    "intermediate": ["beginner", "intermediate", "advanced"],
+    "advanced":     ["intermediate", "advanced"],
 }
 SPINE_MAP = {
     "all": ["상", "중", "하"],
