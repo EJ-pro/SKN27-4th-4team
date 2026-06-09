@@ -26,7 +26,16 @@ const CAT_COLOR = {
 
 const PAGE_SIZE = 16
 
+function normalizeMediaUrl(url) {
+  const value = String(url || '').trim()
+  if (!value) return ''
+  if (/^https?:\/\//i.test(value) || value.startsWith('/')) return value
+  return `/${value.replace(/^\/+/, '')}`
+}
+
 function videoUrl(ex) {
+  const fromApi = normalizeMediaUrl(ex.video_url)
+  if (fromApi) return fromApi
   return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
 }
 

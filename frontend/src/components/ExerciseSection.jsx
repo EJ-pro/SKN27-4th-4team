@@ -14,11 +14,16 @@ const EQUIPMENT_LABEL = {
   pull_up_bar: '철봉', dips_bar: '딥스바', normal: '일반',
   foamroller: '폼롤러', massageball: '마사지볼',
 }
-function gifUrl(ex) {
-  return `/gifs/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.gif`
+function normalizeMediaUrl(url) {
+  const value = String(url || '').trim()
+  if (!value) return ''
+  if (/^https?:\/\//i.test(value) || value.startsWith('/')) return value
+  return `/${value.replace(/^\/+/, '')}`
 }
 
 function videoUrl(ex) {
+  const fromApi = normalizeMediaUrl(ex.video_url)
+  if (fromApi) return fromApi
   return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
 }
 
@@ -149,6 +154,7 @@ function MiniCard({ ex, onClick }) {
 function DetailModal({ ex, onClose }) {
   const color = CAT_COLOR[ex.category] || '#FFD700'
   const [tab, setTab] = useState('guide')
+  const [videoOk, setVideoOk] = useState(true)
 
   useEffect(() => {
     const esc = e => { if (e.key === 'Escape') onClose() }
@@ -180,11 +186,20 @@ function DetailModal({ ex, onClose }) {
         display: 'flex', boxShadow: `0 40px 100px rgba(0,0,0,0.7)`,
       }}>
         <div style={{ width: 320, flexShrink: 0, background: '#0A0A0A', position: 'relative' }}>
-          <img
-            src={gifUrl(ex)}
-            alt={ex.name_kor}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 480, display: 'block' }}
-          />
+          {videoOk ? (
+            <video
+              src={videoUrl(ex)}
+              loop
+              muted
+              autoPlay
+              playsInline
+              controls
+              onError={() => setVideoOk(false)}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 480, display: 'block' }}
+            />
+          ) : (
+            <StaticExerciseThumb ex={ex} hovered={false} color={color} />
+          )}
           <div style={{
             position: 'absolute', top: 14, left: 14, background: color, color: '#000',
             fontSize: 11, fontWeight: 800, padding: '4px 12px', borderRadius: 2

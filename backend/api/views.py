@@ -21,6 +21,7 @@ DIFF_NUM = {'초급': 1, '중급': 2, '고급': 3}
 EXERCISE_LIST_FIELDS = (
     'exercise_id', 'name_kor', 'name_eng', 'category',
     'slug', 'tag', 'equipment', 'difficulty', 'difficulty_label',
+    'video_url', 'image_url',
 )
 
 EXERCISE_FULL_FIELDS = (
@@ -44,6 +45,8 @@ def serialize_exercise(ex, full=False):
         'equipment': ex['equipment'] or '',
         'difficulty': DIFF_NUM.get(ex['difficulty'], 1),
         'difficulty_label': ex['difficulty_label'] or '',
+        'video_url': ex.get('video_url') or '',
+        'image_url': ex.get('image_url') or '',
     }
     if not full:
         return data

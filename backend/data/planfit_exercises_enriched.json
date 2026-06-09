@@ -3719,37 +3719,6 @@
         "image_url": ""
     },
     {
-        "id": 1142,
-        "category": "스트레칭",
-        "name_kor": "닐링 백 로테이션 스트레치",
-        "name_eng": "Kneeling Back Rotation Stretch",
-        "slug": "kneeling-back-rotation-stretch",
-        "tag": "",
-        "equipment": "body",
-        "difficulty": 2,
-        "description": "무릎을 꿇고 상체를 회전하여 스트레칭합니다.",
-        "guide": "1. 무릎을 꿇고 한 손을 머리 뒤에 둡니다.\n2. 무릎을 꿇고 한 손을 머리 뒤에 놓습니다.\n3. 상체를 회전시켜 옆으로 스트레칭합니다.\n4. 반대쪽으로 반복합니다.",
-        "starting_position": "무릎을 꿇고 한 손을 머리 뒤에 둡니다.",
-        "movement": "1. 무릎을 꿇고 한 손을 머리 뒤에 놓습니다.\n2. 상체를 회전시켜 옆으로 스트레칭합니다.\n3. 반대쪽으로 반복합니다.",
-        "breathing": "숨을 내쉬며 상체를 돌리고 들이쉬며 원래 위치로 돌아옵니다.",
-        "caution": "천천히 움직이세요.",
-        "related_exercises": "1001(데드리프트) / 1002(바벨 로우) / 1003(풀 업)",
-        "target_primary": "광배근",
-        "target_secondary": [
-            "이두근",
-            "능형근",
-            "후면 삼각근"
-        ],
-        "default_duration_min": 15,
-        "estimated_cal_per_min": 5.2,
-        "place_type": "home",
-        "home_friendly": "Y",
-        "spine_loading": "중",
-        "difficulty_label": "beginner",
-        "video_url": "https://training-videos.static.planfit.ai/1142.mp4",
-        "image_url": ""
-    },
-    {
         "id": 1143,
         "category": "등",
         "name_kor": "라잉 랫 풀다운",
