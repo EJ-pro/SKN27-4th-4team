@@ -2171,7 +2171,6 @@ function HumanReviewPanel({
         </div>
         {validation && (
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.48)', lineHeight: 1.6, textAlign: 'right' }}>
-            valid={String(validation.is_valid)} · risk={validation.risk_level || 'unknown'}
             {validation.reason && <div>{validation.reason}</div>}
           </div>
         )}
