@@ -240,7 +240,7 @@ export default function ChatSection() {
             {[
               { Icon: MessageSquare, color: '#FFD700', text: '검증된 데이터 기반 답변' },
               { Icon: SlidersHorizontal, color: '#7C72FF', text: '내 몸의 컨디션에 맞춘 대체 운동 매칭' },
-              { Icon: MousePointerClick, color: '#00D4A0', text: '해부학적 타겟 부위 및 자세 가이드' },
+              { Icon: MousePointerClick, color: '#00D4A0', text: '타겟 부위 및 자세 가이드' },
             ].map(({ Icon, color, text }) => (
               <div key={text} style={{
                 display: 'flex', alignItems: 'center', gap: 14,
