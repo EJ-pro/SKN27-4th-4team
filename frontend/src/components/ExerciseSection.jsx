@@ -348,23 +348,6 @@ export default function ExerciseSection({ onNavigate }) {
               <span className="gold-text">운동 목록</span>
             </h2>
           </div>
-          <button onClick={() => onNavigate('exercises')} style={{
-            background: 'transparent',
-            border: '1px solid rgba(255,215,0,0.28)',
-            color: '#FFD700', fontSize: 13, fontWeight: 700,
-            padding: '10px 26px', borderRadius: 3, cursor: 'pointer',
-            transition: 'all 0.25s ease', letterSpacing: 0.6,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,215,0,0.09)'
-              e.currentTarget.style.borderColor = 'rgba(255,215,0,0.5)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.borderColor = 'rgba(255,215,0,0.28)'
-            }}
-          >전체 보기 →</button>
         </div>
 
         {/* Grid */}

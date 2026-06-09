@@ -127,7 +127,7 @@ export default function Footer() {
           flexWrap: 'wrap', gap: 16,
         }}>
           <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.2)' }}>
-            © 2025 HELBOTIN. All rights reserved.
+            © 2026 HELBOTIN. All rights reserved.
           </span>
           <div style={{ display: 'flex', gap: 28 }}>
             {policyLinks.map(({ label, href }) => (
