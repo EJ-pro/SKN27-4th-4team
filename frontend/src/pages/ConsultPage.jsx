@@ -24,6 +24,20 @@ const QUICK_QUESTIONS = [
   '초보자 시작 방법',
 ]
 
+function getOfflineConsultResponse(question) {
+  const lower = question.toLowerCase()
+
+  if (lower.includes('어깨') || lower.includes('통증') || lower.includes('아파')) {
+    return '지금은 상담 서버 연결이 불안정해서 로컬 안내로 답할게요.\n\n통증이 있으면 해당 동작은 바로 중단하고, 통증 없는 범위에서 가벼운 가동성 운동이나 하체/코어 위주로 바꾸는 편이 안전합니다. 어깨라면 오버헤드 프레스, 딥스, 무거운 벤치프레스는 피하고 밴드 외회전, 페이스풀, 가벼운 로우처럼 부담이 낮은 동작부터 확인해 주세요. 통증이 날카롭거나 며칠 지속되면 운동 처방보다 진료가 우선입니다.'
+  }
+
+  if (lower.includes('루틴') || lower.includes('추천') || lower.includes('운동')) {
+    return '지금은 상담 서버 연결이 불안정해서 로컬 안내로 답할게요.\n\n오늘은 전신 기준으로 스쿼트 또는 레그프레스, 푸시업 또는 벤치프레스, 랫풀다운 또는 로우, 힙힌지 동작, 코어 1가지를 2~3세트씩 가볍게 구성해 보세요. 마지막 2회가 버거운 정도에서 멈추면 무리 없이 진행하기 좋습니다.'
+  }
+
+  return '지금은 상담 서버 연결이 불안정해서 로컬 안내로 답할게요.\n\n질문을 조금 더 구체적으로 적어주면 목표, 현재 운동 수준, 통증 여부를 기준으로 안전한 방향을 잡아볼 수 있어요. 서버가 다시 연결되면 더 자세한 상담 답변으로 이어갈 수 있습니다.'
+}
+
 // ─── BotAvatar ────────────────────────────────────────────────────────────────
 
 function BotAvatar() {
@@ -213,8 +227,10 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 3, flexShrink: 0, opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
+      <div className="consult-session-actions" style={{ display: 'flex', gap: 3, flexShrink: 0, opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
         <button
+          className="consult-session-action"
+          aria-label="상담 이름 수정"
           onClick={e => { e.stopPropagation(); onRenameClick(session) }}
           style={{
             width: 24, height: 24, borderRadius: 2, cursor: 'pointer',
@@ -227,6 +243,8 @@ function SessionItem({ session, isActive, onSelect, onRenameClick, onDeleteClick
           <Pencil size={12} color="rgba(255,255,255,0.5)" />
         </button>
         <button
+          className="consult-session-action"
+          aria-label="상담 삭제"
           onClick={e => { e.stopPropagation(); onDeleteClick(session) }}
           style={{
             width: 24, height: 24, borderRadius: 2, cursor: 'pointer',
@@ -390,18 +408,23 @@ export default function ConsultPage() {
     // ??? ??? ?? ??
     let sessionId = activeId
     if (!sessionId) {
-      const res = await fetch(`${API_URL}/api/sessions/`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_uuid: uuid.current, title }),
-      })
-      const data = await res.json()
-      sessionId = data.session_id
-      setSessions([{ id: sessionId, title, date: '방금' }])
+      try {
+        const res = await fetch(`${API_URL}/api/sessions/`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_uuid: uuid.current, title }),
+        })
+        if (!res.ok) throw new Error('Failed to create session')
+        const data = await res.json()
+        sessionId = data.session_id
+      } catch {
+        sessionId = `local-${Date.now()}`
+      }
+      setSessions(prev => [{ id: sessionId, title, date: '방금' }, ...prev.filter(s => s.id !== sessionId)])
       setActiveId(sessionId)
     } else if (messages.length === 0) {
-      renameSession(sessionId, title)
+      renameSession(sessionId, title).catch(() => {})
     }
 
     const tempId = Date.now()
@@ -472,7 +495,7 @@ export default function ConsultPage() {
       setMessages(prev => [...prev, {
         id: `${tempId}-error`,
         role: 'bot',
-        text: '답변을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        text: getOfflineConsultResponse(text),
         time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
       }])
     } finally {
@@ -484,10 +507,10 @@ export default function ConsultPage() {
 
   return (
     <>
-    <div style={{ height: '100vh', background: '#0F0F0F', display: 'flex', overflow: 'hidden' }}>
+    <div className={`consult-shell ${sessions.length === 0 ? 'consult-shell--empty' : 'consult-shell--has-sessions'}`} style={{ height: '100vh', background: '#0F0F0F', display: 'flex', overflow: 'hidden' }}>
 
       {/* ── Sidebar ── */}
-      <aside style={{
+      <aside className="consult-sidebar" style={{
         width: 280, flexShrink: 0,
         background: '#1F1F1F',
         borderRight: '1px solid rgba(255,255,255,0.05)',
@@ -535,7 +558,7 @@ export default function ConsultPage() {
         </div>
 
         {/* 세션 목록 */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 0 8px' }}>
+        <div className="consult-history" style={{ flex: 1, overflowY: 'auto', padding: '0 0 8px' }}>
           <div style={{
             fontSize: 10, letterSpacing: 3,
             color: 'rgba(255,255,255,0.25)',
@@ -633,7 +656,7 @@ export default function ConsultPage() {
                 )}
               </>
             ) : (
-              <div style={{
+              <div className="consult-empty-state" style={{
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
                 height: '100%', minHeight: '55vh',
@@ -664,6 +687,7 @@ export default function ConsultPage() {
           }}>
             {QUICK_QUESTIONS.map(q => (
               <button
+                className="consult-quick-button"
                 key={q}
                 onClick={() => setInputValue(q)}
                 style={{

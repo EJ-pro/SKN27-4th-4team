@@ -131,7 +131,7 @@ export default function Footer() {
           </span>
           <div style={{ display: 'flex', gap: 28 }}>
             {policyLinks.map(({ label, href }) => (
-              <a key={label} href={href} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.2)', transition: 'color 0.2s' }}
+              <a className="footer-policy-link" key={label} href={href} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.2)', transition: 'color 0.2s' }}
               onMouseEnter={e => e.target.style.color = '#FFD700'}
               onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.2)'}
               >{label}</a>

@@ -289,13 +289,13 @@ export default function AlgorithmSection() {
         backgroundSize: '40px 40px',
       }} />
       {/* 좌측 보라 빔 */}
-      <div style={{
+      <div className="mobile-hidden-deco" style={{
         position: 'absolute', top: '20%', left: '-100px', zIndex: 0,
         width: 500, height: 500,
         background: 'radial-gradient(circle, rgba(108,99,255,0.07) 0%, transparent 70%)',
       }} />
       {/* 우측 골드 빔 */}
-      <div style={{
+      <div className="mobile-hidden-deco" style={{
         position: 'absolute', bottom: '10%', right: '-60px', zIndex: 0,
         width: 400, height: 400,
         background: 'radial-gradient(circle, rgba(255,215,0,0.05) 0%, transparent 70%)',
@@ -373,7 +373,7 @@ export default function AlgorithmSection() {
                   {PAIN_OPTIONS.map(p => {
                     const active = pain.includes(p.key)
                     return (
-                      <button key={p.key} onClick={() => handlePainToggle(p.key)} style={{
+                      <button className="algorithm-pain-button" key={p.key} onClick={() => handlePainToggle(p.key)} style={{
                         padding: '5px 12px', borderRadius: 2, fontSize: 11, cursor: 'pointer',
                         background: active
                           ? (p.key === '없음' ? '#FFD700' : '#F44336')
@@ -430,11 +430,11 @@ export default function AlgorithmSection() {
 
                 {/* 요일별 가용 시간 조절 */}
                 <div>
-                  <div style={{ display: 'flex', gap: 10 }}>
+                  <div className="algorithm-time-controls" style={{ display: 'flex', gap: 10 }}>
                     {DAYS.map((day, i) => (
                       <div key={day.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                         {/* Plus Button */}
-                        <button onClick={() => setTime(i, 1)} style={{
+                        <button className="algorithm-time-button" onClick={() => setTime(i, 1)} style={{
                           width: 24, height: 24, borderRadius: '50%',
                           background: `${day.color}18`, border: `1px solid ${day.color}35`,
                           color: day.color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -453,7 +453,7 @@ export default function AlgorithmSection() {
                         </span>
 
                         {/* Minus Button */}
-                        <button onClick={() => setTime(i, -1)} style={{
+                        <button className="algorithm-time-button" onClick={() => setTime(i, -1)} style={{
                           width: 24, height: 24, borderRadius: '50%',
                           background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
                           color: 'rgba(255,255,255,0.4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -462,6 +462,7 @@ export default function AlgorithmSection() {
                         </button>
                       </div>
                     ))}
+                    <div className="algorithm-mobile-more-days">+2일</div>
                   </div>
                 </div>
               </div>
@@ -469,7 +470,7 @@ export default function AlgorithmSection() {
           </div>
 
           {/* Day columns */}
-          <div style={{ display: 'flex', gap: 20 }}>
+          <div className="algorithm-day-columns" style={{ display: 'flex', gap: 20 }}>
             {DAYS.map((day, i) => (
               <DayTimeline
                 key={day.label}

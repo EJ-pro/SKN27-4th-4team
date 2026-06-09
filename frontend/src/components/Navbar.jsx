@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Menu, X } from 'lucide-react'
 import { getMe, logout } from '../api/auth'
 import BrandIcon from './BrandIcon'
 
@@ -15,6 +16,7 @@ export default function Navbar() {
     const [hoveredLink, setHoveredLink] = useState(null)
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
     const [isLoggingOut, setIsLoggingOut] = useState(false)
+    const [mobileOpen, setMobileOpen] = useState(false)
     const { pathname } = useLocation()
     const navigate = useNavigate()
     const isExercisePage = pathname === '/exercise'
@@ -32,6 +34,10 @@ export default function Navbar() {
             .catch(() => setUser(null))
     }, [])
 
+    useEffect(() => {
+        setMobileOpen(false)
+    }, [pathname])
+
     const handleLogout = async () => {
         if (isLoggingOut) return
         setIsLoggingOut(true)
@@ -47,7 +53,7 @@ export default function Navbar() {
 
     return (
         <>
-            <nav style={{
+            <nav className={`site-nav ${mobileOpen ? 'site-nav--open' : ''}`} style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
             padding: '0 52px',
             height: 70,
@@ -60,6 +66,7 @@ export default function Navbar() {
             transition: 'background 0.45s ease, border-bottom 0.45s ease, backdrop-filter 0.45s ease',
         }}>
             <Link
+                className="site-nav__brand"
                 to="/"
                 style={{
                     display: 'flex', alignItems: 'center', gap: 10,
@@ -85,11 +92,22 @@ export default function Navbar() {
                 <span style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 2, color: '#FFD700' }}>HELBOTIN</span>
             </Link>
 
-            <div style={{ display: 'flex', gap: 38, alignItems: 'center' }}>
+            <button
+                type="button"
+                className="site-nav__menu"
+                aria-label={mobileOpen ? '메뉴 닫기' : '메뉴 열기'}
+                aria-expanded={mobileOpen}
+                onClick={() => setMobileOpen(open => !open)}
+            >
+                {mobileOpen ? <X size={19} /> : <Menu size={19} />}
+            </button>
+
+            <div className="site-nav__links" style={{ display: 'flex', gap: 38, alignItems: 'center' }}>
                 {links.map(({ label, to }) => (
                     <NavLink
                         key={to}
                         to={to}
+                        onClick={() => setMobileOpen(false)}
                         onMouseEnter={() => setHoveredLink(label)}
                         onMouseLeave={() => setHoveredLink(null)}
                         style={({ isActive }) => ({
@@ -121,7 +139,7 @@ export default function Navbar() {
                 ))}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            <div className="site-nav__actions" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
                 {user ? (
                     <>
                         <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15 }}>
@@ -153,7 +171,7 @@ export default function Navbar() {
                 ) : (
                     <>
                         <button
-                            onClick={() => navigate('/login')}
+                            onClick={() => { setMobileOpen(false); navigate('/login') }}
                             style={{
                                 background: 'linear-gradient(135deg, #FFD700, #C8A200)',
                                 color: '#111111', fontWeight: 800, fontSize: 15,
@@ -174,7 +192,7 @@ export default function Navbar() {
                             로그인
                         </button>
                         <button
-                            onClick={() => navigate('/register')}
+                            onClick={() => { setMobileOpen(false); navigate('/register') }}
                             style={{
                                 background: 'rgba(255,215,0,0.1)',
                                 border: '1px solid rgba(255,215,0,0.35)',

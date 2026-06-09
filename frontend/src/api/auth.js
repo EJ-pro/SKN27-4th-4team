@@ -7,6 +7,7 @@
  */
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const AUTH_TIMEOUT_MS = 4500
 
 /** @type {string} CSRF 엔드포인트 응답에서 받은 토큰 (크로스 오리진용) */
 let cachedCsrfToken = ''
@@ -22,6 +23,25 @@ function getCookie(name) {
   return match ? decodeURIComponent(match[2]) : ''
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = AUTH_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error.name === 'AbortError' || error instanceof TypeError) {
+      throw new Error('서버 연결이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
 /**
  * CSRF 토큰 쿠키(csrftoken)를 서버에서 받아온다.
  * POST 요청 전에 한 번 호출되어야 Django CsrfViewMiddleware가 통과한다.
@@ -29,7 +49,7 @@ function getCookie(name) {
  * @returns {Promise<void>}
  */
 async function ensureCsrfCookie() {
-  const res = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' })
+  const res = await fetchWithTimeout(`${API_URL}/api/auth/csrf/`, { credentials: 'include' })
   const data = await res.json().catch(() => ({}))
   if (data.csrfToken) {
     cachedCsrfToken = data.csrfToken
@@ -56,7 +76,7 @@ async function authFetch(path, options = {}) {
     ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
     ...options.headers,
   }
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetchWithTimeout(`${API_URL}${path}`, {
     ...options,
     headers,
     credentials: 'include',
