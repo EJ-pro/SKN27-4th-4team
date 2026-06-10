@@ -510,6 +510,7 @@ function InfoTile({ icon: Icon, label, value, accentColor }) {
 }
 
 function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading }) {
+  const videoRef = useRef(null)
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
   const currentIndex = exercises.findIndex(item => item.id === ex.id)
   const prevEx = currentIndex > 0 ? exercises[currentIndex - 1] : null
@@ -540,6 +541,31 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading
       document.body.style.overflow = ''
     }
   }, [nextEx, onClose, onNavigate, prevEx])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return undefined
+
+    let retryId
+
+    const playVideo = () => {
+      video.muted = true
+      video.playsInline = true
+      video.play().catch(() => {
+        retryId = window.setTimeout(() => {
+          video.play().catch(() => {})
+        }, 250)
+      })
+    }
+
+    video.load()
+    const frameId = window.requestAnimationFrame(playVideo)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      if (retryId) window.clearTimeout(retryId)
+    }
+  }, [ex.id, ex.video_url])
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(14px)', overflowY: 'auto', animation: 'float-up 0.25s ease' }}>
@@ -574,7 +600,19 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading
           <section style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 0.92fr) minmax(420px, 1.08fr)', gap: 32, alignItems: 'start', marginBottom: 28 }}>
             <div style={{ position: 'sticky', top: 96, background: '#101010', border: `1px solid ${accentColor}22`, borderRadius: 4, overflow: 'hidden', boxShadow: `0 30px 90px rgba(0,0,0,0.5), 0 0 70px ${accentColor}08` }}>
               <div style={{ width: '100%', aspectRatio: '4 / 3', background: '#050505', position: 'relative' }}>
-                <video src={videoUrl(ex)} loop muted autoPlay playsInline controls style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', background: '#050505' }} />
+                <video
+                  ref={videoRef}
+                  src={videoUrl(ex)}
+                  loop
+                  muted
+                  autoPlay
+                  playsInline
+                  controls
+                  preload="auto"
+                  onLoadedData={event => event.currentTarget.play().catch(() => {})}
+                  onCanPlay={event => event.currentTarget.play().catch(() => {})}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', background: '#050505' }}
+                />
                 <div style={{ position: 'absolute', left: 18, top: 18, background: accentColor, color: '#000', fontSize: 12, fontWeight: 900, padding: '6px 14px', borderRadius: 2 }}>
                   {ex.category}
                 </div>
