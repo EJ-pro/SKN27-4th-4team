@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
+import { getFallbackExercises } from '../data/fallbackExercises'
 
 const CAT_COLOR = {
   등: '#FFD700', 가슴: '#FF6B35', 어깨: '#6C63FF', 하체: '#00D4A0',
@@ -7,6 +9,7 @@ const CAT_COLOR = {
   유산소: '#E63946', 스트레칭: '#06D6A0',
 }
 const DIFF_COLOR = { 1: '#4CAF50', 2: '#8BC34A', 3: '#FFC107', 4: '#FF9800', 5: '#F44336' }
+const EXERCISE_SECTION_TIMEOUT_MS = 2200
 
 const EQUIPMENT_LABEL = {
   '': '기타', body: '맨몸', barbell: '바벨', dumbbell: '덤벨',
@@ -14,6 +17,26 @@ const EQUIPMENT_LABEL = {
   pull_up_bar: '철봉', dips_bar: '딥스바', normal: '일반',
   foamroller: '폼롤러', massageball: '마사지볼',
 }
+
+async function fetchExerciseSectionApi(url, options = {}, timeoutMs = EXERCISE_SECTION_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error.name === 'AbortError' || error instanceof TypeError) {
+      throw new Error('운동 데이터를 불러오지 못해 로컬 데이터로 표시합니다.')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
 function normalizeMediaUrl(url) {
   const value = String(url || '').trim()
   if (!value) return ''
@@ -56,6 +79,7 @@ function MiniCard({ ex, onClick }) {
 
   return (
     <div
+      className="home-exercise-card"
       onClick={() => onClick(ex)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -265,6 +289,7 @@ function DetailModal({ ex, onClose }) {
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 export default function ExerciseSection({ onNavigate }) {
+  const navigate = useNavigate()
   const [selected, setSelected] = useState(null)
   const [visible, setVisible] = useState(false)
   const [exercises, setExercises] = useState([])
@@ -280,15 +305,18 @@ export default function ExerciseSection({ onNavigate }) {
   // 백엔드 API에서 운동 데이터 불러오기
   useEffect(() => {
     setLoading(true)
-    fetch(`${API_URL}/api/exercises/featured/?limit=8`)
-      .then(r => r.json())
-      .then(data => { setExercises(data); setLoading(false) })
-      .catch(() => setLoading(false))
+    fetchExerciseSectionApi(`${API_URL}/api/exercises/featured/?limit=8`)
+      .then(r => {
+        if (!r.ok) throw new Error(`featured exercises ${r.status}`)
+        return r.json()
+      })
+      .then(data => { setExercises(Array.isArray(data) && data.length > 0 ? data : getFallbackExercises()); setLoading(false) })
+      .catch(() => { setExercises(getFallbackExercises()); setLoading(false) })
   }, [])
 
   const selectExercise = useCallback((ex) => {
     setSelected(ex)
-    fetch(`${API_URL}/api/exercises/${ex.id}/`)
+    fetchExerciseSectionApi(`${API_URL}/api/exercises/${ex.id}/`)
       .then(r => r.ok ? r.json() : null)
       .then(detail => {
         if (!detail) return
@@ -351,7 +379,7 @@ export default function ExerciseSection({ onNavigate }) {
         </div>
 
         {/* Grid */}
-        <div style={{
+        <div className="home-exercise-grid" style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(285px, 1fr))',
           gap: 18,
@@ -383,7 +411,7 @@ export default function ExerciseSection({ onNavigate }) {
           textAlign: 'center',
           opacity: visible ? 1 : 0, transition: 'all 0.6s ease 0.3s',
         }}>
-          <button onClick={() => onNavigate('exercises')} style={{
+          <button onClick={() => onNavigate ? onNavigate('exercises') : navigate('/exercise')} style={{
             background: 'rgba(255,215,0,0.08)',
             border: '1px solid rgba(255,215,0,0.25)',
             color: '#FFD700', fontSize: 13, fontWeight: 700,

@@ -195,7 +195,7 @@ export default function ChatSection() {
         background: 'radial-gradient(ellipse, rgba(255,180,0,0.05) 0%, transparent 65%)',
       }} />
       {/* 우측 채팅창 뒤 빛 */}
-      <div style={{
+      <div className="mobile-hidden-deco" style={{
         position: 'absolute', top: '20%', right: '5%', zIndex: 0,
         width: 480, height: 480,
         background: 'radial-gradient(circle, rgba(255,215,0,0.07) 0%, transparent 65%)',
@@ -212,7 +212,7 @@ export default function ChatSection() {
       }}>
 
         {/* Left: copy */}
-        <div style={{
+        <div className="home-chat-copy" style={{
           opacity: visible ? 1 : 0,
           transform: visible ? 'translateX(0)' : 'translateX(-30px)',
           transition: 'all 0.8s ease',
@@ -230,13 +230,13 @@ export default function ChatSection() {
             대화로 찾아내는<br />
             <span className="gold-text">운동 백과</span>
           </h2>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 2, marginBottom: 36 }}>
+          <p className="home-chat-description" style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 2, marginBottom: 36 }}>
             검증된 운동 데이터를 기반으로 답변하는 AI 운동 백과사전.<br />
             정확한 타겟 부위부터 부상 방지를 위한 대체 운동까지,<br />
             흩어진 지식을 한눈에 찾아 드립니다.
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 40 }}>
+          <div className="home-chat-features" style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 40 }}>
             {[
               { Icon: MessageSquare, color: '#FFD700', text: '검증된 데이터 기반 답변' },
               { Icon: SlidersHorizontal, color: '#7C72FF', text: '내 몸의 컨디션에 맞춘 대체 운동 매칭' },
@@ -280,7 +280,7 @@ export default function ChatSection() {
         </div>
 
         {/* Right: chat UI */}
-        <div style={{
+        <div className="home-chat-preview" style={{
           opacity: visible ? 1 : 0,
           transform: visible ? 'translateX(0)' : 'translateX(30px)',
           transition: 'all 0.8s ease 0.15s',
@@ -385,7 +385,7 @@ export default function ChatSection() {
               display: 'flex', gap: 6, flexWrap: 'wrap',
             }}>
               {QUICK_BTNS.map(btn => (
-                <button key={btn} onClick={() => handleQuick(btn)} style={{
+                <button className="home-chat-quick-button" key={btn} onClick={() => handleQuick(btn)} style={{
                   padding: '4px 12px', borderRadius: 2, fontSize: 11, cursor: 'pointer',
                   background: 'rgba(255,215,0,0.07)',
                   border: '1px solid rgba(255,215,0,0.2)',

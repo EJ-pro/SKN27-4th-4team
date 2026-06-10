@@ -335,3 +335,369 @@
     font-size: 12px;
   }
 }
+
+@media (max-width: 760px) {
+  /* Auth pages are a single vertical flow on mobile. */
+  .auth-page {
+    min-height: 100svh;
+    height: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 42px 20px 36px;
+  }
+
+  .auth-brand {
+    position: static;
+    margin: 0 auto 44px;
+    align-self: flex-start;
+    width: min(460px, 100%);
+    max-width: 100%;
+  }
+
+  .auth-shell {
+    width: min(460px, 100%);
+    max-width: 100%;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    align-items: stretch;
+  }
+
+  .auth-copy {
+    min-width: 0;
+    padding: 0;
+  }
+
+  .auth-kicker {
+    margin-bottom: 10px;
+  }
+
+  .auth-copy h1 {
+    font-size: clamp(42px, 8vw, 58px);
+    line-height: 1;
+    letter-spacing: 0;
+  }
+
+  .auth-copy p {
+    max-width: none;
+    margin-top: 12px;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .auth-rule {
+    margin-top: 20px;
+  }
+
+  .auth-panel {
+    min-width: 0;
+    max-width: 100%;
+    justify-self: stretch;
+    padding: 24px;
+  }
+
+  .auth-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .auth-page {
+    padding: 28px 16px 24px;
+    align-items: stretch;
+  }
+
+  .auth-brand {
+    width: 100%;
+    max-width: 460px;
+    margin-bottom: 34px;
+  }
+
+  .auth-shell {
+    width: 100%;
+    max-width: 460px;
+    gap: 20px;
+  }
+
+  .auth-copy h1 {
+    font-size: 38px;
+  }
+
+  .auth-copy p {
+    font-size: 13px;
+  }
+
+  .auth-panel {
+    padding: 18px 14px;
+  }
+
+  .auth-field {
+    margin-bottom: 14px;
+  }
+
+  .auth-input-wrap {
+    min-height: 46px;
+    padding: 0 12px;
+  }
+
+  .auth-input-wrap input {
+    height: 44px;
+    font-size: 13px;
+  }
+
+  .auth-input-wrap-action {
+    padding-left: 12px;
+  }
+
+  .auth-check-button {
+    width: 76px;
+    min-height: 46px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .auth-page--register {
+    padding: 18px 14px 20px;
+  }
+
+  .auth-page--register .auth-brand {
+    margin-bottom: 18px;
+  }
+
+  .auth-page--register .auth-brand span:last-child {
+    font-size: 20px;
+  }
+
+  .auth-page--register .auth-shell {
+    gap: 14px;
+  }
+
+  .auth-page--register .auth-kicker,
+  .auth-page--register .auth-copy p,
+  .auth-page--register .auth-rule {
+    display: none;
+  }
+
+  .auth-page--register .auth-copy h1 {
+    font-size: 32px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .auth-page--register .auth-panel {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    justify-self: stretch;
+    padding: 14px;
+  }
+
+  .auth-page--register .auth-field {
+    margin-bottom: 10px;
+  }
+
+  .auth-page--register .auth-field > span {
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+
+  .auth-page--register .auth-input-wrap {
+    min-height: 42px;
+    padding: 0 10px;
+  }
+
+  .auth-page--register .auth-input-wrap input {
+    height: 40px;
+    font-size: 13px;
+  }
+
+  .auth-page--register .auth-input-wrap-action {
+    padding-left: 10px;
+  }
+
+  .auth-page--register .auth-check-button {
+    width: 72px;
+    min-height: 42px;
+    font-size: 10.5px;
+  }
+
+  .auth-page--register .auth-submit {
+    min-height: 44px;
+    margin-top: 4px;
+  }
+
+  .auth-page--register .auth-actions {
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .auth-page--register .auth-actions button {
+    min-height: 38px;
+  }
+}
+
+@media (max-width: 760px) and (max-height: 420px) {
+  .auth-page,
+  .auth-page--register {
+    min-height: 100svh;
+    padding: 64px 16px 18px !important;
+    align-items: flex-start !important;
+    overflow-y: auto !important;
+  }
+
+  .auth-brand,
+  .auth-page--register .auth-brand {
+    top: 12px !important;
+    left: 18px !important;
+    margin-bottom: 0 !important;
+    min-height: 40px !important;
+    align-items: center !important;
+  }
+
+  .auth-brand span:last-child,
+  .auth-page--register .auth-brand span:last-child {
+    font-size: 18px !important;
+  }
+
+  .auth-shell,
+  .auth-page--register .auth-shell {
+    gap: 10px !important;
+  }
+
+  .auth-copy,
+  .auth-page--register .auth-copy {
+    padding: 0 !important;
+  }
+
+  .auth-kicker,
+  .auth-copy p,
+  .auth-rule,
+  .auth-page--register .auth-kicker,
+  .auth-page--register .auth-copy p,
+  .auth-page--register .auth-rule {
+    display: none !important;
+  }
+
+  .auth-copy h1,
+  .auth-page--register .auth-copy h1 {
+    font-size: 30px !important;
+    line-height: 1 !important;
+  }
+
+  .auth-panel,
+  .auth-page--register .auth-panel {
+    padding: 12px !important;
+  }
+
+  .auth-field,
+  .auth-page--register .auth-field {
+    margin-bottom: 8px !important;
+  }
+
+  .auth-field > span,
+  .auth-page--register .auth-field > span {
+    margin-bottom: 5px !important;
+    font-size: 11.5px !important;
+  }
+
+  .auth-input-wrap,
+  .auth-page--register .auth-input-wrap {
+    min-height: 40px !important;
+  }
+
+  .auth-input-wrap input,
+  .auth-page--register .auth-input-wrap input {
+    height: 40px !important;
+  }
+
+  .auth-check-button,
+  .auth-page--register .auth-check-button {
+    min-height: 40px !important;
+  }
+
+  .auth-submit,
+  .auth-page--register .auth-submit {
+    min-height: 42px !important;
+  }
+
+  .auth-actions,
+  .auth-page--register .auth-actions {
+    margin-top: 8px !important;
+  }
+
+  .auth-actions button,
+  .auth-page--register .auth-actions button {
+    min-height: 40px !important;
+  }
+}
+
+@media (max-width: 760px) and (max-height: 380px) {
+  .auth-page,
+  .auth-page--register {
+    padding-top: 8px !important;
+  }
+
+  .auth-brand,
+  .auth-page--register .auth-brand {
+    display: none !important;
+  }
+
+  .auth-shell,
+  .auth-page--register .auth-shell {
+    gap: 8px !important;
+  }
+
+  .auth-copy h1,
+  .auth-page--register .auth-copy h1 {
+    font-size: 24px !important;
+  }
+
+  .auth-panel,
+  .auth-page--register .auth-panel {
+    padding: 6px 12px !important;
+  }
+
+  .auth-field,
+  .auth-page--register .auth-field {
+    margin-bottom: 6px !important;
+  }
+
+  .auth-field > span,
+  .auth-page--register .auth-field > span {
+    margin-bottom: 4px !important;
+  }
+
+  .auth-input-wrap,
+  .auth-page--register .auth-input-wrap {
+    min-height: 40px !important;
+  }
+
+  .auth-input-wrap input,
+  .auth-page--register .auth-input-wrap input {
+    height: 40px !important;
+  }
+
+  .auth-check-button,
+  .auth-page--register .auth-check-button {
+    min-height: 40px !important;
+  }
+
+  .auth-submit,
+  .auth-page--register .auth-submit {
+    min-height: 40px !important;
+  }
+
+  .auth-error {
+    margin-bottom: 6px !important;
+    padding: 7px 9px !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+  .auth-field-msg {
+    margin-top: 5px !important;
+    font-size: 11.5px !important;
+    line-height: 1.35 !important;
+  }
+}

@@ -1,8 +1,33 @@
 import { memo, useDeferredValue, useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Flame, MapPin, Search, Target, X, RotateCcw, Filter } from 'lucide-react'
+import { getFallbackExercises } from '../data/fallbackExercises'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const EXERCISE_TIMEOUT_MS = 4500
+
+async function fetchExerciseApi(url, options = {}, timeoutMs = EXERCISE_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  if (options.signal) {
+    options.signal.addEventListener('abort', () => controller.abort(), { once: true })
+  }
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error.name === 'AbortError' || error instanceof TypeError) {
+      throw new Error('운동 데이터를 불러오지 못해 로컬 데이터로 표시합니다.')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
@@ -37,6 +62,31 @@ function videoUrl(ex) {
   const fromApi = normalizeMediaUrl(ex.video_url)
   if (fromApi) return fromApi
   return `/videos/${encodeURIComponent(ex.category)}/${ex.id}_${encodeURIComponent(ex.name_kor)}.mp4`
+}
+
+function StaticExerciseThumb({ ex, color }) {
+  return (
+    <div style={{
+      position: 'absolute',
+      inset: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: `linear-gradient(135deg, ${color}22, rgba(8,8,8,0.35) 46%, rgba(8,8,8,0.94)), radial-gradient(circle at 78% 26%, ${color}30, transparent 34%)`,
+    }}>
+      <div style={{
+        fontFamily: 'Bebas Neue',
+        fontSize: 'clamp(36px, 11vw, 64px)',
+        color: 'rgba(255,255,255,0.78)',
+        letterSpacing: 1,
+        lineHeight: 1,
+        textAlign: 'center',
+        padding: '0 24px',
+      }}>
+        {ex.name_kor}
+      </div>
+    </div>
+  )
 }
 
 function scrollToPageTop() {
@@ -512,6 +562,8 @@ function InfoTile({ icon: Icon, label, value, accentColor }) {
 function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading }) {
   const videoRef = useRef(null)
   const accentColor = CAT_COLOR[ex.category] || '#FFD700'
+  const [detailVideoReady, setDetailVideoReady] = useState(false)
+  const [detailVideoFailed, setDetailVideoFailed] = useState(false)
   const currentIndex = exercises.findIndex(item => item.id === ex.id)
   const prevEx = currentIndex > 0 ? exercises[currentIndex - 1] : null
   const nextEx = currentIndex >= 0 && currentIndex < exercises.length - 1 ? exercises[currentIndex + 1] : null
@@ -568,15 +620,15 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading
   }, [ex.id, ex.video_url])
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(14px)', overflowY: 'auto', animation: 'float-up 0.25s ease' }}>
-      <div onClick={event => event.stopPropagation()} style={{ minHeight: '100vh', background: '#080808', color: '#E2E2E2' }}>
+    <div className="exercise-detail-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(14px)', overflowY: 'auto', animation: 'float-up 0.25s ease' }}>
+      <div className="exercise-detail-page" onClick={event => event.stopPropagation()} style={{ minHeight: '100vh', background: '#080808', color: '#E2E2E2' }}>
         <header style={{ position: 'sticky', top: 0, zIndex: 5, background: 'rgba(8,8,8,0.94)', backdropFilter: 'blur(18px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <div style={{ maxWidth: 1440, margin: '0 auto', padding: '16px 32px', display: 'grid', gridTemplateColumns: '180px 1fr 180px', alignItems: 'center', gap: 16 }}>
-            <button type="button" disabled={!prevEx} onClick={() => prevEx && onNavigate(prevEx)} title={prevEx ? prevEx.name_kor : '이전 운동 없음'} style={{ height: 40, borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', background: prevEx ? '#141414' : 'rgba(255,255,255,0.03)', color: prevEx ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.18)', cursor: prevEx ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
+          <div className="exercise-detail-nav" style={{ maxWidth: 1440, margin: '0 auto', padding: '16px 32px', display: 'grid', gridTemplateColumns: '180px 1fr 180px', alignItems: 'center', gap: 16 }}>
+            <button className="exercise-detail-nav-prev" type="button" disabled={!prevEx} onClick={() => prevEx && onNavigate(prevEx)} title={prevEx ? prevEx.name_kor : '이전 운동 없음'} style={{ height: 40, borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', background: prevEx ? '#141414' : 'rgba(255,255,255,0.03)', color: prevEx ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.18)', cursor: prevEx ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
               <ChevronLeft size={16} /> 이전
             </button>
 
-            <div style={{ minWidth: 0, textAlign: 'center' }}>
+            <div className="exercise-detail-title" style={{ minWidth: 0, textAlign: 'center' }}>
               <div style={{ fontSize: 10, color: accentColor, letterSpacing: 3, fontWeight: 900, marginBottom: 4 }}>
                 EXERCISE DETAIL
               </div>
@@ -585,8 +637,8 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" disabled={!nextEx} onClick={() => nextEx && onNavigate(nextEx)} title={nextEx ? nextEx.name_kor : '다음 운동 없음'} style={{ height: 40, minWidth: 94, borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', background: nextEx ? '#141414' : 'rgba(255,255,255,0.03)', color: nextEx ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.18)', cursor: nextEx ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
+            <div className="exercise-detail-nav-actions" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="exercise-detail-nav-next" type="button" disabled={!nextEx} onClick={() => nextEx && onNavigate(nextEx)} title={nextEx ? nextEx.name_kor : '다음 운동 없음'} style={{ height: 40, minWidth: 94, borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', background: nextEx ? '#141414' : 'rgba(255,255,255,0.03)', color: nextEx ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.18)', cursor: nextEx ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 800 }}>
                 다음 <ChevronRight size={16} />
               </button>
               <button type="button" onClick={onClose} title="닫기" style={{ width: 40, height: 40, borderRadius: 3, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -596,9 +648,9 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading
           </div>
         </header>
 
-        <main style={{ maxWidth: 1440, margin: '0 auto', padding: '34px 32px 56px' }}>
-          <section style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 0.92fr) minmax(420px, 1.08fr)', gap: 32, alignItems: 'start', marginBottom: 28 }}>
-            <div style={{ position: 'sticky', top: 96, background: '#101010', border: `1px solid ${accentColor}22`, borderRadius: 4, overflow: 'hidden', boxShadow: `0 30px 90px rgba(0,0,0,0.5), 0 0 70px ${accentColor}08` }}>
+        <main className="exercise-detail-main" style={{ maxWidth: 1440, margin: '0 auto', padding: '34px 32px 56px' }}>
+          <section className="exercise-detail-hero" style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 0.92fr) minmax(420px, 1.08fr)', gap: 32, alignItems: 'start', marginBottom: 28 }}>
+            <div className="exercise-detail-media" style={{ position: 'sticky', top: 96, background: '#101010', border: `1px solid ${accentColor}22`, borderRadius: 4, overflow: 'hidden', boxShadow: `0 30px 90px rgba(0,0,0,0.5), 0 0 70px ${accentColor}08` }}>
               <div style={{ width: '100%', aspectRatio: '4 / 3', background: '#050505', position: 'relative' }}>
                 <video
                   ref={videoRef}
@@ -619,7 +671,7 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading
               </div>
             </div>
 
-            <div>
+            <div className="exercise-detail-summary">
               <div style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
                   {ex.tag && <span style={{ background: `${accentColor}16`, border: `1px solid ${accentColor}35`, color: accentColor, borderRadius: 2, padding: '5px 12px', fontSize: 12, fontWeight: 900 }}>{ex.tag}</span>}
@@ -645,8 +697,8 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading
             </div>
           </section>
 
-          <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.12fr) minmax(360px, 0.88fr)', gap: 22, alignItems: 'start' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <section className="exercise-detail-content" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.12fr) minmax(360px, 0.88fr)', gap: 22, alignItems: 'start' }}>
+            <div className="exercise-detail-blocks" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <DetailBlock title="운동 방법" accentColor={accentColor}>
                 {detailLoading ? (
                   <p style={{ margin: 0, color: 'rgba(255,255,255,0.42)', fontSize: 14, lineHeight: 1.8 }}>상세 정보를 불러오는 중입니다...</p>
@@ -688,7 +740,7 @@ function ExerciseDetailModal({ ex, onClose, onNavigate, exercises, detailLoading
               </DetailBlock>
             </div>
 
-            <aside style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <aside className="exercise-detail-aside" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <DetailBlock title="자극 부위" accentColor={accentColor}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {ex.target_primary && (
@@ -857,9 +909,17 @@ export default function ExercisePage() {
   const rawPage = Number.parseInt(searchParams.get('page') || '1', 10)
 
   useEffect(() => {
-    fetch(`${API_URL}/api/exercises/`)
-      .then(r => r.json())
-      .then(data => setExercises(data))
+    fetchExerciseApi(`${API_URL}/api/exercises/`)
+      .then(r => {
+        if (!r.ok) throw new Error(`exercises ${r.status}`)
+        return r.json()
+      })
+      .then(data => {
+        setExercises(Array.isArray(data) && data.length > 0 ? data : getFallbackExercises())
+      })
+      .catch(() => {
+        setExercises(getFallbackExercises())
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -881,7 +941,7 @@ export default function ExercisePage() {
     setSelectedDetail(null)
     setDetailLoading(true)
 
-    fetch(`${API_URL}/api/exercises/${selected.id}/`, { signal: controller.signal })
+    fetchExerciseApi(`${API_URL}/api/exercises/${selected.id}/`, { signal: controller.signal })
       .then(response => {
         if (!response.ok) throw new Error(`exercise detail ${response.status}`)
         return response.json()
@@ -1036,9 +1096,9 @@ export default function ExercisePage() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#080808', display: 'flex', flexDirection: 'column' }}>
+    <div className="exercise-page" style={{ minHeight: '100vh', background: '#080808', display: 'flex', flexDirection: 'column' }}>
       {/* ── Header ── */}
-      <div style={{
+      <div className="exercise-page-header" style={{
         background: 'linear-gradient(to bottom, #0D0D0D, #0A0A0A)',
         borderBottom: '1px solid rgba(255,215,0,0.08)',
         padding: '100px 48px 36px',
@@ -1076,7 +1136,7 @@ export default function ExercisePage() {
               onBlur={e => e.target.style.boxShadow = 'none'}
             />
             {search && (
-              <button onClick={() => { setSearch(''); setPageParam(1, { replace: true }) }} style={{
+              <button className="exercise-search-clear" onClick={() => { setSearch(''); setPageParam(1, { replace: true }) }} style={{
                 position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
                 background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 2,
                 width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1097,6 +1157,7 @@ export default function ExercisePage() {
               return (
                 <button
                   key={cat}
+                  className="exercise-filter-chip"
                   onClick={() => handleCategoryChange(cat)}
                   style={{
                     padding: '8px 20px',
@@ -1128,6 +1189,7 @@ export default function ExercisePage() {
 
             {/* Filter toggle */}
             <button
+              className="exercise-filter-chip"
               onClick={() => setShowFilters(v => !v)}
               style={{
                 padding: '8px 18px', borderRadius: 2,
@@ -1187,6 +1249,7 @@ export default function ExercisePage() {
                       return (
                         <button
                           key={eq}
+                          className="exercise-filter-chip"
                           onClick={() => { setEquipment(eq); setPageParam(1, { replace: true }) }}
                           style={{
                             padding: '5px 14px',
@@ -1232,6 +1295,7 @@ export default function ExercisePage() {
                       return (
                         <button
                           key={d}
+                          className="exercise-filter-chip"
                           onClick={() => { setDifficulty(d); setPageParam(1, { replace: true }) }}
                           style={{
                             padding: '5px 14px',
@@ -1293,7 +1357,7 @@ export default function ExercisePage() {
               {search && <span> · "{search}" 검색 결과</span>}
             </span>
             {(selectedCategories.length > 0 || equipment !== '전체' || difficulty > 0 || search) && (
-              <button onClick={resetFilters} style={{
+              <button className="exercise-reset-filter" onClick={resetFilters} style={{
                 display: 'flex', alignItems: 'center', gap: 5,
                 fontSize: 12, color: 'rgba(255,255,255,0.35)',
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -1310,7 +1374,7 @@ export default function ExercisePage() {
       </div>
 
       {/* ── Grid ── */}
-      <div ref={listRef} style={{ flex: 1, padding: '36px 48px' }}>
+      <div className="exercise-page-list" ref={listRef} style={{ flex: 1, padding: '36px 48px' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           {filtered.length === 0 ? (
             <div style={{
@@ -1319,7 +1383,7 @@ export default function ExercisePage() {
             }}>
               <Search size={48} color="rgba(255,255,255,0.1)" style={{ margin: '0 auto 16px' }} />
               <p style={{ fontSize: 16 }}>검색 결과가 없습니다</p>
-              <button onClick={resetFilters} style={{
+              <button className="exercise-reset-filter" onClick={resetFilters} style={{
                 marginTop: 20, background: 'rgba(255,215,0,0.1)',
                 border: '1px solid rgba(255,215,0,0.2)',
                 color: '#FFD700', fontSize: 13, padding: '10px 24px',
@@ -1328,7 +1392,7 @@ export default function ExercisePage() {
             </div>
           ) : (
             <>
-              <div style={{
+              <div className="exercise-page-grid" style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(285px, 1fr))',
                 gap: 18,

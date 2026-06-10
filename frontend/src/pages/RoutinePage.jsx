@@ -2,6 +2,26 @@ import { useState, useEffect, useRef } from 'react'
 import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw, X } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const ROUTINE_TIMEOUT_MS = 4500
+
+async function fetchRoutineApi(url, options = {}, timeoutMs = ROUTINE_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error.name === 'AbortError' || error instanceof TypeError) {
+      throw new Error('서버 연결이 지연되고 있습니다. 로컬 데이터로 계속 진행합니다.')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
 
 async function readApiJson(res, fallbackMessage) {
   const text = await res.text()
@@ -23,6 +43,7 @@ async function readApiJson(res, fallbackMessage) {
 import { useNavigate } from 'react-router-dom'
 import { getMe } from '../api/auth'
 import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
+import { getFallbackExercises } from '../data/fallbackExercises'
 
 // 기존 uuid 셋팅을 유틸 함수로 보냄 + 기타 처리 추가
 const deviceUuid = getOrCreateDeviceUuid();
@@ -880,6 +901,16 @@ const mapRecommendedRoutineToWorkoutRoutine = (routineDraft, workDays, dbExercis
   return mapped
 }
 
+const buildLocalRoutine = (workDays, dayParts, dbExercises, painParts) => {
+  const routine = {}
+  workDays.forEach(day => {
+    const part = dayParts[day] || AUTO_DEFAULTS.dayParts[day] || DEFAULT_DAY_PARTS[day] || '가슴'
+    const template = generateDynamicTemplateForPart(part, dbExercises, painParts)
+    routine[day] = template ? template.items.map(item => ({ ...item })) : []
+  })
+  return routine
+}
+
 const summarizeRoutineChanges = (beforeRoutine, afterRoutine, workDays, dayParts) => {
   if (!beforeRoutine || !afterRoutine) return []
 
@@ -984,7 +1015,7 @@ export default function RoutinePage() {
   const loadWeeklyRoutine = () => {
     setLoadingRoutine(true)
     const { year, weekNumber } = getISOWeekAndYear(new Date())
-    fetch(
+    fetchRoutineApi(
       `${API_URL}/api/routines/?device_uuid=${deviceUuid}&year=${year}&week_number=${weekNumber}`,
       { credentials: 'include' },
     )
@@ -1014,8 +1045,8 @@ export default function RoutinePage() {
           if (prefs.day_parts) setDayParts(prefs.day_parts);
         }
       })
-      .catch(err => {
-        console.error('Error fetching weekly routine:', err)
+      .catch(() => {
+        // Backend can be unavailable in local/mobile QA; keep the onboarding flow usable.
       })
       .finally(() => {
         setLoadingRoutine(false)
@@ -1024,16 +1055,16 @@ export default function RoutinePage() {
 
   useEffect(() => {
     // 1. Fetch DB Exercises
-    fetch(`${API_URL}/api/exercises/?full=1`)
+    fetchRoutineApi(`${API_URL}/api/exercises/?full=1`)
       .then(r => {
         if (!r.ok) throw new Error('Failed to fetch exercises');
         return r.json();
       })
       .then(data => {
-        setDbExercises(data)
+        setDbExercises(Array.isArray(data) && data.length > 0 ? data : getFallbackExercises())
       })
-      .catch(err => {
-        console.error('Error fetching exercises from DB:', err)
+      .catch(() => {
+        setDbExercises(getFallbackExercises())
       })
       .finally(() => {
         setLoadingExercises(false)
@@ -1097,7 +1128,7 @@ export default function RoutinePage() {
       daily_notes: notes,
     }
 
-    const res = await fetch(`${API_URL}/api/routines/`, {
+      const res = await fetchRoutineApi(`${API_URL}/api/routines/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -1139,7 +1170,7 @@ export default function RoutinePage() {
     setShowApprovedNotice(false)
     setReviewNotice(null)
     try {
-      const res = await fetch(`${API_URL}/api/routines/recommend/`, {
+      const res = await fetchRoutineApi(`${API_URL}/api/routines/recommend/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1162,7 +1193,7 @@ export default function RoutinePage() {
     setReviewAction(decision)
     setIsReviewing(true)
     try {
-      const res = await fetch(`${API_URL}/api/routines/recommend/review/`, {
+      const res = await fetchRoutineApi(`${API_URL}/api/routines/recommend/review/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1256,6 +1287,24 @@ export default function RoutinePage() {
   ]
 
   const TOTAL = steps.length
+
+  useEffect(() => {
+    if (!recommendationError || isGeneratingRoutine || step !== TOTAL - 1) return
+    const localRoutine = buildLocalRoutine(
+      workDays,
+      dayParts,
+      dbExercises.length > 0 ? dbExercises : getFallbackExercises(),
+      painParts,
+    )
+    setRecommendationError('')
+    setRecommendationThreadId('')
+    setReviewPayload(null)
+    setPreloadedWorkoutRoutine(localRoutine)
+    setPreloadedDailyNotes({})
+    setIsApproved(true)
+    setShowApprovedNotice(false)
+    setStep(TOTAL)
+  }, [recommendationError, isGeneratingRoutine, step, TOTAL, workDays, dayParts, dbExercises, painParts])
 
   if (!authChecked || loadingDb) {
     return (
@@ -1597,7 +1646,7 @@ export default function RoutinePage() {
   }
 
   return (
-    <div style={{
+    <div className="routine-survey-page" style={{
       minHeight: '100vh',
       background: '#080808',
       padding: '90px 20px 60px',
@@ -1606,10 +1655,10 @@ export default function RoutinePage() {
       justifyContent: 'center',
       boxSizing: 'border-box',
     }}>
-      <div style={{ width: '100%', maxWidth: 640 }}>
+      <div className="routine-survey-shell" style={{ width: '100%', maxWidth: 640 }}>
 
         {/* 카드 */}
-        <div style={{
+        <div className="routine-survey-card" style={{
           background: '#111',
           border: '1px solid rgba(255,255,255,0.07)',
           borderRadius: 4,
@@ -1628,7 +1677,7 @@ export default function RoutinePage() {
           </div>
 
           {/* 카드 헤더 */}
-          <div style={{
+          <div className="routine-survey-head" style={{
             padding: '20px 32px 0',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
@@ -1639,19 +1688,19 @@ export default function RoutinePage() {
           </div>
 
           {/* 카드 본문 */}
-          <div style={{ padding: '8px 32px 32px', animation: 'float-up 0.3s ease' }} key={step}>
+          <div className="routine-survey-body" style={{ padding: '8px 32px 32px', animation: 'float-up 0.3s ease' }} key={step}>
             {steps[step]}
           </div>
 
           {/* 카드 하단 버튼 */}
-          <div style={{
+          <div className="routine-survey-actions" style={{
             padding: '20px 32px 28px',
             borderTop: '1px solid rgba(255,255,255,0.05)',
             background: 'rgba(0,0,0,0.2)',
           }}>
-            <div style={{ display: 'flex', gap: 12 }}>
+            <div className="routine-survey-actions-row" style={{ display: 'flex', gap: 12 }}>
               {step > 0 && (
-                <button onClick={() => setStep(s => s - 1)} style={{
+                <button className="routine-survey-prev" onClick={() => setStep(s => s - 1)} style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '13px 22px', borderRadius: 3,
                   background: 'rgba(255,255,255,0.04)',
@@ -1666,6 +1715,7 @@ export default function RoutinePage() {
                 </button>
               )}
               <button
+                className="routine-survey-next"
                 disabled={!canNext || isGeneratingRoutine}
                 onClick={() => {
                   if (step === TOTAL - 1) {
@@ -1697,6 +1747,7 @@ export default function RoutinePage() {
             {/* 자동 설정 */}
             <div style={{ textAlign: 'center', marginTop: 16 }}>
               <button
+                className="routine-survey-auto"
                 onClick={() => setShowAutoWarning(true)}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
@@ -2318,7 +2369,7 @@ function RoutineCheckView({
       daily_notes: notes
     };
 
-    const response = await fetch(`${API_URL}/api/routines/`, {
+    const response = await fetchRoutineApi(`${API_URL}/api/routines/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -2335,8 +2386,9 @@ function RoutineCheckView({
   // Auto-save on mount if it's a fresh routine
   useEffect(() => {
     if (!disableAutoSave && (!initialWorkoutRoutine || Object.keys(initialWorkoutRoutine).length === 0)) {
-      saveRoutineToDb(workoutRoutine, dailyNotes, completedExercises)
-        .catch(err => console.error('Error saving routine to DB:', err));
+      saveRoutineToDb(workoutRoutine, dailyNotes, completedExercises).catch(() => {
+        // Guest/offline sessions still work locally; saving can retry on explicit user action.
+      });
     }
   }, []);
 
@@ -2525,10 +2577,10 @@ function RoutineCheckView({
   }
 
   return (
-    <div style={{ width: '100%', maxWidth: 1200, padding: '0 20px', boxSizing: 'border-box' }}>
+    <div className="routine-approved-page" style={{ width: '100%', maxWidth: 1200, padding: '0 20px', boxSizing: 'border-box' }}>
       
       {/* 상단 요약 카드 */}
-      <div style={{
+      <div className="routine-approved-summary" style={{
         background: '#111',
         border: '1px solid rgba(255,215,0,0.15)',
         borderRadius: 4,
@@ -2605,7 +2657,7 @@ function RoutineCheckView({
       </div>
 
       {/* 완료 프로그레스 바 */}
-      <div style={{
+      <div className="routine-approved-progress" style={{
         background: '#111',
         border: '1px solid rgba(255,255,255,0.05)',
         borderRadius: 4,
@@ -2622,11 +2674,12 @@ function RoutineCheckView({
       </div>
 
       {/* 요일 선택 탭바 */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
+      <div className="routine-approved-tabs" style={{ display: 'flex', gap: 6, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
         {workDays.map(day => {
           const isActive = day === currentDay
           return (
             <button
+              className="routine-approved-tab"
               key={day}
               onClick={() => handleDayChange(day)}
               style={{
@@ -2652,22 +2705,22 @@ function RoutineCheckView({
       </div>
 
       {/* 메인 대시보드 2단 레이아웃 */}
-      <div style={{
+      <div className="routine-approved-dashboard" style={{
         display: 'flex',
         gap: 28,
         flexWrap: 'wrap',
         alignItems: 'flex-start',
       }}>
         {/* 왼쪽 단: 운동 리스트 & 메모 */}
-        <div style={{ flex: '1 1 560px', minWidth: 320 }}>
-          <div style={{
+        <div className="routine-approved-main-col" style={{ flex: '1 1 560px', minWidth: 320 }}>
+          <div className="routine-approved-card" style={{
             background: '#111',
             border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: 4,
             padding: '32px 32px 28px',
             boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <div className="routine-approved-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
               <div>
                 <span style={{ fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.3)', fontWeight: 700, display: 'block', marginBottom: 4 }}>
                   DAILY ROUTINE
@@ -2690,6 +2743,7 @@ function RoutineCheckView({
 
               return (
                 <div
+                  className="routine-approved-exercise"
                   key={slotKey}
                   onClick={() => setSelectedSlotKey(slotKey)}
                   style={{
@@ -2727,6 +2781,7 @@ function RoutineCheckView({
                 >
                   {/* 완료 토글 체크박스 */}
                   <button
+                    className="routine-approved-check"
                     onClick={(e) => {
                       e.stopPropagation()
                       const nextDone = !completedExercises[slotKey]
@@ -2911,9 +2966,9 @@ function RoutineCheckView({
         </div>
 
         {/* 오른쪽 단: 활성화된 운동 디테일 카드 (GIF & 대체 운동) */}
-        <div style={{ flex: '1 1 400px', minWidth: 320, position: 'sticky', top: 90 }}>
+        <div className="routine-approved-detail-col" style={{ flex: '1 1 400px', minWidth: 320, position: 'sticky', top: 90 }}>
           {activeEx ? (
-            <div style={{
+            <div className="routine-approved-detail-card" style={{
               background: '#111',
               border: '1px solid rgba(255,255,255,0.06)',
               borderRadius: 4,
@@ -3054,7 +3109,7 @@ function RoutineCheckView({
               )}
             </div>
           ) : (
-            <div style={{
+            <div className="routine-approved-detail-card" style={{
               background: '#111',
               border: '1px solid rgba(255,255,255,0.06)',
               borderRadius: 24,

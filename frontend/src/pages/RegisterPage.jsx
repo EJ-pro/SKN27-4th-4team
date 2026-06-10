@@ -83,7 +83,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="auth-page">
+    <main className="auth-page auth-page--register">
       <Link className="auth-brand" to="/" aria-label="HELBOTIN 홈으로 이동">
         <BrandIcon size={36} style={{ boxShadow: '0 0 22px rgba(255, 215, 0, 0.22)' }} />
         <span>HELBOTIN</span>
