@@ -1,4 +1,4 @@
-<img src="docs/Profiles/helbotin.png" width="100%" alt="HELBOTIN" />
+<img src="helbotin.png" width="100%" alt="HELBOTIN" />
 
 <p align="right">
   <strong>Link</strong> : <a href="https://sk-camp.cloud">https://sk-camp.cloud</a>
