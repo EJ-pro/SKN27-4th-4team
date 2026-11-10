@@ -1,6 +1,7 @@
 export const fallbackExercises = [
   {
     id: 90001,
+    video_url: '/videos/가슴/2001_벤치 프레스.mp4',
     name_kor: '벤치 프레스',
     name_eng: 'Bench Press',
     category: '가슴',
@@ -17,6 +18,7 @@ export const fallbackExercises = [
   },
   {
     id: 90002,
+    video_url: '/videos/등/1005_랫 풀다운.mp4',
     name_kor: '랫 풀다운',
     name_eng: 'Lat Pulldown',
     category: '등',
@@ -33,6 +35,7 @@ export const fallbackExercises = [
   },
   {
     id: 90003,
+    video_url: '/videos/하체/4001_바벨 스쿼트.mp4',
     name_kor: '스쿼트',
     name_eng: 'Squat',
     category: '하체',
@@ -49,6 +52,7 @@ export const fallbackExercises = [
   },
   {
     id: 90004,
+    video_url: '/videos/어깨/3002_덤벨 숌더 프레스.mp4',
     name_kor: '숄더 프레스',
     name_eng: 'Shoulder Press',
     category: '어깨',
@@ -65,6 +69,7 @@ export const fallbackExercises = [
   },
   {
     id: 90005,
+    video_url: '/videos/코어/5009_플랭크.mp4',
     name_kor: '플랭크',
     name_eng: 'Plank',
     category: '코어',
@@ -81,6 +86,7 @@ export const fallbackExercises = [
   },
   {
     id: 90006,
+    video_url: '/videos/이두/7006_덤벨 바이셉 컴.mp4',
     name_kor: '덤벨 컬',
     name_eng: 'Dumbbell Curl',
     category: '이두',
@@ -97,6 +103,7 @@ export const fallbackExercises = [
   },
   {
     id: 90007,
+    video_url: '/videos/삼두/6002_케이블 트라이셉 푸쉬다운.mp4',
     name_kor: '케이블 푸시다운',
     name_eng: 'Cable Pushdown',
     category: '삼두',
@@ -113,6 +120,7 @@ export const fallbackExercises = [
   },
   {
     id: 90008,
+    video_url: '/videos/유산소/9029_걷기.mp4',
     name_kor: '트레드밀 걷기',
     name_eng: 'Treadmill Walk',
     category: '유산소',
