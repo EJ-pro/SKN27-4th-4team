@@ -1,3 +1,5 @@
+import { generatedExercises } from './generatedExercises'
+
 export const fallbackExercises = [
   {
     id: 90001,
@@ -137,4 +139,6 @@ export const fallbackExercises = [
   },
 ]
 
-export const getFallbackExercises = () => fallbackExercises.map(item => ({ ...item }))
+export const getFallbackExercises = () => (
+  generatedExercises.length > 0 ? generatedExercises : fallbackExercises
+).map(item => ({ ...item }))

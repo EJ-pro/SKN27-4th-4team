@@ -4,7 +4,10 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "prepare:data": "node scripts/prepare-demo-data.mjs",
+    "predev": "npm run prepare:data",
     "dev": "vite --host",
+    "prebuild": "npm run prepare:data",
     "build": "vite build",
     "preview": "vite preview"
   },
