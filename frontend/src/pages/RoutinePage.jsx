@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronRight, ChevronLeft, Check, AlertTriangle, RotateCcw, X } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:8000' : '')
 const ROUTINE_TIMEOUT_MS = 4500
 
 async function fetchRoutineApi(url, options = {}, timeoutMs = ROUTINE_TIMEOUT_MS) {

@@ -4,6 +4,26 @@
   <strong>Link</strong> : <a href="https://sk-camp.cloud">https://sk-camp.cloud</a>
 </p>
 
+## Frontend Demo 배포
+
+이 저장소는 Netlify에서 React/Vite Frontend 데모를 무료로 배포할 수 있도록 `netlify.toml`을 포함합니다. Backend URL을 설정하지 않은 배포본은 저장소의 운동 대체 데이터와 오프라인 상담 응답을 사용합니다.
+
+```bash
+npm --prefix frontend ci
+npm --prefix frontend run build
+```
+
+Netlify에서 저장소를 선택하면 루트의 `netlify.toml`에 설정된 Build command와 Publish directory가 자동 적용됩니다. 추후 Django API를 배포한 뒤 Netlify 환경변수 `VITE_API_URL`에 HTTPS Backend URL을 설정하면 실제 인증·저장·RAG 기능을 연결할 수 있습니다.
+
+Frontend 데모 범위:
+
+- 메인 서비스 소개
+- 운동 라이브러리 검색·필터·상세 화면
+- 루틴 설문과 구성 화면
+- Backend 미연결 시 오프라인 상담 응답
+
+회원가입·로그인, 루틴 DB 저장, 실제 RAG/SSE 응답은 Backend 배포 연결 후 활성화됩니다.
+
 ---
 
 ## 프로젝트 소개

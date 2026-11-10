@@ -6,7 +6,7 @@ import BrandIcon from '../components/BrandIcon'
 import { getOrCreateDeviceUuid } from '../utils/deviceUuid'
 import { getMe } from '../api/auth'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:8000' : '')
 
 function formatDate(iso) {
   const d = new Date(iso), now = new Date()
